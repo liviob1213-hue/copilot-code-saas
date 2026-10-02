@@ -76,7 +76,8 @@ export default {
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-        display: ["Archivo", "Inter", "ui-sans-serif", "system-ui", "sans-serif"]
+        display: ["Archivo", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        serif: ["Instrument Serif", "Georgia", "ui-serif", "serif"]
       }
     }
   },
@@ -99,7 +100,7 @@ export default {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
     <title>App</title>
   </head>
   <body>
@@ -163,6 +164,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   0%, 100% { transform: translate(0, 0) scale(1); }
   33% { transform: translate(5%, -6%) scale(1.15); }
   66% { transform: translate(-5%, 4%) scale(0.9); }
+}
+@keyframes fx-radar {
+  0%, 100% { transform: scale(1); opacity: .10; }
+  50% { transform: scale(1.06); opacity: .22; }
 }
 @keyframes fx-shine {
   0% { background-position: 200% center; }
@@ -632,6 +637,22 @@ export default function StatCounter({ to = 100, prefix = "", suffix = "", durati
     </div>
   );
 }
+`,
+
+  "src/components/fx/radar-rings.jsx": `import React from "react";
+
+// Aneis concentricos pulsando (ambiente cinematografico de fundo). Fica ATRAS do
+// conteudo: use dentro de uma secao "relative overflow-hidden".
+export default function RadarRings({ className = "", color = "var(--primary)" }) {
+  const rings = [0, 1, 2, 3, 4];
+  return (
+    <div className={"pointer-events-none absolute inset-0 overflow-hidden grid place-items-center " + className} aria-hidden="true">
+      {rings.map((i) => (
+        <span key={i} style={{ position: "absolute", width: (16 + i * 15) + "vmax", height: (16 + i * 15) + "vmax", borderRadius: "50%", border: "1px solid " + color, opacity: 0.12, animation: "fx-radar 7s ease-in-out infinite", animationDelay: (i * 0.55) + "s" }} />
+      ))}
+    </div>
+  );
+}
 `
 };
 
@@ -666,7 +687,8 @@ const PROTEGIDOS = [
   "src/components/fx/dashboard-mock.jsx",
   "src/components/fx/announcement-bar.jsx",
   "src/components/fx/stat-counter.jsx",
-  "src/components/fx/product-card.jsx"
+  "src/components/fx/product-card.jsx",
+  "src/components/fx/radar-rings.jsx"
 ];
 
 /**
