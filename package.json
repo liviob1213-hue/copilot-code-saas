@@ -1,0 +1,21 @@
+{
+  "name": "copilot-code-saas",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Versao web (SaaS) do Copilot Code — criar e editar projetos. App standalone (core proprio em src/core).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sync-core": "node scripts/sync-core.mjs"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.2",
+    "vite": "^5.4.9"
+  }
+}
