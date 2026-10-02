@@ -18,7 +18,8 @@ export default function App({ oauthResult, oauthError }) {
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [statusText, setStatusText] = useState("");
-  const [sideOpen, setSideOpen] = useState(true);
+  const [sideOpen, setSideOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 820 : true));
+  const [mobileView, setMobileView] = useState("chat");   // mobile: "chat" | "preview"
   const [repo, setRepo] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [viewport, setViewport] = useState("desktop");
@@ -284,6 +285,7 @@ export default function App({ oauthResult, oauthError }) {
         onOpenProject={openProject}
         onCollapse={() => setSideOpen(false)}
       />}
+      {sideOpen && <div className="side-scrim" onClick={() => setSideOpen(false)} />}
 
       <div className="content">
         {!sideOpen && <button className="side-reopen" onClick={() => setSideOpen(true)} title="Mostrar menu">☰</button>}
@@ -295,7 +297,11 @@ export default function App({ oauthResult, oauthError }) {
           </div>
         ) : (
           <div className="workspace">
-            <div className="chat-col">
+            <div className="m-tabs">
+              <button className={"m-tab" + (mobileView === "chat" ? " on" : "")} onClick={() => setMobileView("chat")}>Chat</button>
+              <button className={"m-tab" + (mobileView === "preview" ? " on" : "")} onClick={() => setMobileView("preview")}>Preview</button>
+            </div>
+            <div className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}>
               <div className="chat-messages" ref={msgRef}>
                 {messages.map((m, i) => m.role === "run"
                   ? <RunCard key={i} steps={m.steps} done={m.done} />
@@ -309,7 +315,7 @@ export default function App({ oauthResult, oauthError }) {
               )}
               {composer}
             </div>
-            <div className="preview-col">
+            <div className={"preview-col" + (mobileView === "chat" ? " m-off" : "")}>
               <div className="preview-bar">
                 <div className="vp-toggle">
                   <button className={"vp" + (viewport === "desktop" ? " on" : "")} onClick={() => setViewport("desktop")} title="Desktop"><IconDesktop /></button>

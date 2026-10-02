@@ -197,8 +197,32 @@ input.text.mini { width: 110px; padding: 6px 8px; font-size: 12px; }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--edge-hi); color: var(--ink); padding: 10px 16px; border-radius: 10px; z-index: 50; box-shadow: var(--shadow); max-width: 90vw; }
 .toast.err { border-color: var(--blood); }
 
-@media (max-width: 860px) {
-  .sidebar { display: none; }
+/* --- mobile: abas (chat/preview) e scrim da sidebar — escondidos no desktop --- */
+.m-tabs { display: none; }
+.side-scrim { display: none; }
+
+@media (max-width: 820px) {
+  /* Sidebar vira gaveta sobreposta (abre pelo botão ☰) */
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; z-index: 60; width: 82vw; max-width: 300px; box-shadow: var(--shadow); }
+  .side-scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 59; }
+  .side-reopen { display: grid; place-items: center; }
+
+  /* Workspace: uma coluna só, chat e preview viram abas (cada um em tela cheia) */
   .workspace { flex-direction: column; }
-  .chat-col { width: 100%; min-width: 0; border-right: 0; border-bottom: 1px solid var(--edge); max-height: 58%; }
+  .m-tabs { display: flex; gap: 6px; padding: 8px 10px 8px 54px; border-bottom: 1px solid var(--edge); background: var(--panel); }
+  .m-tab { flex: 1; padding: 9px; border: 1px solid var(--edge); background: var(--panel-2); color: var(--ink-dim); border-radius: 9px; font-weight: 600; font-size: 13px; }
+  .m-tab.on { background: var(--blood); border-color: var(--blood); color: #fff; }
+  .chat-col, .preview-col { width: 100%; min-width: 0; border-right: 0; min-height: 0; flex: 1; }
+  .chat-col.m-off, .preview-col.m-off { display: none; }
+
+  /* Home: respiro pro ☰ e composer ocupa a largura */
+  .home { padding: 60px 16px 24px; }
+  .composer.big { max-width: 100%; }
+
+  /* Drawers (Conexões/Histórico/Projetos) em tela cheia */
+  .drawer { width: 100%; max-width: 100%; }
+
+  /* Preview "mobile" nao estoura a tela pequena */
+  .preview-stage.mobile { padding: 0; }
+  .preview-stage.mobile .preview-frame { width: 100%; height: 100%; max-height: 100%; border-radius: 0; border: 0; box-shadow: none; }
 }
