@@ -383,6 +383,16 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
     if (/already exists|name already exists/i.test(err.message)) {
       throw new Error(`Ja existe um repositorio chamado "${nomeLimpo}" na sua conta. Escolha outro nome.`);
     }
+    // 422/403 ao criar repo quase sempre e o token nao poder CRIAR repositorios.
+    // Tokens "fine-grained" expiram E nao criam repos novos (so acessam os que ja
+    // existem). Precisa ser OAuth (Entrar com GitHub) ou PAT CLASSICO com escopo "repo".
+    if (/\b(422|403)\b/.test(err.message)) {
+      throw new Error(
+        "Nao consegui criar o repositorio no GitHub. A causa mais comum: seu token nao pode CRIAR repositorios. " +
+        "Tokens fine-grained (github_pat_...) NAO criam repos novos e ainda expiram. " +
+        "Em Conexoes, reconecte o GitHub com \"Entrar com GitHub\" (OAuth) OU com um token CLASSICO com escopo \"repo\". (" + err.message + ")"
+      );
+    }
     throw err;
   }
 

@@ -172,7 +172,7 @@ export default function App({ oauthResult, oauthError }) {
     try {
       const r = repo
         ? await editarProjeto({ repo, userMessage: userText, providerId, sessionId: sessionRef.current, embedImages: images }, onEvent)
-        : await criarProjeto({ userMessage: userText, kind, providerId, sessionId: sessionRef.current, embedImages: images }, onEvent);
+        : await criarProjeto({ userMessage: userText, kind: detectarTipo(userText), providerId, sessionId: sessionRef.current, embedImages: images }, onEvent);
       endRun();
       setRepo(r.repo);
       if (r.url) setPreviewUrl(r.url);
@@ -417,12 +417,6 @@ function Composer({ big, repo, busy, input, setInput, kind, setKind, onSend, onB
           </>)}
         </div>
         <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} />
-        {!repo && (
-          <select className="chip" value={kind} onChange={e => setKind(e.target.value)} disabled={busy} title="Tipo">
-            <option value="app">App</option>
-            <option value="site">Site</option>
-          </select>
-        )}
         <button className="chip" onClick={onBlindar} disabled={busy || !repo} title="Blindar contra vazamento de dados">🛡️</button>
         <div className="spacer" />
         <ProjectPicker projects={projects} onLoad={onLoadProjects} onOpen={onOpenProject} onNew={onNew} />
@@ -488,6 +482,17 @@ function fileToDataUrl(file) {
 }
 
 // Detecta uma chave colada no chat (por enquanto, Google Maps: começa com AIza).
+// Regra forte: app x site, detectado pelo que a pessoa pede (sem seletor).
+// Prioridade: (1) página de marketing/portfólio = SITE; (2) sistema/app = APP;
+// (3) "site/website" = SITE; (4) padrão = APP (a maioria dos pedidos é sistema).
+function detectarTipo(texto) {
+  const t = String(texto || "").toLowerCase();
+  if (/\b(landing|landing\s*page|p[áa]gina\s+de\s+vendas|p[áa]gina\s+de\s+captura|one[\s-]?page|portf[óo]lio|institucional|p[áa]gina\s+de\s+lan[çc]amento)\b/.test(t)) return "site";
+  if (/\b(app|aplicativo|aplica[çc][ãa]o|micro[\s-]?saas|saas|sistema|plataforma|dashboard|painel|crm|erp|[áa]rea\s+de\s+membros|membros|curso|agendamento|delivery|card[áa]pio|e-?commerce|loja|estoque|financeiro|gest[ãa]o|controle|agenda)\b/.test(t)) return "app";
+  if (/\b(site|website|p[áa]gina\s+web)\b/.test(t)) return "site";
+  return "app";
+}
+
 function detectarSegredo(texto) {
   const gm = String(texto).match(/\bAIza[0-9A-Za-z_\-]{20,}\b/);
   if (gm) return { name: "GOOGLE_MAPS_API_KEY", value: gm[0], label: "Google Maps", envFront: "VITE_GOOGLE_MAPS_API_KEY", kind: "gmaps" };
