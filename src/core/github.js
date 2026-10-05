@@ -39,8 +39,18 @@ async function api(path, options = {}) {
   });
   const text = await res.text();
   if (!res.ok) {
+    // O MOTIVO REAL costuma estar no array "errors", nao no "message" generico.
     let detail = text.slice(0, 400);
-    try { detail = JSON.parse(text).message || detail; } catch {}
+    try {
+      const j = JSON.parse(text);
+      detail = j.message || detail;
+      if (Array.isArray(j.errors) && j.errors.length) {
+        const extra = j.errors
+          .map(e => e.message || [e.field, e.code].filter(Boolean).join(" "))
+          .filter(Boolean).join("; ");
+        if (extra) detail += " — " + extra;
+      }
+    } catch {}
 
     // 401 tem uma causa so: o token nao vale mais. Marcamos o erro para a
     // interface poder oferecer a reconexao em vez de so mostrar o codigo.
@@ -51,12 +61,18 @@ async function api(path, options = {}) {
       err.githubAuth = true;
       throw err;
     }
+    // Limite SECUNDARIO/abuso: o GitHub bloqueia por minutos quem cria muitos
+    // repositorios (ou faz muitas chamadas) em pouco tempo. Acontece depois de
+    // criar varios projetos de teste em sequencia.
+    if ((res.status === 403 || res.status === 429) && /secondary rate|abuse|too many/i.test(detail + text)) {
+      throw new Error("O GitHub bloqueou temporariamente por EXCESSO de acoes em pouco tempo (limite secundario/abuso) — comum depois de criar varios projetos seguidos. Espere ~5 a 15 minutos e tente de novo. Apagar repositorios de teste antigos tambem ajuda.");
+    }
     if (res.status === 403 && /rate limit/i.test(detail)) {
       throw new Error("Limite de requisicoes do GitHub atingido. Espere alguns minutos.");
     }
     if (res.status === 403) {
       throw new Error(
-        `GitHub 403: sem permissao. Confira se o token tem "Contents: Read and write" neste repositorio. (${detail})`
+        `GitHub 403: sem permissao. Confira se o token tem escopo "repo" (criar repositorio) ou "Contents: Read and write". (${detail})`
       );
     }
     throw new Error(`GitHub ${res.status}: ${detail}`);
@@ -383,14 +399,17 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
     if (/already exists|name already exists/i.test(err.message)) {
       throw new Error(`Ja existe um repositorio chamado "${nomeLimpo}" na sua conta. Escolha outro nome.`);
     }
-    // 422/403 ao criar repo quase sempre e o token nao poder CRIAR repositorios.
-    // Tokens "fine-grained" expiram E nao criam repos novos (so acessam os que ja
-    // existem). Precisa ser OAuth (Entrar com GitHub) ou PAT CLASSICO com escopo "repo".
+    // 422/403 ao criar repo. Agora o api() ja revela o motivo REAL (array
+    // "errors" do GitHub), entao lideramos com ele e so adicionamos as causas
+    // mais comuns. Nao afirmamos "fine-grained" como causa unica: o motivo pode
+    // ser escopo do token, limite da conta ou validacao do nome.
     if (/\b(422|403)\b/.test(err.message)) {
       throw new Error(
-        "Nao consegui criar o repositorio no GitHub. A causa mais comum: seu token nao pode CRIAR repositorios. " +
-        "Tokens fine-grained (github_pat_...) NAO criam repos novos e ainda expiram. " +
-        "Em Conexoes, reconecte o GitHub com \"Entrar com GitHub\" (OAuth) OU com um token CLASSICO com escopo \"repo\". (" + err.message + ")"
+        "O GitHub recusou a criacao do repositorio.\nMotivo informado: " + err.message + "\n\n" +
+        "Causas mais comuns:\n" +
+        "1) Token sem permissao para CRIAR repos — tokens fine-grained (github_pat_...) nao criam repos novos. Reconecte em Conexoes com \"Entrar com GitHub\" (OAuth) ou um PAT CLASSICO com escopo \"repo\".\n" +
+        "2) Excesso de criacoes em pouco tempo (limite secundario) — espere alguns minutos.\n" +
+        "3) Nome invalido ou ja usado — tente outro nome."
       );
     }
     throw err;
