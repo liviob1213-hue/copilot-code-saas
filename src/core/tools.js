@@ -156,6 +156,46 @@ function safeRepoPath(rawPath) {
   return path;
 }
 
+// Guarda-rede contra a causa #1 de TELA PRETA: um componente/icone usado no JSX
+// sem o import correspondente (ex.: <ChevronDown/> sem "import {ChevronDown} from
+// 'lucide-react'"). Nao bloqueia o salvamento — so devolve um aviso pro agente
+// se corrigir antes de commitar. Conservador: so acusa o que tem CERTEZA que nao
+// foi importado nem definido no proprio arquivo.
+function checarReferencias(path, content) {
+  if (!/\.(jsx|tsx)$/i.test(path)) return "";
+  const txt = String(content);
+
+  // Nomes que o arquivo conhece: imports (default, namespace e nomeados) +
+  // coisas definidas localmente (funcao, const/let/var, class).
+  const conhecidos = new Set(["React", "Fragment", "Suspense", "StrictMode"]);
+  for (const m of txt.matchAll(/import\s+([\s\S]*?)\s+from\s+['"][^'"]+['"]/g)) {
+    const clausula = m[1];
+    // default e namespace: import Foo, * as Bar
+    for (const d of clausula.matchAll(/(?:^|,)\s*(?:\*\s+as\s+)?([A-Za-z_$][\w$]*)\s*(?=,|$|\{)/g)) {
+      if (d[1]) conhecidos.add(d[1]);
+    }
+    // nomeados: { A, B as C }
+    const bloco = clausula.match(/\{([\s\S]*?)\}/);
+    if (bloco) {
+      for (const n of bloco[1].split(",")) {
+        const nome = n.split(/\s+as\s+/).pop().trim();
+        if (nome) conhecidos.add(nome);
+      }
+    }
+  }
+  for (const m of txt.matchAll(/\b(?:function|class)\s+([A-Z][\w$]*)/g)) conhecidos.add(m[1]);
+  for (const m of txt.matchAll(/\b(?:const|let|var)\s+([A-Z][\w$]*)\s*=/g)) conhecidos.add(m[1]);
+
+  // Tags em CamelCase usadas no JSX (<Foo ...>), ignorando namespaced (<Motion.div>).
+  const usados = new Set();
+  for (const m of txt.matchAll(/<([A-Z][A-Za-z0-9]*)(?=[\s/>])/g)) usados.add(m[1]);
+
+  const faltando = [...usados].filter(n => !conhecidos.has(n));
+  if (!faltando.length) return "";
+  return `ATENCAO: estes nomes aparecem no JSX mas NAO tem import nem definicao neste arquivo: ${faltando.join(", ")}. ` +
+    `Sem o import vira "X is not defined" e a tela fica PRETA. Adicione o import (icones: from "lucide-react"; componentes fx/ui: do caminho relativo) e grave de novo.`;
+}
+
 export async function runTool(ws, name, args, emit = () => {}) {
   const { owner, name: repo, branch } = ws.repo;
 
@@ -234,11 +274,56 @@ export async function runTool(ws, name, args, emit = () => {}) {
     }
 
     case "search_code": {
-      const hits = await gh.searchCode(owner, repo, args.query);
-      emit({ type: "tool", name, detail: `"${args.query}": ${hits.length} arquivos` });
-      return hits.length
-        ? hits.map(h => h.path).join("\n")
-        : "Nenhum arquivo contem esse termo.";
+      // Busca LOCAL nos arquivos do projeto. Antes isso batia no /search/code do
+      // GitHub, que (1) da erro de CORS no navegador e (2) nao indexa repo recem
+      // criado — entao sempre voltava vazio bem na hora de localizar um import que
+      // falta. Agora lemos a arvore e procuramos o termo no conteudo de verdade.
+      const termo = String(args.query || "").trim();
+      if (!termo) return "Informe um termo para procurar.";
+      const alvo = termo.toLowerCase();
+
+      if (!ws.treeCache) ws.treeCache = await gh.getTree(owner, repo, branch);
+      const candidatos = ws.treeCache.files
+        .filter(f => !AGENT_LIMITS.ignorar.test(f.path) && !AGENT_LIMITS.gerado?.test(f.path));
+
+      // Conteudo que ja temos em maos sai de graca (preparado + cache de leitura).
+      const conteudoDe = async (path) => {
+        if (ws.staged.has(path)) {
+          const s = ws.staged.get(path);
+          return s.delete ? null : s.content;
+        }
+        if (ws.fileCache.has(path)) return ws.fileCache.get(path);
+        try {
+          const file = await gh.readFile(owner, repo, branch, path);
+          if (file.content.length <= AGENT_LIMITS.maxFileBytes) ws.fileCache.set(path, file.content);
+          return file.content;
+        } catch { return null; }
+      };
+
+      const achados = [];
+      let lidos = 0;
+      const MAX_LER = 80; // teto de arquivos buscados por chamada (projetos gerados sao pequenos)
+      for (const f of candidatos) {
+        // Casa pelo nome do arquivo tambem (ex.: procurar "Index" ou "radar-rings").
+        const nome = f.path.split("/").pop().toLowerCase();
+        if (nome.includes(alvo)) { achados.push({ path: f.path, linha: "(no nome do arquivo)" }); continue; }
+        if (lidos >= MAX_LER) continue;
+        const txt = await conteudoDe(f.path);
+        lidos++;
+        if (!txt) continue;
+        const idx = txt.toLowerCase().indexOf(alvo);
+        if (idx !== -1) {
+          const ini = txt.lastIndexOf("\n", idx) + 1;
+          let fim = txt.indexOf("\n", idx); if (fim === -1) fim = txt.length;
+          achados.push({ path: f.path, linha: txt.slice(ini, fim).trim().slice(0, 160) });
+        }
+        if (achados.length >= 30) break;
+      }
+
+      emit({ type: "tool", name, detail: `"${termo}": ${achados.length} arquivos` });
+      return achados.length
+        ? achados.map(h => `${h.path}: ${h.linha}`).join("\n")
+        : `Nenhum arquivo contem "${termo}". Se for um componente/icone, provavelmente falta o import — confira os imports do arquivo que usa o termo.`;
     }
 
     case "write_file": {
@@ -252,7 +337,9 @@ export async function runTool(ws, name, args, emit = () => {}) {
       }
       ws.staged.set(path, { content: args.content });
       emit({ type: "stage", path, action: "escrever", bytes: args.content.length });
-      return `Preparado: ${path} (${args.content.length} caracteres). Ainda nao foi enviado ao GitHub.`;
+      const aviso = checarReferencias(path, args.content);
+      return `Preparado: ${path} (${args.content.length} caracteres). Ainda nao foi enviado ao GitHub.` +
+        (aviso ? `\n\n${aviso}` : "");
     }
 
     case "delete_file": {
