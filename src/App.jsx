@@ -59,7 +59,7 @@ export default function App({ oauthResult, oauthError }) {
   useEffect(() => { if (msgRef.current) msgRef.current.scrollTop = msgRef.current.scrollHeight; }, [messages]);
 
   function pushMsg(role, text) { setMessages(m => [...m, { role, text }]); }
-  function startRun() { setStatusText("Preparando…"); setMessages(m => [...m, { role: "run", steps: [], done: false }]); }
+  function startRun() { setStatusText("Preparando…"); setMessages(m => [...m, { role: "run", steps: [], done: false, startedAt: Date.now() }]); }
   function addStep(text) {
     setMessages(m => {
       const c = [...m];
@@ -67,7 +67,7 @@ export default function App({ oauthResult, oauthError }) {
       return c;
     });
   }
-  function endRun() { setMessages(m => m.map(x => (x.role === "run" && !x.done) ? { ...x, done: true } : x)); }
+  function endRun() { setMessages(m => m.map(x => (x.role === "run" && !x.done) ? { ...x, done: true, endedAt: Date.now() } : x)); }
 
   function onEvent(ev) {
     const t = eventoTexto(ev);
@@ -304,7 +304,7 @@ export default function App({ oauthResult, oauthError }) {
             <div className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}>
               <div className="chat-messages" ref={msgRef}>
                 {messages.map((m, i) => m.role === "run"
-                  ? <RunCard key={i} steps={m.steps} done={m.done} />
+                  ? <RunCard key={i} steps={m.steps} done={m.done} startedAt={m.startedAt} endedAt={m.endedAt} />
                   : <Bubble key={i} role={m.role} text={m.text} />)}
               </div>
               {busy && (
@@ -572,21 +572,48 @@ function Bubble({ role, text }) {
   return (<div className={"bubble " + role}><div className="bubble-head">{role === "user" ? "você" : "copilot"}</div><div className="bubble-body">{text}</div></div>);
 }
 
-function RunCard({ steps, done }) {
+function fmtDur(ms) {
+  if (!ms || ms < 0) ms = 0;
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m > 0 ? `${m}m ${String(r).padStart(2, "0")}s` : `${r}s`;
+}
+
+function RunCard({ steps, done, startedAt, endedAt }) {
   const [open, setOpen] = useState(true);   // aberto enquanto trabalha (ensina), recolhe ao terminar
+  const [agora, setAgora] = useState(Date.now());
   useEffect(() => { if (done) setOpen(false); }, [done]);
+  // cronometro ao vivo: so corre enquanto trabalha
+  useEffect(() => {
+    if (done) return;
+    const t = setInterval(() => setAgora(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [done]);
+
+  const base = startedAt || agora;
+  const decorrido = done ? ((endedAt || base) - base) : (agora - base);
   const last = steps[steps.length - 1] || "Começando…";
+
   return (
-    <div className="run-card">
+    <div className={"run-card" + (done ? " done" : "")}>
       <div className="run-head">
         {done ? <span className="run-ok">✓</span> : <span className="spin" />}
-        <span className="run-title">{done ? "Concluído — veja o resumo abaixo" : last}</span>
+        <span className="run-title">{done ? "Concluído" : last}</span>
+        <span className="run-time" title={done ? "Tempo total" : "Tempo decorrido"}>{fmtDur(decorrido)}</span>
         <button className="run-toggle" onClick={() => setOpen(o => !o)}>{open ? "Ocultar" : "Detalhes"}</button>
       </div>
+      {!open && (
+        <div className="run-sub">{done ? `${steps.length} etapas · veja o resumo abaixo` : `${steps.length} etapa${steps.length === 1 ? "" : "s"} até agora`}</div>
+      )}
       {open && (
         <div className="run-steps">
           {steps.length === 0 ? <div className="run-step">preparando…</div>
-            : steps.map((s, i) => <div key={i} className="run-step"><span className="run-dot">•</span> {s}</div>)}
+            : steps.map((s, i) => (
+                <div key={i} className={"run-step" + (!done && i === steps.length - 1 ? " cur" : "")}>
+                  <span className="run-dot">{(!done && i === steps.length - 1) ? "▸" : "•"}</span> {s}
+                </div>
+              ))}
         </div>
       )}
     </div>
