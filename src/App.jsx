@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import AcidSquares from "./AcidSquares.jsx";
 import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, BLINDAR_PROMPT } from "./core/runtime.js";
@@ -26,6 +27,10 @@ export default function App({ oauthResult, oauthError }) {
   const [activeModel, setActiveModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [statusText, setStatusText] = useState("");
+  // Cronômetro do trabalho da IA: começa quando busy vira true (também é exibido
+  // na working-bar durante a geração, pra pessoa ver quanto tempo está levando).
+  const [runStartedAt, setRunStartedAt] = useState(null);
+  const [runAgora, setRunAgora] = useState(Date.now());
   const [sideOpen, setSideOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 820 : true));
   const [mobileView, setMobileView] = useState("chat");   // mobile: "chat" | "preview"
   const [repo, setRepo] = useState(null);
@@ -44,6 +49,7 @@ export default function App({ oauthResult, oauthError }) {
   const sessionRef = useRef(null);
   const msgRef = useRef(null);
   const inputRef = useRef(null);
+  const flowRef = useRef("ia");   // "ia" = geração/edição por IA · "sistema" = deploy/reconexão sem IA
   async function loadModelsCache() { setModelsCache((await store.get("modelsCache")) || {}); }
 
   function showToast(text, err = false) { setToast({ text, err }); setTimeout(() => setToast(null), 4200); }
@@ -67,8 +73,53 @@ export default function App({ oauthResult, oauthError }) {
   }, []);
   useEffect(() => { if (msgRef.current) msgRef.current.scrollTop = msgRef.current.scrollHeight; }, [messages]);
 
+  // Tick do cronômetro global de execução (só corre enquanto busy).
+  useEffect(() => {
+    if (!busy) return;
+    setRunAgora(Date.now());
+    const t = setInterval(() => setRunAgora(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [busy]);
+
+  // Batimento de progresso: a geração pode demorar minutos sem emitir evento
+  // (a IA “Pensando…” e o agente só volta a falar no deploy). Sem isso, a pessoa
+  // acha que bugou. Aqui traduzimos a espera em passos claros, com o tempo —
+  // com frases próprias para fluxo de IA e para fluxo só de sistema/deploy.
+  useEffect(() => {
+    if (!busy) return;
+    const t0 = runStartedAt || Date.now();
+    const batidas = flowRef.current === "ia" ? [
+      { s: 0,   texto: "Enviando seu pedido para a IA…" },
+      { s: 8,   texto: "A IA está entendendo o pedido e desenhando as telas…" },
+      { s: 20,  texto: "A IA está escrevendo o código do seu projeto…" },
+      { s: 40,  texto: "A IA ainda está escrevendo o código — projetos maiores levam mais tempo…" },
+      { s: 70,  texto: "Quase lá — ajustando detalhes e preparando o commit…" },
+      { s: 110, texto: "Finalizando: salvando no GitHub e preparando a publicação…" }
+    ] : [
+      { s: 0,   texto: "Trabalhando no seu pedido…" },
+      { s: 15,  texto: "Aplicando as mudanças no projeto…" },
+      { s: 45,  texto: "Preparando a publicação…" },
+      { s: 90,  texto: "Quase pronto — aguardando o preview atualizar…" }
+    ];
+    let enviadas = 0;
+    function tick() {
+      const seg = Math.floor((Date.now() - t0) / 1000);
+      while (enviadas < batidas.length && seg >= batidas[enviadas].s) {
+        const b = batidas[enviadas++];
+        const passo = `${b.texto} (${fmtDur(seg * 1000)} de trabalho)`;
+        addStep(passo);
+        setStatusText(passo);
+      }
+    }
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+    // addStep/setStatusText são estáveis (setState); fmtDur é função de módulo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
+
   function pushMsg(role, text) { setMessages(m => [...m, { role, text }]); }
-  function startRun() { setStatusText("Preparando…"); setMessages(m => [...m, { role: "run", steps: [], done: false, startedAt: Date.now() }]); }
+  function startRun() { setStatusText("Preparando…"); setRunStartedAt(Date.now()); setMessages(m => [...m, { role: "run", steps: [], done: false, startedAt: Date.now() }]); }
   function addStep(text) {
     setMessages(m => {
       const c = [...m];
@@ -96,7 +147,7 @@ export default function App({ oauthResult, oauthError }) {
       if (ehMapa && !repo) { showToast("Abra um projeto primeiro (o mapa usa a chave no app).", true); return; }
       if (!ehMapa && !sb.projectRef) { showToast("Escolha um projeto Supabase pra guardar a chave (Conexões).", true); setConnOpen(true); return; }
 
-      setView("workspace"); setBusy(true);
+      setView("workspace"); flowRef.current = "sistema"; setBusy(true);
       pushMsg("user", `🔑 (enviei minha chave do ${seg.label})`);
       startRun();
       try {
@@ -160,7 +211,7 @@ export default function App({ oauthResult, oauthError }) {
     if (pedeTabelas) {
       const sb = await store.get("supabase");
       if (!sb.projectRef) { showToast("Escolha um projeto Supabase primeiro (Conexões → Supabase → Projeto).", true); setConnOpen(true); return; }
-      setView("workspace"); setBusy(true);
+      setView("workspace"); flowRef.current = "sistema"; setBusy(true);
       pushMsg("user", userText); startRun();
       if (!sessionRef.current) sessionRef.current = await history.createSession({ title: userText.slice(0, 48), kind });
       await history.appendMessage(sessionRef.current, { role: "user", text: userText });
@@ -173,6 +224,7 @@ export default function App({ oauthResult, oauthError }) {
     }
 
     setView("workspace");
+    flowRef.current = "ia";
     setBusy(true);
     pushMsg("user", hardening ? "🛡️ Blindar o projeto" : userText);
     startRun();
@@ -218,7 +270,7 @@ export default function App({ oauthResult, oauthError }) {
   function handleBlindar() { if (!repo) return showToast("Crie ou abra um projeto antes de blindar.", true); run(BLINDAR_PROMPT, { hardening: true }); }
   async function desfazer() {
     if (!repo || busy) return showToast(repo ? "Aguarde terminar." : "Nenhum projeto aberto.", true);
-    setView("workspace"); setBusy(true);
+    setView("workspace"); flowRef.current = "sistema"; setBusy(true);
     pushMsg("user", "↩ Desfazer a última alteração"); startRun();
     try {
       const r = await desfazerUltimo(repo, onEvent);
@@ -264,7 +316,7 @@ export default function App({ oauthResult, oauthError }) {
   async function aoLigarSupabase() {
     refreshConn();
     if (!repo || busy) return;
-    setView("workspace"); setBusy(true); startRun();
+    setView("workspace"); flowRef.current = "sistema"; setBusy(true); startRun();
     try {
       const r = await reconectarSupabase(repo, onEvent);
       endRun();
@@ -401,6 +453,7 @@ export default function App({ oauthResult, oauthError }) {
                 <div className="working-bar">
                   <span className="spin" />
                   <span className="working-text">{statusText || "Trabalhando…"}</span>
+                  <span className="working-time" title="Tempo decorrido">{fmtDur(Math.max(0, (runAgora - (runStartedAt || runAgora))))}</span>
                 </div>
               )}
               {composer}
@@ -449,12 +502,42 @@ export default function App({ oauthResult, oauthError }) {
 
 /* ---------------- Fundo ambiente ---------------- */
 function AuroraBackdrop() {
+  // Quem pede menos movimento no sistema não vê o efeito (o resto do fundo continua).
+  const semMovimento = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   return (
     <div className="aurora" aria-hidden="true">
       <span className="aurora-orb o1" />
       <span className="aurora-orb o2" />
       <span className="aurora-orb o3" />
       <div className="aurora-grid" />
+      {!semMovimento && (
+        <AcidSquares
+          className="aurora-acid"
+          // Sutil por cima da grade: luz fraca, movimento lento, quase estático.
+          color1="#e11d48"           // carmim (fundo do corredor)
+          color2="#fb7185"           // rosa (faces que brilham)
+          color3="#ffe4e6"           // quase branco quente (arestas mais quentes)
+          detail="low"               // 20 passos de raymarch (leve)
+          speed={0.25}               // deriva bem lenta
+          waveDepth={0.4}            // respiração curta
+          zoom={1.6}                 // mais afastado = menos presença
+          density={7}                // caixas mais espaçadas
+          glow={0.35}                // brilho bem contido
+          exposure={3600}            // exposição alta = imagem discreta
+          spread={0.3}
+          stepSize={0.002}
+          colorShift={0.1}           // cintilar quase imperceptível
+          contrast={1}
+          brightness={0.9}
+          opacity={0.4}              // efeito por inteiro bem transparente
+          mouseInteraction
+          mouseStrength={0.06}       // mouse afunda a grade de leve
+          mouseRadius={0.3}
+          blur={0.25}                // leve véu para não competir com a UI
+          grain
+          grainIntensity={0.03}
+        />
+      )}
     </div>
   );
 }
