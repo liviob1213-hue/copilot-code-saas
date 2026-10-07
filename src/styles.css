@@ -407,6 +407,9 @@ input, textarea, select { font-family: inherit; }
   background: linear-gradient(135deg, rgba(239, 68, 68, .2), rgba(249, 115, 22, .1));
   border-color: rgba(239, 68, 68, .32);
 }
+.bubble-imgs { display: flex; flex-wrap: wrap; gap: 6px; }
+.bubble.user .bubble-imgs { justify-content: flex-end; }
+.bubble-imgs img { max-width: 160px; max-height: 160px; border-radius: 10px; border: 1px solid var(--edge-hi); object-fit: cover; box-shadow: var(--inset-hi); }
 .note { font-size: 13px; border-radius: var(--r-sm); padding: 10px 13px; border: 1px solid var(--edge); background: var(--glass); animation: rise .3s var(--ease) both; }
 .note.error { color: #fecdd3; background: rgba(251, 113, 133, .1); border-color: rgba(251, 113, 133, .35); }
 .note.system { color: #fde68a; background: rgba(251, 191, 36, .08); border-color: rgba(251, 191, 36, .3); }

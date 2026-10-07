@@ -75,16 +75,19 @@ export const PROVIDER_CATALOG = [
   {
     id: "deepseek",
     contextBudget: 120000,
-    vision: true,
+    // DeepSeek NAO tem visao confiavel: o modelo de visao (v4-flash-vision-exp)
+    // TRAVA/da timeout. Deixando vision:false, um print roteia automaticamente
+    // para um provedor de visao que funciona (Gemini/NVIDIA/OpenRouter/Claude/
+    // OpenAI). DeepSeek segue excelente como modelo de CODIGO.
+    vision: false,
     label: "DeepSeek",
     kind: "openai",
     endpoint: "https://api.deepseek.com/chat/completions",
     listEndpoint: "https://api.deepseek.com/models",
     secretKey: "DEEPSEEK_API_KEY",
     defaultModel: "deepseek-chat",
-    models: ["deepseek-chat", "deepseek-reasoner", "deepseek-v4-flash-vision-exp"],
-    visionModel: "deepseek-v4-flash-vision-exp",
-    note: "Forte em codigo. Para imagem, use deepseek-v4-flash-vision-exp. Precisa de credito."
+    models: ["deepseek-chat", "deepseek-reasoner"],
+    note: "Forte em codigo. Para imagem, ligue tambem Gemini, NVIDIA, OpenRouter ou Claude. Precisa de credito."
   },
   {
     id: "mistral",

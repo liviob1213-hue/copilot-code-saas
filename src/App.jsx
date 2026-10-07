@@ -118,7 +118,7 @@ export default function App({ oauthResult, oauthError }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
-  function pushMsg(role, text) { setMessages(m => [...m, { role, text }]); }
+  function pushMsg(role, text, images) { setMessages(m => [...m, { role, text, images }]); }
   function startRun() { setStatusText("Preparando…"); setRunStartedAt(Date.now()); setMessages(m => [...m, { role: "run", steps: [], done: false, startedAt: Date.now() }]); }
   function addStep(text) {
     setMessages(m => {
@@ -226,7 +226,7 @@ export default function App({ oauthResult, oauthError }) {
     setView("workspace");
     flowRef.current = "ia";
     setBusy(true);
-    pushMsg("user", hardening ? "🛡️ Blindar o projeto" : userText);
+    pushMsg("user", hardening ? "🛡️ Blindar o projeto" : userText, images.length ? images : undefined);
     startRun();
     if (!sessionRef.current) sessionRef.current = await history.createSession({ title: userText.slice(0, 48), kind });
     await history.appendMessage(sessionRef.current, { role: "user", text: hardening ? "Blindar o projeto" : userText });
@@ -446,7 +446,7 @@ export default function App({ oauthResult, oauthError }) {
                 )}
                 {messages.map((m, i) => m.role === "run"
                   ? <RunCard key={i} steps={m.steps} done={m.done} startedAt={m.startedAt} endedAt={m.endedAt} />
-                  : <Bubble key={i} role={m.role} text={m.text} />)}
+                  : <Bubble key={i} role={m.role} text={m.text} images={m.images} />)}
               </div>
 
               {busy && (
@@ -803,7 +803,7 @@ function ProjectPicker({ projects, onLoad, onOpen, onNew }) {
   );
 }
 
-function Bubble({ role, text }) {
+function Bubble({ role, text, images }) {
   if (role === "system" || role === "error") return <div className={"note " + role}>{text}</div>;
   const eu = role === "user";
   return (
@@ -812,7 +812,12 @@ function Bubble({ role, text }) {
         <span className={"avatar" + (eu ? " me" : "")}>{eu ? "VC" : "AI"}</span>
         {eu ? "você" : "copilot code"}
       </div>
-      <div className="bubble-body">{text}</div>
+      {images && images.length > 0 && (
+        <div className="bubble-imgs">
+          {images.map((src, i) => <img key={i} src={src} alt="imagem enviada" />)}
+        </div>
+      )}
+      {text && <div className="bubble-body">{text}</div>}
     </div>
   );
 }
