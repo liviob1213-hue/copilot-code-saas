@@ -887,6 +887,48 @@ function DrawerHead({ icon, titulo, children, onClose }) {
   );
 }
 
+// Miniatura ao vivo da tela inicial do app (estilo v0): carrega a URL publicada
+// num iframe escalado. Monta o iframe so quando o card entra na tela (IntersectionObserver)
+// e mede a largura pra escalar a partir de um "desktop" de 1280px.
+function ProjectThumb({ url }) {
+  const boxRef = useRef(null);
+  const DESIGN_W = 1280, DESIGN_H = 800;
+  const [visible, setVisible] = useState(false);
+  const [scale, setScale] = useState(0.25);
+  const [carregou, setCarregou] = useState(false);
+
+  useEffect(() => {
+    const el = boxRef.current; if (!el) return;
+    const medir = () => { const w = el.clientWidth; if (w) setScale(w / DESIGN_W); };
+    medir();
+    const ro = new ResizeObserver(medir); ro.observe(el);
+    const io = new IntersectionObserver(es => {
+      if (es.some(e => e.isIntersecting)) { setVisible(true); io.disconnect(); }
+    }, { rootMargin: "250px" });
+    io.observe(el);
+    return () => { ro.disconnect(); io.disconnect(); };
+  }, []);
+
+  return (
+    <span className="pc-thumb" ref={boxRef}>
+      {url && visible ? (
+        <iframe
+          className={"pc-frame" + (carregou ? " on" : "")}
+          src={url}
+          title="preview"
+          loading="lazy"
+          scrolling="no"
+          tabIndex={-1}
+          sandbox="allow-scripts allow-same-origin allow-forms"
+          style={{ width: DESIGN_W, height: DESIGN_H, transform: `scale(${scale})` }}
+          onLoad={() => setCarregou(true)}
+        />
+      ) : null}
+      {(!url || !carregou) && <span className="pc-thumb-ph"><IconGrid /></span>}
+    </span>
+  );
+}
+
 function ProjectsDrawer({ projects, onReload, onOpen, onClose }) {
   useEffect(() => { onReload?.(); /* eslint-disable-next-line */ }, []);
   return (
@@ -905,16 +947,23 @@ function ProjectsDrawer({ projects, onReload, onOpen, onClose }) {
                 <div>Nenhum projeto na Vercel ainda — ou o Worker <code>/proxy</code> não está no ar.</div>
               </div>
             )
-            : projects.map((p, i) => (
-              <button key={i} className="proj-card" onClick={() => onOpen(p)}>
-                <span className={"proj-avatar" + CORES_AVATAR[i % 4]}>{iniciais(p.vercelName || p.name)}</span>
-                <span className="pc-text">
-                  <strong>{p.vercelName || p.name}</strong>
-                  <span>{p.url ? p.url.replace(/^https?:\/\//, "") : `${p.owner}/${p.name}`}</span>
-                </span>
-                <IconExternal />
-              </button>
-            ))}
+            : (
+              <div className="proj-grid">
+                {projects.map((p, i) => (
+                  <button key={i} className="proj-card" onClick={() => onOpen(p)}>
+                    <ProjectThumb url={p.url} />
+                    <span className="pc-foot">
+                      <span className={"proj-avatar" + CORES_AVATAR[i % 4]}>{iniciais(p.vercelName || p.name)}</span>
+                      <span className="pc-text">
+                        <strong>{p.vercelName || p.name}</strong>
+                        <span>{p.url ? p.url.replace(/^https?:\/\//, "") : `${p.owner}/${p.name}`}</span>
+                      </span>
+                      <IconExternal />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
       </div>
     </>
