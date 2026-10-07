@@ -112,7 +112,16 @@ export async function handleOAuthRedirect() {
     const data = await res.json().catch(() => ({}));
     if (!data.access_token) throw new Error("Falha ao obter token do GitHub: " + (data.error_description || data.error || "sem token"));
     const perfil = await validateToken(data.access_token);
-    await store.patch("github", { token: data.access_token, login: perfil.login, avatar: perfil.avatar });
+    // GitHub App devolve refresh_token + expires_in (~8h): guardar pra o app
+    // renovar sozinho depois (github.js renovarTokenSePreciso) e a conexao
+    // sobreviver ao fechamento/reabertura.
+    await store.patch("github", {
+      token: data.access_token,
+      login: perfil.login,
+      avatar: perfil.avatar,
+      refreshToken: data.refresh_token || "",
+      tokenExpiresAt: data.expires_in ? Date.now() + (Number(data.expires_in) - 60) * 1000 : 0
+    });
     return { provider: "github", login: perfil.login, semRepo: perfil.semRepo };
   }
 

@@ -18,8 +18,47 @@ function b64decodeUtf8(b64) {
   return new TextDecoder().decode(bytes);
 }
 
+// Tokens de GitHub App (client_id Ov23li...) EXPIRAM (padrao ~8h). O login
+// guarda o refresh_token; aqui renovamos sozinhos, sem o usuario ver erro.
+export async function renovarTokenSePreciso(gh, forcar = false) {
+  if (!gh?.refreshToken || !gh.token) return gh;
+  const faltam = (gh.tokenExpiresAt || 0) - Date.now();
+  // Renova de antemao quando falta menos de 5 min (ou quando forcar, apos 401).
+  if (!forcar && faltam > 5 * 60 * 1000) return gh;
+  try {
+    const res = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        client_id: GITHUB_OAUTH.clientId,
+        grant_type: "refresh_token",
+        refresh_token: gh.refreshToken
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.access_token) {
+      // Refresh token invalido/revogado: limpa pra UI mostrar "desconectado"
+      // em vez de guardar um token morto que so gera 401 depois.
+      if (data.error === "bad_refresh_token" || data.error === "invalid_grant") {
+        await store.patch("github", { token: "", login: "", avatar: "", refreshToken: "", tokenExpiresAt: 0 });
+      }
+      return gh;
+    }
+    const atualizado = {
+      token: data.access_token,
+      refreshToken: data.refresh_token || gh.refreshToken,
+      tokenExpiresAt: data.expires_in ? Date.now() + (Number(data.expires_in) - 60) * 1000 : 0
+    };
+    await store.patch("github", atualizado);
+    return { ...gh, ...atualizado };
+  } catch { /* offline etc: segue com o token atual */ return gh; }
+}
+
 async function token() {
-  const gh = await store.get("github");
+  let gh = await store.get("github");
+  if (gh.token && (gh.refreshToken || gh.tokenExpiresAt)) {
+    gh = await renovarTokenSePreciso(gh);
+  }
   const t = gh.token || (await store.getSecret("GITHUB_TOKEN"));
   if (!t) throw new Error("GitHub nao conectado. Entre com sua conta ou cole um token nas Configuracoes.");
   return t;
@@ -52,9 +91,17 @@ async function api(path, options = {}) {
       }
     } catch {}
 
-    // 401 tem uma causa so: o token nao vale mais. Marcamos o erro para a
-    // interface poder oferecer a reconexao em vez de so mostrar o codigo.
+    // 401 tem uma causa so: o token nao vale mais. Antes de desistir, tentamos
+    // renovar (GitHub App expira ~8h) e repetir a chamada UMA vez. So se o
+    // refresh tambem falhar avisamos o usuario pra reconectar.
     if (res.status === 401) {
+      const gh = await store.get("github");
+      if (gh.refreshToken && !options.__retryAuth) {
+        const renovado = await renovarTokenSePreciso(gh, true);
+        if (renovado.token && renovado.token !== gh.token) {
+          return api(path, { ...options, __retryAuth: true });
+        }
+      }
       const err = new Error(
         "O token do GitHub nao e mais aceito. Ele pode ter expirado ou sido revogado. Clique em sair e conecte de novo."
       );
@@ -265,7 +312,11 @@ export async function pollDeviceLogin(clientId, deviceCode) {
   });
   const data = await res.json();
   if (data.access_token) {
-    await store.patch("github", { token: data.access_token });
+    await store.patch("github", {
+      token: data.access_token,
+      refreshToken: data.refresh_token || "",
+      tokenExpiresAt: data.expires_in ? Date.now() + (Number(data.expires_in) - 60) * 1000 : 0
+    });
     const me = await whoami();
     return { status: "done", ...me };
   }
@@ -324,7 +375,13 @@ export async function startOAuthLogin() {
 
   const token = data.access_token;
   const perfil = await validateToken(token); // valida e pega login/avatar/escopo
-  await store.patch("github", { token, login: perfil.login, avatar: perfil.avatar });
+  await store.patch("github", {
+    token,
+    login: perfil.login,
+    avatar: perfil.avatar,
+    refreshToken: data.refresh_token || "",
+    tokenExpiresAt: data.expires_in ? Date.now() + (Number(data.expires_in) - 60) * 1000 : 0
+  });
   return { login: perfil.login, avatar: perfil.avatar, semRepo: perfil.semRepo };
 }
 
