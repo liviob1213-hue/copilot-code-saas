@@ -555,7 +555,7 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
     <aside className="sidebar">
       <div className="side-head">
         <div className="brand">
-          <span className="brand-mark"><IconLogo /></span>
+          <span className="brand-mark"><img src="/brand/logo.png" alt="logo" className="brand-logo" /></span>
           <span className="brand-text">
             <span className="brand-name">Copilot Code</span>
             <span className="brand-sub">BYOK Studio</span>
