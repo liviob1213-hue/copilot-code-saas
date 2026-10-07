@@ -16,7 +16,7 @@ import * as sbmgmt from "./supabase-mgmt.js";
 import { runAgent } from "./agent.js";
 import { createWorkspace } from "./tools.js";
 import { complete } from "./providers.js";
-import { AGENT_LIMITS } from "./config.js";
+import { AGENT_LIMITS, PROVIDER_CATALOG } from "./config.js";
 
 // Depois de gerar/editar, descobre se o app passou a precisar de uma chave de
 // mapa que ainda NÃO está preenchida — pra pedir proativamente no chat.
@@ -190,9 +190,8 @@ function nomeDoPedido(texto) {
 /** Ha pelo menos uma chave de IA salva? (senao, nao da pra gerar nada) */
 export async function temChaveIA() {
   const secrets = await store.get("secrets");
-  const chavesIA = ["ANTHROPIC_API_KEY","GEMINI_API_KEY","GROQ_API_KEY","NVIDIA_API_KEY",
-    "DEEPSEEK_API_KEY","CEREBRAS_API_KEY","MISTRAL_API_KEY","OPENROUTER_API_KEY","OPENAI_API_KEY"];
-  return chavesIA.some(k => (secrets[k] || "").trim());
+  // Deriva do catalogo, pra nunca ficar desatualizado quando a lista mudar.
+  return PROVIDER_CATALOG.some(p => (secrets[p.secretKey] || "").trim());
 }
 
 async function temGithub() {

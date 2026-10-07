@@ -548,6 +548,68 @@ export async function statusReport() {
 }
 
 /**
+ * HEALTH CHECK — testa se uma chave+modelo realmente responde, com um "ping"
+ * minimo (max_tokens=5). Classifica o resultado para a UI poder liberar so os
+ * modelos que funcionam, sem a pessoa testar um por um.
+ *   ok    = respondeu (200) OU 429/cota (a chave vale, so esta limitada agora)
+ *   fail  = 401/403 (chave invalida/sem acesso) ou 404 (modelo nao existe)
+ *   retry = timeout ou 5xx (instavel agora; vale testar de novo)
+ */
+export async function pingModel(providerId, model) {
+  const provider = PROVIDER_CATALOG.find(p => p.id === providerId);
+  if (!provider) return { status: "fail", detail: "provedor desconhecido" };
+  const secrets = await store.get("secrets");
+  const apiKey = (secrets[provider.secretKey] || "").trim();
+  if (!apiKey) return { status: "fail", detail: "sem chave" };
+
+  const req = buildRequest({ ...provider, maxOutput: 5 }, { model }, apiKey, {
+    system: "", messages: [{ role: "user", text: "ping" }], tools: [], model
+  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const res = await fetch(req.url, {
+      method: "POST", headers: req.headers, body: JSON.stringify(req.body), signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (res.ok) return { status: "ok" };
+    const body = await res.text();
+    const reason = classify(res.status, body);
+    if (reason === "rate_limit" || reason === "quota") return { status: "ok", detail: "chave ok (limitada agora)" };
+    if (reason === "auth")  return { status: "fail", detail: "chave invalida ou sem acesso" };
+    if (reason === "model") return { status: "fail", detail: "modelo indisponivel" };
+    if (reason === "server") return { status: "retry", detail: "instavel agora" };
+    return { status: "fail", detail: errorDetail(body) || `erro ${res.status}` };
+  } catch (e) {
+    clearTimeout(timeout);
+    return { status: "retry", detail: e.name === "AbortError" ? "timeout" : "rede indisponivel" };
+  }
+}
+
+/** Testa EM PARALELO todos os modelos de um provedor e grava o resultado. */
+export async function healthCheck(providerId) {
+  const provider = PROVIDER_CATALOG.find(p => p.id === providerId);
+  if (!provider) return {};
+  const models = (provider.models?.length ? provider.models : [provider.defaultModel]);
+  const pares = await Promise.all(models.map(async m => [m, { ...(await pingModel(providerId, m)), at: Date.now() }]));
+  const mapa = Object.fromEntries(pares);
+  const health = await store.get("modelHealth");
+  health[providerId] = mapa;
+  await store.set("modelHealth", health);
+  return mapa;
+}
+
+// Grátis (0) sempre antes de paga (1). É o que impede o automático de gastar o
+// saldo do cliente enquanto houver uma API gratuita disponível na fila.
+function tierRank(provider) { return provider.tier === "paid" ? 1 : 0; }
+
+// Quando uma geração troca de provedor no meio (o anterior estourou o limite),
+// o próximo recebe o histórico inteiro e esta instrução: continue de onde parou.
+const NOTA_CONTINUIDADE =
+  "\n\nCONTINUIDADE: outra IA comecou esta tarefa e parou por limite/erro. " +
+  "Use o historico acima, continue de onde parou SEM recomecar nem repetir o que ja foi feito, e conclua.";
+
+/**
  * Pede uma resposta ao primeiro provedor disponivel. Se ele recusar por cota,
  * limite ou instabilidade, passa para o proximo da fila automaticamente.
  * onEvent recebe avisos de troca para a interface mostrar em tempo real.
@@ -558,11 +620,22 @@ export async function complete({ system, messages, tools, preferredProviderId = 
   // sempre tem chamadas e respostas de ferramenta casadas. Evita os 400 de
   // "tool sem tool_calls" e "tool_result sem tool_use".
   messages = normalizeConversation(messages);
-  const queue = await resolveQueue();
+  const queue = await resolveQueue();   // ja ordenado por prioridade (gratis < pagas)
+
+  // MANUAL (a pessoa escolheu um provedor no seletor) = so aquele, SEM rodizio.
+  // AUTOMATICO = todas as ativas, as GRATIS antes das PAGAS. Regra critica: nunca
+  // gastar uma API paga enquanto houver uma gratis disponivel na fila.
+  let usable;
   if (preferredProviderId) {
-    queue.sort((a, b) => Number(b.provider.id === preferredProviderId) - Number(a.provider.id === preferredProviderId));
+    usable = queue.filter(q => q.provider.id === preferredProviderId && q.cfg.enabled && q.hasKey);
+    if (!usable.length) {
+      throw new Error("O provedor escolhido (modo manual) nao esta ativo ou esta sem chave. Escolha outro no seletor ou volte para Automatico.");
+    }
+  } else {
+    usable = queue
+      .filter(q => q.cfg.enabled && q.hasKey)
+      .sort((a, b) => tierRank(a.provider) - tierRank(b.provider) || a.cfg.priority - b.cfg.priority);
   }
-  let usable = queue.filter(q => q.cfg.enabled && q.hasKey);
 
   // Se a conversa tem imagem, so provedores que enxergam imagem servem.
   const temImagem = messages.some(m => m.images?.length);
@@ -570,7 +643,7 @@ export async function complete({ system, messages, tools, preferredProviderId = 
     const comVisao = usable.filter(q => q.provider.vision);
     if (!comVisao.length) {
       throw new Error(
-        "Voce anexou uma imagem, mas nenhum provedor com visao esta configurado. Habilite e coloque a chave de um destes: Gemini, NVIDIA, OpenRouter ou Claude."
+        "Voce anexou uma imagem, mas nenhum provedor com visao esta ativo. Ligue e coloque a chave do Gemini ou do Claude (os que enxergam imagem)."
       );
     }
     usable = comVisao;
@@ -579,7 +652,7 @@ export async function complete({ system, messages, tools, preferredProviderId = 
 
   if (!usable.length) {
     throw new Error(
-      "Nenhum provedor de IA configurado. Abra as Configuracoes e cole ao menos uma chave."
+      "Nenhuma API de IA ativa. Abra Conexoes e ligue ao menos uma (comece pelas gratis: Gemini, OpenRouter, Mistral, Groq)."
     );
   }
 
@@ -593,10 +666,14 @@ export async function complete({ system, messages, tools, preferredProviderId = 
   const errors = [];
   let houveTransitorio = false;   // 429, 503 e rede: vale esperar e insistir
   let houvePermanente = false;    // chave ou modelo errado: insistir nao resolve
+  let jaTentou = 0;               // quantos provedores ja tentaram antes deste
 
   for (const entry of attempts) {
     const { provider, cfg, apiKey } = entry;
     let model = cfg.model || provider.defaultModel;
+    // A partir do 2o provedor, pede para CONTINUAR a tarefa (nao recomecar).
+    const systemUsado = jaTentou === 0 ? system : system + NOTA_CONTINUIDADE;
+    jaTentou++;
 
     // Alguns servicos tem um modelo separado que enxerga imagem (o DeepSeek e
     // assim). Se o pedido tem imagem e o modelo escolhido nao le, trocamos so
@@ -621,7 +698,7 @@ export async function complete({ system, messages, tools, preferredProviderId = 
     // Compacta o historico para o limite deste servico. Se nem assim couber,
     // pula sem marcar falha: o servico nao esta com problema, o pedido e que
     // e grande demais para ele.
-    const { messages: msgs, tokens } = compact(messages, orcamento, system, tools);
+    const { messages: msgs, tokens } = compact(messages, orcamento, systemUsado, tools);
     if (tokens > orcamento) {
       errors.push(`${provider.label}: pedido de ~${tokens} tokens, limite ${orcamento}`);
       onEvent({
@@ -643,7 +720,7 @@ export async function complete({ system, messages, tools, preferredProviderId = 
       : (provider.id === "deepseek" ? 180_000 : 90_000);
     let res, bodyText;
     try {
-      const req = buildRequest(provider, cfg, apiKey, { system, messages: msgs, tools, model });
+      const req = buildRequest(provider, cfg, apiKey, { system: systemUsado, messages: msgs, tools, model });
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       res = await fetch(req.url, {
@@ -690,7 +767,7 @@ export async function complete({ system, messages, tools, preferredProviderId = 
         });
         model = provider.defaultModel;
         try {
-          const retryReq = buildRequest(provider, cfg, apiKey, { system, messages: msgs, tools, model });
+          const retryReq = buildRequest(provider, cfg, apiKey, { system: systemUsado, messages: msgs, tools, model });
           const retryCtrl = new AbortController();
           const retryTimeout = setTimeout(() => retryCtrl.abort(), 90_000);
           const retryRes = await fetch(retryReq.url, {
@@ -771,7 +848,11 @@ export async function complete({ system, messages, tools, preferredProviderId = 
     return { ...parsed, providerId: provider.id, providerLabel: provider.label, model };
   }
 
-  const err = new Error(`Todos os provedores recusaram.\n${errors.join("\n")}`);
+  const err = new Error(
+    preferredProviderId
+      ? "O provedor escolhido no modo manual recusou o pedido. Troque de modelo, volte para Automatico ou tente mais tarde."
+      : "Todas as APIs ativas atingiram o limite ou falharam agora. Ative outra API em Conexoes ou tente de novo em alguns minutos."
+  );
   err.transitorio = houveTransitorio && !houvePermanente;
   err.detalhes = errors;
   throw err;

@@ -12,12 +12,10 @@ export const SECRETS = {
   ANTHROPIC_API_KEY: "",
   GEMINI_API_KEY: "",
   GROQ_API_KEY: "",
-  NVIDIA_API_KEY: "",
   DEEPSEEK_API_KEY: "",
-  CEREBRAS_API_KEY: "",
   MISTRAL_API_KEY: "",
   OPENROUTER_API_KEY: "",
-  OPENAI_API_KEY: "",
+  XAI_API_KEY: "",
 
   SUPABASE_URL: "",
   SUPABASE_ANON_KEY: "",
@@ -38,29 +36,16 @@ export const SUPABASE_OAUTH = {
   scope: ""
 };
 
-export const CATALOG_VERSION = 11;
+export const CATALOG_VERSION = 12;
 
+// tier: "free" entra no rodizio automatico primeiro; "paid" so e usado no
+// automatico depois que TODAS as gratis se esgotarem (protege o saldo do cliente).
+// keyUrl: link "Obter chave" mostrado no card do provedor.
 export const PROVIDER_CATALOG = [
-  {
-    id: "nvidia",
-    contextBudget: 120000,
-    vision: true,
-    label: "NVIDIA NIM",
-    kind: "openai",
-    endpoint: "https://integrate.api.nvidia.com/v1/chat/completions",
-    listEndpoint: "https://integrate.api.nvidia.com/v1/models",
-    secretKey: "NVIDIA_API_KEY",
-    defaultModel: "meta/llama-3.3-70b-instruct",
-    models: [
-      "meta/llama-3.3-70b-instruct",
-      "qwen/qwen3-coder-480b-a35b-instruct",
-      "zai-org/glm-4.6",
-      "moonshotai/kimi-k2-instruct"
-    ],
-    note: "Gratis, sem cartao. Se der 404, use buscar modelos e escolha um da lista real. Deixe em primeiro."
-  },
+  // ---- GRATIS (rodizio automatico, nesta ordem de prioridade) --------------
   {
     id: "gemini",
+    tier: "free",
     contextBudget: 900000,
     vision: true,
     label: "Google Gemini",
@@ -68,72 +53,63 @@ export const PROVIDER_CATALOG = [
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models",
     listEndpoint: "https://generativelanguage.googleapis.com/v1beta/models",
     secretKey: "GEMINI_API_KEY",
-    defaultModel: "gemini-3.5-flash",
-    models: ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash"],
-    note: "Contexto enorme, bom para ler projeto inteiro. Sofre com pico de demanda."
-  },
-  {
-    id: "deepseek",
-    contextBudget: 120000,
-    // DeepSeek NAO tem visao confiavel: o modelo de visao (v4-flash-vision-exp)
-    // TRAVA/da timeout. Deixando vision:false, um print roteia automaticamente
-    // para um provedor de visao que funciona (Gemini/NVIDIA/OpenRouter/Claude/
-    // OpenAI). DeepSeek segue excelente como modelo de CODIGO.
-    vision: false,
-    label: "DeepSeek",
-    kind: "openai",
-    endpoint: "https://api.deepseek.com/chat/completions",
-    listEndpoint: "https://api.deepseek.com/models",
-    secretKey: "DEEPSEEK_API_KEY",
-    defaultModel: "deepseek-chat",
-    models: ["deepseek-chat", "deepseek-reasoner"],
-    note: "Forte em codigo. Para imagem, ligue tambem Gemini, NVIDIA, OpenRouter ou Claude. Precisa de credito."
-  },
-  {
-    id: "mistral",
-    maxOutput: 16000,
-    contextBudget: 100000,
-    label: "Mistral",
-    kind: "openai",
-    endpoint: "https://api.mistral.ai/v1/chat/completions",
-    listEndpoint: "https://api.mistral.ai/v1/models",
-    secretKey: "MISTRAL_API_KEY",
-    defaultModel: "codestral-latest",
-    models: ["codestral-latest", "mistral-large-latest", "devstral-medium-latest"],
-    note: "Codestral e devstral sao fortes em edicao de codigo. Ja funcionou bem para voce."
-  },
-  {
-    id: "cerebras",
-    maxOutput: 16000,
-    contextBudget: 55000,
-    label: "Cerebras",
-    kind: "openai",
-    endpoint: "https://api.cerebras.ai/v1/chat/completions",
-    listEndpoint: "https://api.cerebras.ai/v1/models",
-    secretKey: "CEREBRAS_API_KEY",
-    defaultModel: "qwen-3-coder-480b",
-    models: ["qwen-3-coder-480b", "gpt-oss-120b"],
-    note: "Cota diaria de 1M tokens. qwen-3-coder e o modelo de codigo dele."
+    keyUrl: "https://aistudio.google.com/apikey",
+    defaultModel: "gemini-2.5-flash",
+    models: ["gemini-2.5-flash"],
+    note: "Gratis. Contexto enorme, le o projeto inteiro e enxerga imagem."
   },
   {
     id: "openrouter",
+    tier: "free",
     contextBudget: 55000,
-    vision: true,
+    vision: false,
     label: "OpenRouter",
     kind: "openai",
     endpoint: "https://openrouter.ai/api/v1/chat/completions",
     listEndpoint: "https://openrouter.ai/api/v1/models",
     secretKey: "OPENROUTER_API_KEY",
+    keyUrl: "https://openrouter.ai/keys",
     defaultModel: "qwen/qwen3-coder:free",
-    models: [
-      "qwen/qwen3-coder:free",
-      "deepseek/deepseek-chat-v3.1:free",
-      "z-ai/glm-4.5-air:free"
-    ],
-    note: "Rede de reserva. Use modelos de codigo com sufixo :free."
+    models: ["qwen/qwen3-coder:free"],
+    note: "Gratis. Rede de reserva com modelos de codigo (sufixo :free)."
   },
   {
+    id: "mistral",
+    tier: "free",
+    maxOutput: 16000,
+    contextBudget: 100000,
+    vision: false,
+    label: "Mistral",
+    kind: "openai",
+    endpoint: "https://api.mistral.ai/v1/chat/completions",
+    listEndpoint: "https://api.mistral.ai/v1/models",
+    secretKey: "MISTRAL_API_KEY",
+    keyUrl: "https://console.mistral.ai",
+    defaultModel: "codestral-latest",
+    models: ["codestral-latest"],
+    note: "Gratis. Codestral e forte em edicao de codigo."
+  },
+  {
+    id: "groq",
+    tier: "free",
+    maxOutput: 8000,
+    contextBudget: 6500,
+    vision: false,
+    label: "Groq",
+    kind: "openai",
+    endpoint: "https://api.groq.com/openai/v1/chat/completions",
+    listEndpoint: "https://api.groq.com/openai/v1/models",
+    secretKey: "GROQ_API_KEY",
+    keyUrl: "https://console.groq.com/keys",
+    defaultModel: "openai/gpt-oss-20b",
+    models: ["openai/gpt-oss-20b"],
+    note: "Gratis e rapidissimo, mas com limite baixo de tokens/min. Fica por ultimo no rodizio."
+  },
+
+  // ---- PAGAS (seletor manual; no automatico so entram apos as gratis) ------
+  {
     id: "anthropic",
+    tier: "paid",
     contextBudget: 180000,
     vision: true,
     label: "Claude",
@@ -141,48 +117,51 @@ export const PROVIDER_CATALOG = [
     endpoint: "https://api.anthropic.com/v1/messages",
     listEndpoint: "https://api.anthropic.com/v1/models",
     secretKey: "ANTHROPIC_API_KEY",
+    keyUrl: "https://console.anthropic.com",
     defaultModel: "claude-sonnet-5",
-    models: ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5-20251001"],
-    note: "Nao tem free tier: e sempre pago. Melhor qualidade de codigo. Use so em tarefa dificil."
+    models: ["claude-sonnet-5"],
+    note: "Paga. Melhor qualidade de codigo e enxerga imagem."
   },
   {
-    id: "groq",
-    maxOutput: 8000,
-    contextBudget: 6500,
-    label: "Groq",
+    id: "deepseek",
+    tier: "paid",
+    contextBudget: 120000,
+    vision: false,
+    label: "DeepSeek",
     kind: "openai",
-    endpoint: "https://api.groq.com/openai/v1/chat/completions",
-    listEndpoint: "https://api.groq.com/openai/v1/models",
-    secretKey: "GROQ_API_KEY",
-    defaultModel: "openai/gpt-oss-120b",
-    models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b"],
-    note: "Rapidissimo, mas so 8 mil tokens/min no gratis — pequeno demais para ler codigo. Fica por ultimo."
+    endpoint: "https://api.deepseek.com/v1/chat/completions",
+    listEndpoint: "https://api.deepseek.com/v1/models",
+    secretKey: "DEEPSEEK_API_KEY",
+    keyUrl: "https://platform.deepseek.com",
+    defaultModel: "deepseek-v4-pro",
+    models: ["deepseek-v4-pro"],
+    note: "Paga. Forte em codigo. Para imagem, use Gemini ou Claude."
   },
   {
-    id: "openai",
-    contextBudget: 128000,
-    vision: true,
-    label: "OpenAI",
+    id: "xai",
+    tier: "paid",
+    contextBudget: 120000,
+    vision: false,
+    label: "xAI Grok",
     kind: "openai",
-    endpoint: "https://api.openai.com/v1/chat/completions",
-    listEndpoint: "https://api.openai.com/v1/models",
-    secretKey: "OPENAI_API_KEY",
-    defaultModel: "gpt-4o",
-    models: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "o4-mini", "gpt-4.1-nano"],
-    note: "Sem free tier: sempre pago. gpt-4o forte em codigo e visao. Use gpt-4o para melhor qualidade."
+    endpoint: "https://api.x.ai/v1/chat/completions",
+    listEndpoint: "https://api.x.ai/v1/models",
+    secretKey: "XAI_API_KEY",
+    keyUrl: "https://console.x.ai",
+    defaultModel: "grok-code-fast-1",
+    models: ["grok-code-fast-1"],
+    note: "Paga. Grok focado em codigo, rapido."
   }
 ];
 
 export const PROVIDER_PRICES = {
-  nvidia:     { in: 0,    out: 0 },
-  gemini:     { in: 0.10, out: 0.40 },
-  deepseek:   { in: 0.28, out: 1.10 },
-  mistral:    { in: 0.20, out: 0.60 },
-  cerebras:   { in: 0,    out: 0 },
+  gemini:     { in: 0,    out: 0 },
   openrouter: { in: 0,    out: 0 },
+  mistral:    { in: 0,    out: 0 },
+  groq:       { in: 0,    out: 0 },
   anthropic:  { in: 3.00, out: 15.00 },
-  groq:       { in: 0.15, out: 0.75 },
-  openai:     { in: 2.50, out: 10.00 }
+  deepseek:   { in: 0.28, out: 1.10 },
+  xai:        { in: 0.20, out: 1.50 }
 };
 
 export const COOLDOWN_MS = {

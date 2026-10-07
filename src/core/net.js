@@ -22,13 +22,11 @@ const PROXIED_HOSTS = [
   /(^|\.)api\.supabase\.com$/i,
   // IAs que bloqueiam CORS no navegador. Gemini (chave na URL) e Anthropic
   // (cabecalho direct-browser-access) funcionam direto, entao ficam de fora.
-  /(^|\.)integrate\.api\.nvidia\.com$/i,
   /(^|\.)api\.deepseek\.com$/i,
-  /(^|\.)api\.cerebras\.ai$/i,
   /(^|\.)api\.mistral\.ai$/i,
   /(^|\.)api\.groq\.com$/i,
   /(^|\.)openrouter\.ai$/i,
-  /(^|\.)api\.openai\.com$/i
+  /(^|\.)api\.x\.ai$/i
 ];
 
 let installed = false;

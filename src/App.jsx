@@ -3,7 +3,7 @@ import AcidSquares from "./AcidSquares.jsx";
 import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, BLINDAR_PROMPT } from "./core/runtime.js";
-import { listModels } from "./core/providers.js";
+import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, githubConfigurado, supabaseConfigurado } from "./core/oauth-web.js";
 import * as github from "./core/github.js";
@@ -44,13 +44,14 @@ export default function App({ oauthResult, oauthError }) {
   const [projOpen, setProjOpen] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [modelsCache, setModelsCache] = useState({});
+  const [modelHealth, setModelHealth] = useState({});
   const [attached, setAttached] = useState([]);   // imagens anexadas (data URLs)
   const [toast, setToast] = useState(null);
   const sessionRef = useRef(null);
   const msgRef = useRef(null);
   const inputRef = useRef(null);
   const flowRef = useRef("ia");   // "ia" = geração/edição por IA · "sistema" = deploy/reconexão sem IA
-  async function loadModelsCache() { setModelsCache((await store.get("modelsCache")) || {}); }
+  async function loadModelsCache() { setModelsCache((await store.get("modelsCache")) || {}); setModelHealth((await store.get("modelHealth")) || {}); }
 
   function showToast(text, err = false) { setToast({ text, err }); setTimeout(() => setToast(null), 4200); }
   async function refreshConn() {
@@ -331,7 +332,7 @@ export default function App({ oauthResult, oauthError }) {
       big={view === "home"} repo={repo} busy={busy} input={input} setInput={setInput}
       inputRef={inputRef}
       kind={kind} setKind={setKind} onSend={handleSend} onBlindar={handleBlindar}
-      providerId={providerId} activeModel={activeModel} onPickModel={pickModel} modelsCache={modelsCache}
+      providerId={providerId} activeModel={activeModel} onPickModel={pickModel} modelsCache={modelsCache} modelHealth={modelHealth}
       attached={attached} onAddFiles={addFiles} onRemoveAttach={(i) => setAttached(a => a.filter((_, x) => x !== i))}
       projects={vercelProjects} onLoadProjects={loadVercelProjects} onOpenProject={openProject} onNew={novoProjeto}
       onPlusConexoes={() => { setKeysOpen(false); setConnOpen(true); }} onPlusChaves={() => { setKeysOpen(true); setConnOpen(true); }}
@@ -618,7 +619,7 @@ function StepCard({ n, titulo, desc }) {
 }
 
 /* ---------------- Composer (v0-style) ---------------- */
-function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves }) {
+function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves }) {
   const [plus, setPlus] = useState(false);
   const fileRef = useRef(null);
   return (
@@ -652,7 +653,7 @@ function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, o
             </div>
           </>)}
         </div>
-        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} />
+        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} />
         <button className="chip" onClick={onBlindar} disabled={busy || !repo} title="Blindar contra vazamento de dados"><IconShield /></button>
         <div className="spacer" />
         <ProjectPicker projects={projects} onLoad={onLoadProjects} onOpen={onOpenProject} onNew={onNew} />
@@ -737,7 +738,7 @@ function detectarSegredo(texto) {
   return null;
 }
 
-function ModelPicker({ providerId, activeModel, onPick, modelsCache = {} }) {
+function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {} }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const label = providerId ? (activeModel || "modelo") : "Automático";
@@ -753,7 +754,9 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {} }) {
               <span>Automático (revezamento)</span>{!providerId && <IconCheck />}
             </button>
             {PROVIDER_CATALOG.map(pc => {
-              const todos = [...new Set([...(pc.models || []), ...(modelsCache[pc.id] || [])])].filter(EH_CODIGO);
+              const h = modelHealth[pc.id] || {};
+              // Esconde do seletor só os modelos que o health check reprovou (❌).
+              const todos = [...new Set([...(pc.models || []), ...(modelsCache[pc.id] || [])])].filter(EH_CODIGO).filter(m => h[m]?.status !== "fail");
               const models = todos.filter(m => !q || m.toLowerCase().includes(q.toLowerCase()) || pc.label.toLowerCase().includes(q.toLowerCase()));
               if (!models.length) return null;
               return (
@@ -1038,15 +1041,13 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
 
 // Cor do avatar por provedor (só estética).
 const CORES_IA = {
-  nvidia: "linear-gradient(135deg,#76b900,#22d3ee)",
   gemini: "linear-gradient(135deg,#4285f4,#a855f7)",
-  deepseek: "linear-gradient(135deg,#4f7cff,#22d3ee)",
-  mistral: "linear-gradient(135deg,#fb923c,#f43f5e)",
-  cerebras: "linear-gradient(135deg,#f97316,#fbbf24)",
   openrouter: "linear-gradient(135deg,#818cf8,#c084fc)",
-  anthropic: "linear-gradient(135deg,#d97757,#fbbf24)",
+  mistral: "linear-gradient(135deg,#fb923c,#f43f5e)",
   groq: "linear-gradient(135deg,#f43f5e,#fb923c)",
-  openai: "linear-gradient(135deg,#10a37f,#34d399)"
+  anthropic: "linear-gradient(135deg,#d97757,#fbbf24)",
+  deepseek: "linear-gradient(135deg,#4f7cff,#22d3ee)",
+  xai: "linear-gradient(135deg,#64748b,#0f172a)"
 };
 
 function AiProviders({ showToast }) {
@@ -1055,12 +1056,27 @@ function AiProviders({ showToast }) {
   const [fetched, setFetched] = useState({});
   const [drafts, setDrafts] = useState({});
   const [buscando, setBuscando] = useState("");
-  useEffect(() => { (async () => { setSecrets(await store.get("secrets")); setProvs(await store.get("providers")); })(); }, []);
+  const [health, setHealth] = useState({});   // { [id]: { [model]: {status, detail} } }
+  const [testando, setTestando] = useState("");
+  useEffect(() => { (async () => { setSecrets(await store.get("secrets")); setProvs(await store.get("providers")); setHealth(await store.get("modelHealth")); })(); }, []);
   const cfg = id => provs.find(p => p.id === id) || {};
+  async function testar(pc) {
+    setTestando(pc.id);
+    try {
+      const mapa = await healthCheck(pc.id);
+      setHealth(h => ({ ...h, [pc.id]: mapa }));
+      const ok = Object.values(mapa).filter(r => r.status === "ok").length;
+      showToast(`${pc.label}: ${ok} de ${Object.keys(mapa).length} modelo(s) funcionando.`);
+    } catch (e) { showToast(pc.label + ": " + e.message, true); }
+    finally { setTestando(""); }
+  }
   async function salvarChave(pc) {
     const v = (drafts[pc.secretKey] ?? secrets[pc.secretKey] ?? "").trim();
     await store.patch("secrets", { [pc.secretKey]: v }); setSecrets(s => ({ ...s, [pc.secretKey]: v }));
     showToast(v ? `Chave do ${pc.label} salva.` : `Chave do ${pc.label} removida.`);
+    // Ao salvar uma chave, testa os modelos automaticamente (health check).
+    if (v) testar(pc);
+    else setHealth(h => { const n = { ...h }; delete n[pc.id]; return n; });
   }
   async function buscar(pc) {
     setBuscando(pc.id);
@@ -1078,10 +1094,13 @@ function AiProviders({ showToast }) {
   if (!secrets) return null;
   return (
     <div style={{ marginTop: 10 }}>
-      <p className="hint" style={{ marginTop: 0 }}>Preencha ao menos uma e clique <b>Salvar</b>. Comece pelas grátis: NVIDIA, Gemini, Groq.</p>
+      <p className="hint" style={{ marginTop: 0 }}>Preencha ao menos uma e clique <b>Salvar</b> — ao salvar, testo os modelos pra você. Comece pelas <b>grátis</b>: Gemini, OpenRouter, Mistral, Groq.</p>
       {PROVIDER_CATALOG.map(pc => {
         const c = cfg(pc.id); const salva = Boolean((secrets[pc.secretKey] || "").trim());
         const opcoes = [...new Set([c.model, ...(pc.models || []), ...(fetched[pc.id] || [])].filter(Boolean))].filter(EH_CODIGO);
+        const H = health[pc.id] || {};
+        const testOn = testando === pc.id;
+        const icone = m => testOn ? "⏳" : ({ ok: "✅", fail: "❌", retry: "⏳" })[H[m]?.status] || "";
         return (
           <div className="ai-card" key={pc.id}>
             <div className="ai-head">
@@ -1090,16 +1109,28 @@ function AiProviders({ showToast }) {
                 <span className="ai-avatar" style={{ background: CORES_IA[pc.id] || "var(--grad-2)" }}>{iniciais(pc.label)}</span>
                 <span className="ai-name">{pc.label}</span>
               </label>
+              <span className={"pill " + (pc.tier === "free" ? "free" : "paid")}>{pc.tier === "free" ? "grátis" : "paga"}</span>
               {salva && <span className="pill on">chave ✓</span>}
             </div>
             <div className="ai-row">
               <input className="text" type="password" placeholder={`chave ${pc.label}`} value={drafts[pc.secretKey] ?? secrets[pc.secretKey] ?? ""} onChange={e => setDrafts(d => ({ ...d, [pc.secretKey]: e.target.value }))} />
               <button className="btn sm" onClick={() => salvarChave(pc)}>Salvar</button>
             </div>
+            {pc.keyUrl && <a className="getkey" href={pc.keyUrl} target="_blank" rel="noreferrer">Obter chave <IconExternal /></a>}
             <div className="ai-row">
-              <select className="text" value={c.model || pc.defaultModel} onChange={e => setModel(pc.id, e.target.value)}>{opcoes.map(m => <option key={m} value={m}>{m}</option>)}</select>
-              <button className="btn sm ghost" onClick={() => buscar(pc)} disabled={buscando === pc.id}>{buscando === pc.id ? "…" : "Buscar"}</button>
+              <select className="text" value={c.model || pc.defaultModel} onChange={e => setModel(pc.id, e.target.value)}>
+                {opcoes.map(m => <option key={m} value={m} disabled={H[m]?.status === "fail"}>{icone(m) ? icone(m) + " " : ""}{m}</option>)}
+              </select>
+              <button className="btn sm ghost" onClick={() => testar(pc)} disabled={!salva || testOn} title="Testar os modelos">{testOn ? "…" : "Testar"}</button>
+              <button className="btn sm ghost" onClick={() => buscar(pc)} disabled={buscando === pc.id} title="Buscar modelos disponíveis">{buscando === pc.id ? "…" : "Buscar"}</button>
             </div>
+            {Object.keys(H).length > 0 && !testOn && (
+              <div className="ai-health">
+                {opcoes.filter(m => H[m]).map(m => (
+                  <span key={m} className={"hstat " + H[m].status} title={H[m].detail || ""}>{icone(m)} {m}</span>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

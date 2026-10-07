@@ -68,7 +68,8 @@ const DEFAULTS = {
   usage: [],
   limites: {},
   sessions: [],       // historico de conversas (ver core/history.js) — 100% local
-  modelsCache: {}     // { [providerId]: [modelos] } — resultado do "Buscar" (compartilhado)
+  modelsCache: {},    // { [providerId]: [modelos] } — resultado do "Buscar" (compartilhado)
+  modelHealth: {}     // { [providerId]: { [model]: { status, detail, at } } } — health check
 };
 
 export async function get(key) {
@@ -111,19 +112,23 @@ export async function ensureDefaults() {
   // Migracao de catalogo (igual a extensao).
   const cv = rawGet("catalogVersion");
   if (cv !== CATALOG_VERSION) {
-    const stored = rawGet("providers");
-    if (stored) {
-      for (const cfg of stored) {
-        const meta = PROVIDER_CATALOG.find(p => p.id === cfg.id);
-        if (meta && !meta.models.includes(cfg.model)) cfg.model = meta.defaultModel;
-      }
-      for (const meta of PROVIDER_CATALOG) {
-        if (!stored.some(c => c.id === meta.id)) {
-          stored.push({ id: meta.id, enabled: true, priority: stored.length, model: meta.defaultModel });
-        }
-      }
-      rawSet("providers", stored);
-    }
+    const stored = rawGet("providers") || [];
+    // 1) Mantem SO os provedores que ainda existem no catalogo (remove NVIDIA,
+    //    Cerebras, OpenAI, etc. que sairam da lista) e preserva enabled/model.
+    const byId = new Map(stored.map(c => [c.id, c]));
+    const migrados = PROVIDER_CATALOG.map((meta, i) => {
+      const antigo = byId.get(meta.id);
+      let model = antigo?.model;
+      // Se o modelo salvo nao existe mais no catalogo do provedor, volta pro padrao.
+      if (!model || !meta.models.includes(model)) model = meta.defaultModel;
+      return {
+        id: meta.id,
+        enabled: antigo ? antigo.enabled !== false : true,
+        priority: i,                 // re-semeia a ordem: gratis antes de pagas
+        model
+      };
+    });
+    rawSet("providers", migrados);
     rawSet("catalogVersion", CATALOG_VERSION);
   }
 }
