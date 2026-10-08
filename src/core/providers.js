@@ -240,10 +240,11 @@ function buildRequest(provider, cfg, apiKey, { system, messages, tools, model })
     "content-type": "application/json",
     authorization: `Bearer ${apiKey}`
   };
-  if (provider.id === "openrouter") {
-    headers["HTTP-Referer"] = "https://lovable.dev";
-    headers["X-Title"] = "Copilot Code";
-  }
+  // OBS: NAO enviar headers X-Title / HTTP-Referer no OpenRouter. Eles sao so
+  // atribuicao (opcional) e, como a chamada passa pelo Worker /proxy, o header
+  // custom "x-title" faz o preflight CORS falhar ("not allowed by
+  // Access-Control-Allow-Headers"). Sem eles, so vao content-type e authorization,
+  // que o proxy ja libera.
   // Modelos de raciocinio (o1..o9, gpt-5*) nao aceitam temperature e usam
   // max_completion_tokens no lugar de max_tokens.
   const isReasoning = /^o[1-9]|^gpt-5/i.test(model);

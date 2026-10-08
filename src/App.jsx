@@ -1160,6 +1160,11 @@ function AiProviders({ showToast }) {
   }
   async function salvarChave(pc) {
     const v = (drafts[pc.secretKey] ?? secrets[pc.secretKey] ?? "").trim();
+    // Gemini: a chave certa comeca com "AIza". "AQ..." e token efemero (Live API)
+    // e da 404 no generateContent. Avisa antes de salvar uma chave invalida.
+    if (v && pc.id === "gemini" && !v.startsWith("AIza")) {
+      showToast("Essa chave do Gemini não parece válida (deve começar com AIza). Pegue uma em aistudio.google.com/apikey.", true);
+    }
     await store.patch("secrets", { [pc.secretKey]: v }); setSecrets(s => ({ ...s, [pc.secretKey]: v }));
     showToast(v ? `Chave do ${pc.label} salva.` : `Chave do ${pc.label} removida.`);
     // Ao salvar uma chave, testa os modelos automaticamente (health check).
