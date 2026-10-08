@@ -440,6 +440,15 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
     .replace(/^-+|-+$/g, "")
     .slice(0, 90) || "meu-projeto";
 
+  // O GitHub recusa (422) descricao com caracteres de controle (quebra de linha,
+  // tab, etc.) — e o prompt da pessoa quase sempre tem. Trocamos por espaco,
+  // colapsamos e limitamos o tamanho.
+  const descLimpa = String(description || "")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+
   // 1) cria o repositorio com um README, para ja nascer com uma branch valida
   let repo;
   try {
@@ -447,7 +456,7 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
       method: "POST",
       body: JSON.stringify({
         name: nomeLimpo,
-        description,
+        description: descLimpa,
         private: privado,
         auto_init: true            // cria o commit inicial e a branch padrao
       })
