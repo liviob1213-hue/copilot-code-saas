@@ -203,6 +203,28 @@ async function temGithub() {
  * Cria um projeto do zero: gera com a IA -> commita num repo novo -> (opcional)
  * publica na Vercel. Grava o resultado no historico (sessionId).
  */
+/**
+ * Monta um PLANO curto (sem codigo) a partir do pedido, para a pessoa aprovar
+ * antes de construir. Usado so no PRIMEIRO comando de um projeto novo.
+ */
+export async function gerarPlano({ userMessage, kind = "app", providerId = "" }, onEvent = () => {}) {
+  const tipo = kind === "site" ? "site / landing page" : "aplicativo (app)";
+  const system =
+    `Voce e um planejador de produto. A pessoa quer criar um ${tipo}. ` +
+    `Escreva um PLANO curto e claro, em portugues do Brasil, para o que vai ser construido. ` +
+    `NAO escreva codigo. Use secoes curtas com marcadores, nesta ordem:\n` +
+    `Objetivo: (1-2 linhas)\n` +
+    `Telas/Paginas: (as principais)\n` +
+    `Funcionalidades: (o que a pessoa vai poder fazer)\n` +
+    `Dados: (so se precisar de banco; senao omita)\n` +
+    `Seja objetivo, no maximo ~14 linhas. Sem introducao nem despedida — comece direto no "Objetivo:".`;
+  const r = await complete(
+    { system, messages: [{ role: "user", text: userMessage }], tools: [], preferredProviderId: providerId },
+    onEvent
+  );
+  return (r.text || "").trim();
+}
+
 export async function criarProjeto({ userMessage, kind = "app", providerId = "", deploy = true, sessionId = null, embedImages = [] }, onEvent = () => {}) {
   if (!(await temGithub())) throw new Error("Conecte o GitHub antes de criar um projeto (Conexoes).");
 

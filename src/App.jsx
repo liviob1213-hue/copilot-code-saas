@@ -3,7 +3,7 @@ import Aurora from "./Aurora.jsx";
 import BorderGlow from "./BorderGlow.jsx";
 import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
-import { criarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, BLINDAR_PROMPT } from "./core/runtime.js";
+import { criarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, githubConfigurado, supabaseConfigurado } from "./core/oauth-web.js";
@@ -47,6 +47,7 @@ export default function App({ oauthResult, oauthError }) {
   const [modelsCache, setModelsCache] = useState({});
   const [modelHealth, setModelHealth] = useState({});
   const [attached, setAttached] = useState([]);   // imagens anexadas (data URLs)
+  const [plano, setPlano] = useState(null);        // plano pendente (1o comando de projeto novo)
   const [toast, setToast] = useState(null);
   const sessionRef = useRef(null);
   const msgRef = useRef(null);
@@ -136,7 +137,7 @@ export default function App({ oauthResult, oauthError }) {
     if (t) { setStatusText(t); addStep(t); }
   }
 
-  async function run(userText, { hardening = false, images = [] } = {}) {
+  async function run(userText, { hardening = false, images = [], planoAprovado = false } = {}) {
     if (!userText.trim()) return;
     if (busy) { showToast("Ainda estou trabalhando no pedido anterior — espere terminar ou recarregue a página.", true); return; }
 
@@ -225,10 +226,32 @@ export default function App({ oauthResult, oauthError }) {
       return;
     }
 
+    // PLANO PRIMEIRO: só no 1º comando de um projeto NOVO (sem repo). A IA monta
+    // um plano, a pessoa aprova/edita/recusa, e só então constrói. Edições de
+    // projeto já aberto e os comandos seguintes passam direto.
+    if (!repo && !hardening && !planoAprovado) {
+      setView("workspace");
+      flowRef.current = "ia";
+      setBusy(true);
+      setPlano(null);
+      pushMsg("user", userText, images.length ? images : undefined);
+      startRun();
+      try {
+        const texto = await gerarPlano({ userMessage: userText, kind: detectarTipo(userText), providerId }, onEvent);
+        endRun();
+        setPlano({ prompt: userText, texto, images, kind: detectarTipo(userText) });
+      } catch (e) {
+        endRun();
+        pushMsg("error", "Não consegui montar o plano: " + e.message);
+        showToast(e.message, true);
+      } finally { setBusy(false); }
+      return;
+    }
+
     setView("workspace");
     flowRef.current = "ia";
     setBusy(true);
-    pushMsg("user", hardening ? "🛡️ Blindar o projeto" : userText, images.length ? images : undefined);
+    if (!planoAprovado) pushMsg("user", hardening ? "🛡️ Blindar o projeto" : userText, images.length ? images : undefined);
     startRun();
     if (!sessionRef.current) sessionRef.current = await history.createSession({ title: userText.slice(0, 48), kind });
     await history.appendMessage(sessionRef.current, { role: "user", text: hardening ? "Blindar o projeto" : userText });
@@ -268,6 +291,17 @@ export default function App({ oauthResult, oauthError }) {
     const imgs = attached.slice();
     setInput(""); setAttached([]);
     run(t || "Use a imagem que enviei.", { images: imgs });
+  }
+  function aprovarPlano(textoFinal) {
+    if (!plano) return;
+    const p = plano; setPlano(null);
+    const texto = (textoFinal ?? p.texto).trim();
+    const prompt = p.prompt + (texto ? `\n\n[PLANO APROVADO — siga este plano]\n${texto}` : "");
+    run(prompt, { images: p.images, planoAprovado: true });
+  }
+  function recusarPlano() {
+    setPlano(null);
+    pushMsg("assistant", "Plano descartado. Me diga o que mudar ou mande um novo pedido que eu monto outro plano.");
   }
   function handleBlindar() { if (!repo) return showToast("Crie ou abra um projeto antes de blindar.", true); run(BLINDAR_PROMPT, { hardening: true }); }
   async function desfazer() {
@@ -456,6 +490,9 @@ export default function App({ oauthResult, oauthError }) {
                   : <Bubble key={i} role={m.role} text={m.text} images={m.images} />)}
               </div>
 
+              {plano && !busy && (
+                <PlanCard plano={plano} onAprovar={aprovarPlano} onRecusar={recusarPlano} />
+              )}
               {busy && (
                 <div className="working-bar">
                   <span className="spin" />
@@ -564,7 +601,7 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
           : projects.length === 0 ? <span className="side-empty">nenhum projeto ainda</span>
           : projects.slice(0, 8).map((p, i) => (
             <button key={i} className="side-proj" onClick={() => onOpenProject(p)} title={p.url || `${p.owner}/${p.name}`}>
-              <span className={"proj-avatar" + CORES_AVATAR[i % 4]}>{iniciais(p.vercelName || p.name)}</span>
+              <span className={"proj-avatar" + CORES_AVATAR[i % 4]}><IconGem /></span>
               <span>{p.vercelName || p.name}</span>
             </button>
           ))}
@@ -785,6 +822,30 @@ function ProjectPicker({ projects, onLoad, onOpen, onNew }) {
   );
 }
 
+function PlanCard({ plano, onAprovar, onRecusar }) {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(plano.texto);
+  useEffect(() => { setTexto(plano.texto); setEditando(false); }, [plano]);
+  return (
+    <div className="plan-card">
+      <div className="plan-head">
+        <span className="plan-badge">Plano</span>
+        <span className="plan-title">Revise antes de eu construir</span>
+      </div>
+      {editando
+        ? <textarea className="plan-edit" value={texto} onChange={e => setTexto(e.target.value)} rows={10} autoFocus />
+        : <div className="plan-body">{texto}</div>}
+      <div className="plan-actions">
+        <button className="btn sm" onClick={() => onAprovar(texto)}><IconCheck /> Aprovar e construir</button>
+        {editando
+          ? <button className="btn sm ghost" onClick={() => setEditando(false)}>Pronto</button>
+          : <button className="btn sm ghost" onClick={() => setEditando(true)}>Editar</button>}
+        <button className="btn sm ghost" onClick={onRecusar}>Recusar</button>
+      </div>
+    </div>
+  );
+}
+
 function Bubble({ role, text, images }) {
   if (role === "system" || role === "error") return <div className={"note " + role}>{text}</div>;
   const eu = role === "user";
@@ -932,7 +993,7 @@ function ProjectsDrawer({ projects, onReload, onOpen, onClose }) {
                   <button key={i} className="proj-card" onClick={() => onOpen(p)}>
                     <ProjectThumb url={p.url} />
                     <span className="pc-foot">
-                      <span className={"proj-avatar" + CORES_AVATAR[i % 4]}>{iniciais(p.vercelName || p.name)}</span>
+                      <span className={"proj-avatar" + CORES_AVATAR[i % 4]}><IconGem /></span>
                       <span className="pc-text">
                         <strong>{p.vercelName || p.name}</strong>
                         <span>{p.url ? p.url.replace(/^https?:\/\//, "") : `${p.owner}/${p.name}`}</span>
@@ -1176,6 +1237,7 @@ const IconLogo = () => <svg viewBox="0 0 24 24" width="17" height="17" fill="non
 const IconHome = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9.5 21v-6h5v6" /></svg>;
 const IconGrid = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></svg>;
 const IconChat = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
+const IconGem = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><path d="M6 3h12l3.5 5.5L12 21 2.5 8.5z" /><path d="M2.5 8.5h19M8.5 3.5 6 8.5l6 12.5M15.5 3.5 18 8.5 12 21" /></svg>;
 const IconPlug = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><path d="M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0zM12 16v6" /></svg>;
 const IconSpark = () => <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2.5l1.9 5.7 5.6 1.9-5.6 1.9L12 17.7l-1.9-5.7L4.5 10l5.6-1.9z" /><path d="M18.5 15.5l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7z" opacity=".65" /></svg>;
 const IconImage = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.4" /><path d="m21 15.5-4.5-4.5L6 21" /></svg>;

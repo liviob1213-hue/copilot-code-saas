@@ -475,6 +475,15 @@ input, textarea, select { font-family: inherit; }
 .run-step.cur { color: var(--ink); }
 .run-step.cur .run-dot { color: var(--brand); animation: pulse 1.1s var(--ease) infinite; }
 
+/* card de plano (1o comando de projeto novo) */
+.plan-card { margin: 8px 12px; border: 1px solid var(--edge-hi); border-radius: var(--r-md); background: var(--panel, rgba(18,18,27,.9)); overflow: hidden; animation: rise .3s var(--ease) both; box-shadow: var(--inset-hi); }
+.plan-head { display: flex; align-items: center; gap: 9px; padding: 11px 13px; border-bottom: 1px solid var(--edge); }
+.plan-badge { font-size: 11px; font-weight: 650; letter-spacing: .03em; color: var(--brand); background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); border-radius: 999px; padding: 2px 9px; }
+.plan-title { font-size: 12.5px; color: var(--ink-dim); }
+.plan-body { padding: 12px 14px; font-size: 13px; line-height: 1.62; color: var(--ink); white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+.plan-edit { width: 100%; box-sizing: border-box; border: 0; border-bottom: 1px solid var(--edge); background: var(--panel-2, rgba(0,0,0,.25)); color: var(--ink); font: inherit; font-size: 13px; line-height: 1.6; padding: 12px 14px; resize: vertical; outline: none; }
+.plan-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 11px 13px; border-top: 1px solid var(--edge); background: var(--panel-2, rgba(0,0,0,.2)); }
+
 /* barra de trabalho */
 .working-bar {
   display: flex; align-items: center; gap: 11px;
