@@ -105,7 +105,10 @@ function toAnthropic(messages) {
 }
 
 function toOpenAI(messages, system) {
-  const out = [{ role: "system", content: system }];
+  // System vazio NAO entra: varios provedores (OpenRouter, etc.) devolvem 400
+  // para uma mensagem de sistema com content "" — era o que fazia o health check
+  // (que manda um "ping" sem system) reprovar chaves validas.
+  const out = (system && system.trim()) ? [{ role: "system", content: system }] : [];
   for (const m of messages) {
     if (m.role === "user") {
       if (m.images?.length) {
@@ -218,7 +221,9 @@ function buildRequest(provider, cfg, apiKey, { system, messages, tools, model })
       url: `${provider.endpoint}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
       headers: { "content-type": "application/json" },
       body: {
-        systemInstruction: { parts: [{ text: system }] },
+        // systemInstruction vazio tambem faz o Gemini responder 400 — so inclui
+        // quando ha texto (ex.: no ping do health check o system vem vazio).
+        ...(system && system.trim() ? { systemInstruction: { parts: [{ text: system }] } } : {}),
         contents: toGemini(messages),
         ...(tools.length ? { tools: [{
           functionDeclarations: tools.map(t => ({

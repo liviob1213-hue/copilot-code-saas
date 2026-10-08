@@ -458,12 +458,7 @@ export default function App({ oauthResult, oauthError }) {
               <button className={"m-tab" + (mobileView === "chat" ? " on" : "")} onClick={() => setMobileView("chat")}>Chat</button>
               <button className={"m-tab" + (mobileView === "preview" ? " on" : "")} onClick={() => setMobileView("preview")}>Preview</button>
             </div>
-            <BorderGlow
-              className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}
-              backgroundColor="transparent" borderRadius={0}
-              glowColor="347 92 60" glowRadius={34} edgeSensitivity={14} glowIntensity={1.4} coneSpread={28}
-              colors={["#e11d48", "#fb7185", "#f97316"]}
-            >
+            <div className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}>
               <div className="chat-top">
                 {repo ? (
                   <div className="repo-chip" title={`${repo.owner}/${repo.name}`}>
@@ -501,7 +496,7 @@ export default function App({ oauthResult, oauthError }) {
                 </div>
               )}
               {composer}
-            </BorderGlow>
+            </div>
 
             <div className={"preview-col" + (mobileView === "chat" ? " m-off" : "")}>
               <div className="preview-bar">
@@ -1017,7 +1012,7 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
       <div className="drawer-scrim" onClick={onClose} />
       <div className="drawer">
         <BorderGlow className="drawer-glow" backgroundColor="transparent" borderRadius={0}
-          glowColor="347 92 60" glowRadius={28} edgeSensitivity={16} glowIntensity={1.3} coneSpread={28}
+          glowColor="347 90 58" glowRadius={18} edgeSensitivity={40} glowIntensity={0.6} coneSpread={22}
           colors={["#e11d48", "#fb7185", "#f97316"]}>
           <DrawerHead icon={<IconChat />} titulo="Conversas" onClose={onClose}>
             {sessions.length > 0 && <button className="btn sm ghost" onClick={() => { if (window.confirm("Apagar todo o histórico?")) onClear(); }}>Limpar</button>}
@@ -1199,7 +1194,7 @@ function AiProviders({ showToast }) {
             <div className="ai-head">
               <label className="ai-enable">
                 <input type="checkbox" checked={c.enabled !== false} onChange={() => toggle(pc.id)} />
-                <span className="ai-avatar" style={{ background: CORES_IA[pc.id] || "var(--grad-2)" }}>{iniciais(pc.label)}</span>
+                <span className="ai-avatar">{iniciais(pc.label)}</span>
                 <span className="ai-name">{pc.label}</span>
               </label>
               <span className={"pill " + (pc.tier === "free" ? "free" : "paid")}>{pc.tier === "free" ? "grátis" : "paga"}</span>

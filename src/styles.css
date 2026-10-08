@@ -224,16 +224,16 @@ input, textarea, select { font-family: inherit; }
 }
 .side-proj:hover { background: var(--glass-2); color: var(--ink); border-color: var(--edge); }
 .side-proj span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Icone de projeto/conversa: neutro (sem cor por item), so o glifo */
 .proj-avatar {
   width: 22px; height: 22px; flex: none; border-radius: 7px;
   display: grid; place-items: center;
-  font-size: 10.5px; font-weight: 700; letter-spacing: -.02em; color: #fff;
-  background: var(--grad-2); box-shadow: var(--inset-hi);
+  font-size: 10.5px; font-weight: 700; letter-spacing: -.02em; color: var(--ink-dim);
+  background: var(--glass-2); border: 1px solid var(--edge);
 }
 .proj-avatar svg { width: 13px; height: 13px; }
-.proj-avatar.c2 { background: linear-gradient(135deg, #f472b6, #fb7185); }
-.proj-avatar.c3 { background: linear-gradient(135deg, #34d399, #10b981); }
-.proj-avatar.c4 { background: linear-gradient(135deg, #fbbf24, #fb7185); }
+/* variantes de cor neutralizadas (nao usamos mais cor por projeto) */
+.proj-avatar.c2, .proj-avatar.c3, .proj-avatar.c4 { background: var(--glass-2); }
 .side-empty { color: var(--ink-faint); font-size: 12px; padding: 4px 10px; }
 
 .side-foot { border-top: 1px solid var(--edge); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -744,8 +744,8 @@ input.text.mini { width: 118px; padding: 7px 9px; font-size: 12px; font-family: 
 .ai-enable input { accent-color: var(--brand); width: 15px; height: 15px; cursor: pointer; }
 .ai-avatar {
   width: 26px; height: 26px; border-radius: 9px; display: grid; place-items: center; flex: none;
-  font-size: 10.5px; font-weight: 700; color: #fff; background: var(--grad-2); letter-spacing: -.02em;
-  box-shadow: var(--inset-hi);
+  font-size: 10.5px; font-weight: 700; color: var(--ink-dim); background: var(--glass-2);
+  border: 1px solid var(--edge); letter-spacing: -.02em;
 }
 .ai-name { font-weight: 600; font-size: 13.5px; letter-spacing: -.01em; }
 .ai-row { display: flex; gap: 8px; margin-top: 8px; }
