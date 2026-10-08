@@ -30,7 +30,7 @@ export const GITHUB_OAUTH = {
 };
 
 export const SUPABASE_OAUTH = {
-  clientId: "8436c2fb-c2aa-4468-adc0-a01f3193c05b",
+  clientId: "dce24e54-b5b5-4327-a0b8-ba26d0f3d728",
   workerUrl: "https://copilot-oauth.victor-faridoff.workers.dev",
   authorizeUrl: "https://api.supabase.com/v1/oauth/authorize",
   scope: ""
