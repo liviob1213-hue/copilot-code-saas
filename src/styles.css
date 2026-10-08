@@ -94,20 +94,9 @@ input, textarea, select { font-family: inherit; }
 .aurora-orb.o1 { width: 52vw; height: 52vw; left: -12vw; top: -18vw; background: radial-gradient(circle, rgba(239, 68, 68, .55), transparent 68%); animation: drift1 26s var(--ease) infinite alternate; }
 .aurora-orb.o2 { width: 46vw; height: 46vw; right: -10vw; top: -10vw; background: radial-gradient(circle, rgba(185, 28, 28, .45), transparent 68%); animation: drift2 32s var(--ease) infinite alternate; }
 .aurora-orb.o3 { width: 40vw; height: 40vw; left: 28vw; bottom: -22vw; background: radial-gradient(circle, rgba(249, 115, 22, .32), transparent 68%); animation: drift3 29s var(--ease) infinite alternate; }
-.aurora-grid {
-  position: absolute; inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
-  background-size: 46px 46px;
-  mask-image: radial-gradient(90% 60% at 50% 0%, #000 0%, transparent 72%);
-  -webkit-mask-image: radial-gradient(90% 60% at 50% 0%, #000 0%, transparent 72%);
-  animation: gridIn 1.4s var(--ease) both;
-}
-/* Corredor AcidSquares (WebGL) sobre a grade: sutil, sem capturar clique nem mouse */
-.acid { position: relative; width: 100%; height: 100%; overflow: hidden; }
-.aurora-acid { position: absolute; inset: 0; pointer-events: none; }
-.aurora-acid canvas { position: absolute; inset: 0; display: block; }
+/* Aurora WebGL (ogl): fitas fluindo no fundo, sutis e profissionais */
+.aurora-gl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; opacity: .9; }
+.aurora-gl canvas { position: absolute; inset: 0; display: block; width: 100% !important; height: 100% !important; }
 @keyframes drift1 { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(6vw, 4vw, 0) scale(1.15); } }
 @keyframes drift2 { from { transform: translate3d(0, 0, 0) scale(1.1); } to { transform: translate3d(-5vw, 5vw, 0) scale(1); } }
 @keyframes drift3 { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-4vw, -4vw, 0) scale(1.2); } }
@@ -176,7 +165,7 @@ input, textarea, select { font-family: inherit; }
 .side-head { display: flex; align-items: center; gap: 10px; padding: 16px 14px 12px; }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand-mark {
-  width: 34px; height: 34px; flex: none; border-radius: 10px;
+  width: 48px; height: 48px; flex: none; border-radius: 12px;
   display: grid; place-items: center;
   animation: brand-float 5.5s var(--ease) infinite;
 }

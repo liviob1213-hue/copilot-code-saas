@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import AcidSquares from "./AcidSquares.jsx";
+import Aurora from "./Aurora.jsx";
+import BorderGlow from "./BorderGlow.jsx";
 import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, BLINDAR_PROMPT } from "./core/runtime.js";
@@ -423,7 +424,12 @@ export default function App({ oauthResult, oauthError }) {
               <button className={"m-tab" + (mobileView === "chat" ? " on" : "")} onClick={() => setMobileView("chat")}>Chat</button>
               <button className={"m-tab" + (mobileView === "preview" ? " on" : "")} onClick={() => setMobileView("preview")}>Preview</button>
             </div>
-            <div className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}>
+            <BorderGlow
+              className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}
+              backgroundColor="transparent" borderRadius={0}
+              glowColor="347 92 58" glowRadius={22} edgeSensitivity={26} coneSpread={22}
+              colors={["#e11d48", "#fb7185", "#f97316"]}
+            >
               <div className="chat-top">
                 {repo ? (
                   <div className="repo-chip" title={`${repo.owner}/${repo.name}`}>
@@ -458,7 +464,7 @@ export default function App({ oauthResult, oauthError }) {
                 </div>
               )}
               {composer}
-            </div>
+            </BorderGlow>
 
             <div className={"preview-col" + (mobileView === "chat" ? " m-off" : "")}>
               <div className="preview-bar">
@@ -503,42 +509,19 @@ export default function App({ oauthResult, oauthError }) {
 
 /* ---------------- Fundo ambiente ---------------- */
 function AuroraBackdrop() {
-  // Quem pede menos movimento no sistema não vê o efeito (o resto do fundo continua).
-  const semMovimento = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   return (
     <div className="aurora" aria-hidden="true">
       <span className="aurora-orb o1" />
       <span className="aurora-orb o2" />
       <span className="aurora-orb o3" />
-      <div className="aurora-grid" />
-      {!semMovimento && (
-        <AcidSquares
-          className="aurora-acid"
-          // Sutil por cima da grade: luz fraca, movimento lento, quase estático.
-          color1="#e11d48"           // carmim (fundo do corredor)
-          color2="#fb7185"           // rosa (faces que brilham)
-          color3="#ffe4e6"           // quase branco quente (arestas mais quentes)
-          detail="low"               // 20 passos de raymarch (leve)
-          speed={0.25}               // deriva bem lenta
-          waveDepth={0.4}            // respiração curta
-          zoom={1.6}                 // mais afastado = menos presença
-          density={7}                // caixas mais espaçadas
-          glow={0.35}                // brilho bem contido
-          exposure={3600}            // exposição alta = imagem discreta
-          spread={0.3}
-          stepSize={0.002}
-          colorShift={0.1}           // cintilar quase imperceptível
-          contrast={1}
-          brightness={0.9}
-          opacity={0.4}              // efeito por inteiro bem transparente
-          mouseInteraction
-          mouseStrength={0.06}       // mouse afunda a grade de leve
-          mouseRadius={0.3}
-          blur={0.25}                // leve véu para não competir com a UI
-          grain
-          grainIntensity={0.03}
-        />
-      )}
+      <Aurora
+        className="aurora-gl"
+        colorStops={["#180810", "#e11d48", "#2a0a16"]}
+        amplitude={0.9}
+        blend={0.55}
+        speed={0.6}
+        mouse
+      />
     </div>
   );
 }
@@ -556,10 +539,6 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
       <div className="side-head">
         <div className="brand">
           <span className="brand-mark"><img src="/brand/logo.png" alt="logo" className="brand-logo" /></span>
-          <span className="brand-text">
-            <span className="brand-name">Copilot Code</span>
-            <span className="brand-sub">BYOK Studio</span>
-          </span>
         </div>
         <button className="icon-btn side-collapse" onClick={onCollapse} title="Minimizar menu"><IconChevronLeft /></button>
       </div>
