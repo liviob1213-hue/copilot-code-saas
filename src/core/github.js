@@ -465,6 +465,14 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
     if (/already exists|name already exists/i.test(err.message)) {
       throw new Error(`Ja existe um repositorio chamado "${nomeLimpo}" na sua conta. Escolha outro nome.`);
     }
+    // Se o 422 foi por causa da DESCRICAO, tenta de novo SEM descricao (a
+    // descricao e so cosmetica — nunca vale travar a criacao do projeto por ela).
+    if (/description|control character/i.test(err.message)) {
+      repo = await api("/user/repos", {
+        method: "POST",
+        body: JSON.stringify({ name: nomeLimpo, private: privado, auto_init: true })
+      });
+    } else {
     // 422/403 ao criar repo. Agora o api() ja revela o motivo REAL (array
     // "errors" do GitHub), entao lideramos com ele e so adicionamos as causas
     // mais comuns. Nao afirmamos "fine-grained" como causa unica: o motivo pode
@@ -479,6 +487,7 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
       );
     }
     throw err;
+    }
   }
 
   const owner = repo.owner.login;
