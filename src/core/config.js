@@ -36,7 +36,7 @@ export const SUPABASE_OAUTH = {
   scope: ""
 };
 
-export const CATALOG_VERSION = 12;
+export const CATALOG_VERSION = 13;
 
 // tier: "free" entra no rodizio automatico primeiro; "paid" so e usado no
 // automatico depois que TODAS as gratis se esgotarem (protege o saldo do cliente).
@@ -54,8 +54,8 @@ export const PROVIDER_CATALOG = [
     listEndpoint: "https://generativelanguage.googleapis.com/v1beta/models",
     secretKey: "GEMINI_API_KEY",
     keyUrl: "https://aistudio.google.com/apikey",
-    defaultModel: "gemini-2.5-flash",
-    models: ["gemini-2.5-flash"],
+    defaultModel: "gemini-flash-latest",
+    models: ["gemini-flash-latest", "gemini-flash-lite-latest"],
     note: "Gratis. Contexto enorme, le o projeto inteiro e enxerga imagem."
   },
   {
@@ -69,9 +69,9 @@ export const PROVIDER_CATALOG = [
     listEndpoint: "https://openrouter.ai/api/v1/models",
     secretKey: "OPENROUTER_API_KEY",
     keyUrl: "https://openrouter.ai/keys",
-    defaultModel: "qwen/qwen3-coder:free",
-    models: ["qwen/qwen3-coder:free"],
-    note: "Gratis. Rede de reserva com modelos de codigo (sufixo :free)."
+    defaultModel: "cohere/north-mini-code:free",
+    models: ["cohere/north-mini-code:free", "nvidia/nemotron-3-super-120b-a12b:free", "google/gemma-4-31b-it:free"],
+    note: "Gratis. Os modelos :free mudam de nome; se der 404, clique em Buscar e escolha um da lista."
   },
   {
     id: "mistral",
