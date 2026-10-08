@@ -427,7 +427,7 @@ export default function App({ oauthResult, oauthError }) {
             <BorderGlow
               className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}
               backgroundColor="transparent" borderRadius={0}
-              glowColor="347 92 58" glowRadius={22} edgeSensitivity={26} coneSpread={22}
+              glowColor="347 92 60" glowRadius={34} edgeSensitivity={14} glowIntensity={1.4} coneSpread={28}
               colors={["#e11d48", "#fb7185", "#f97316"]}
             >
               <div className="chat-top">
@@ -955,27 +955,31 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
     <>
       <div className="drawer-scrim" onClick={onClose} />
       <div className="drawer">
-        <DrawerHead icon={<IconChat />} titulo="Conversas" onClose={onClose}>
-          {sessions.length > 0 && <button className="btn sm ghost" onClick={() => { if (window.confirm("Apagar todo o histórico?")) onClear(); }}>Limpar</button>}
-        </DrawerHead>
-        <div className="body">
-          {sessions.length === 0 ? (
-            <div className="empty">
-              <span className="orb"><IconChat /></span>
-              <div>Nada aqui ainda. Cada conversa fica salva no seu navegador.</div>
-            </div>
-          )
-            : sessions.map(s => (
-              <div key={s.id} className="hist-item">
-                <span className="proj-avatar"><IconChat /></span>
-                <div className="hist-main" onClick={() => onOpen(s.id)}>
-                  <div className="hist-title">{s.title}</div>
-                  <div className="hist-meta">{fmtData(s.updatedAt)}{s.repo ? ` · ${s.repo.owner}/${s.repo.name}` : ""}{s.count ? ` · ${s.count} msg` : ""}</div>
-                </div>
-                <button className="icon-btn" onClick={() => onDelete(s.id)} title="Apagar conversa"><IconClose /></button>
+        <BorderGlow className="drawer-glow" backgroundColor="transparent" borderRadius={0}
+          glowColor="347 92 60" glowRadius={28} edgeSensitivity={16} glowIntensity={1.3} coneSpread={28}
+          colors={["#e11d48", "#fb7185", "#f97316"]}>
+          <DrawerHead icon={<IconChat />} titulo="Conversas" onClose={onClose}>
+            {sessions.length > 0 && <button className="btn sm ghost" onClick={() => { if (window.confirm("Apagar todo o histórico?")) onClear(); }}>Limpar</button>}
+          </DrawerHead>
+          <div className="body">
+            {sessions.length === 0 ? (
+              <div className="empty">
+                <span className="orb"><IconChat /></span>
+                <div>Nada aqui ainda. Cada conversa fica salva no seu navegador.</div>
               </div>
-            ))}
-        </div>
+            )
+              : sessions.map(s => (
+                <div key={s.id} className="hist-item">
+                  <span className="proj-avatar"><IconChat /></span>
+                  <div className="hist-main" onClick={() => onOpen(s.id)}>
+                    <div className="hist-title">{s.title}</div>
+                    <div className="hist-meta">{fmtData(s.updatedAt)}{s.repo ? ` · ${s.repo.owner}/${s.repo.name}` : ""}{s.count ? ` · ${s.count} msg` : ""}</div>
+                  </div>
+                  <button className="icon-btn" onClick={() => onDelete(s.id)} title="Apagar conversa"><IconClose /></button>
+                </div>
+              ))}
+          </div>
+        </BorderGlow>
       </div>
     </>
   );

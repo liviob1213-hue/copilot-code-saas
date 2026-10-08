@@ -349,7 +349,9 @@ input, textarea, select { font-family: inherit; }
 .chat-col {
   width: 45%; min-width: 348px; display: flex; flex-direction: column; min-height: 0;
   border-right: 1px solid var(--edge);
-  background: linear-gradient(180deg, rgba(12, 12, 19, .55), rgba(8, 8, 13, .35));
+  /* Opaco de proposito: assim o fundo Aurora (que reage ao mouse) NAO aparece
+     atras da conversa e nao atrapalha a leitura/digitacao. */
+  background: #0c0c13;
 }
 .preview-col { flex: 1; display: flex; flex-direction: column; background: rgba(9, 9, 14, .55); min-width: 0; }
 
@@ -664,6 +666,7 @@ select.chip { -webkit-appearance: none; appearance: none; }
   animation: drawerIn .38s var(--ease) both;
 }
 @keyframes drawerIn { from { transform: translateX(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.drawer-glow { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .drawer header {
   display: flex; align-items: center; gap: 10px;
   padding: 16px 18px; border-bottom: 1px solid var(--edge);
