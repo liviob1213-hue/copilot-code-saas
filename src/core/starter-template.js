@@ -232,6 +232,44 @@ export function cn(...inputs) {
 }
 `,
 
+  // Store compartilhado (sem dependencia). Qualquer tela le/grava a MESMA
+  // colecao e todas re-renderizam juntas. Persiste no navegador (localStorage),
+  // entao o site publico e o painel admin do MESMO app compartilham os dados.
+  // Uso:  const [agendamentos, setAgendamentos] = useStore("agendamentos", []);
+  //       setAgendamentos(prev => [...prev, novo]);
+  "src/lib/useStore.js": `import { useSyncExternalStore } from "react";
+
+const mem = {};
+const subs = new Set();
+
+function ler(key, seed) {
+  if (key in mem) return mem[key];
+  try {
+    const raw = localStorage.getItem("app:" + key);
+    mem[key] = raw ? JSON.parse(raw) : seed;
+  } catch { mem[key] = seed; }
+  return mem[key];
+}
+function gravar(key, val) {
+  mem[key] = val;
+  try { localStorage.setItem("app:" + key, JSON.stringify(val)); } catch {}
+  subs.forEach((fn) => fn());
+}
+
+export function useStore(key, seed) {
+  const subscribe = (fn) => { subs.add(fn); return () => subs.delete(fn); };
+  const snap = () => ler(key, seed);
+  const data = useSyncExternalStore(subscribe, snap, snap);
+  const set = (next) => gravar(key, typeof next === "function" ? next(ler(key, seed)) : next);
+  return [data, set];
+}
+
+// id curto e unico para novos registros
+export function novoId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+`,
+
   "src/components/ui/button.jsx": `import { cn } from "../../lib/utils";
 
 const variants = {
@@ -672,6 +710,7 @@ const PROTEGIDOS = [
   "src/main.jsx",
   "src/index.css",
   "src/lib/utils.js",
+  "src/lib/useStore.js",
   "src/components/ui/button.jsx",
   "src/components/ui/card.jsx",
   "src/components/ui/input.jsx",
