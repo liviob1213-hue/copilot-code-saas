@@ -25,9 +25,13 @@ export const STARTER_FILES = {
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "framer-motion": "^11.5.4",
     "lucide-react": "^0.454.0",
     "react": "^18.3.1",
+    "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
     "tailwind-merge": "^2.5.4"

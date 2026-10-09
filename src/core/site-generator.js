@@ -636,6 +636,55 @@ export default function App(){
  * minimo para o build nunca quebrar por arquivo faltando. O stub vira uma tela
  * "Em construcao" (para paginas) — melhor que o site inteiro nao subir.
  */
+// Pacotes npm que EXISTEM no projeto (package.json do starter). Qualquer import
+// de pacote fora desta lista e neutralizado, para o build na Vercel NUNCA quebrar
+// com "failed to resolve import" — a causa #1 de deploy com Erro.
+const NPM_PERMITIDOS = new Set([
+  "react", "react-dom", "react-router-dom", "lucide-react",
+  "@supabase/supabase-js", "clsx", "tailwind-merge", "class-variance-authority",
+  "date-fns", "framer-motion", "react-day-picker"
+]);
+function clausulaParaStubs(clause) {
+  const decls = [];
+  const ns = clause.match(/\*\s+as\s+([A-Za-z_$][\w$]*)/);
+  if (ns) decls.push(`const ${ns[1]} = __nsStub;`);
+  const semNs = clause.replace(/\*\s+as\s+[A-Za-z_$][\w$]*/, "");
+  const def = semNs.match(/^\s*([A-Za-z_$][\w$]*)\s*(?=,|$|\{)/);
+  if (def && def[1]) decls.push(`const ${def[1]} = __fxStub;`);
+  const bloco = clause.match(/\{([^}]*)\}/);
+  if (bloco) for (const n of bloco[1].split(",")) {
+    const nome = n.split(/\s+as\s+/).pop().trim();
+    if (nome) decls.push(`const ${nome} = __fxStub;`);
+  }
+  return decls.join(" ");
+}
+export function blindarImportsNpm(files) {
+  const out = { ...files };
+  const permitido = (spec) => {
+    if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@/")) return true; // local
+    const base = spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0];
+    return NPM_PERMITIDOS.has(base);
+  };
+  for (const [path, content] of Object.entries(out)) {
+    if (!/\.(jsx?|tsx?)$/i.test(path)) continue;
+    let txt = String(content), mexeu = false;
+    txt = txt.replace(/import\s+([^;]*?)\s+from\s+["']([^"']+)["'];?/g, (full, clause, spec) => {
+      if (permitido(spec)) return full;
+      mexeu = true;
+      return clausulaParaStubs(clause.trim());
+    });
+    txt = txt.replace(/import\s+["']([^"']+)["'];?/g, (full, spec) => {
+      if (permitido(spec)) return full;
+      mexeu = true;
+      return "";
+    });
+    if (mexeu) {
+      out[path] = `const __fxStub = (p) => (p && p.children != null ? p.children : null);\nconst __nsStub = new Proxy(function(){return null;}, { get: () => __fxStub });\n` + txt;
+    }
+  }
+  return out;
+}
+
 export function garantirImportsLocais(files) {
   const out = { ...files };
   const norm = (p) => {
@@ -818,7 +867,8 @@ Mudanca pedida: "${userMessage}"`;
   // Encaixa os arquivos da IA no kit estiloso (Tailwind + componentes prontos).
   files = normalizarParaKit(files);
   files = mergeStarter(files);
-  files = garantirImportsLocais(files);   // cria stubs para imports que faltarem
+  files = garantirImportsLocais(files);   // cria stubs para imports LOCAIS que faltarem
+  files = blindarImportsNpm(files);       // neutraliza imports de pacotes npm nao instalados
   files = injetarCredenciais(files, supabase);
   files = injetarImagens(files, embedImages);
 
