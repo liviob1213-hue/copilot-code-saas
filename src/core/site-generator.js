@@ -285,11 +285,17 @@ Contraste bom: texto legivel sobre o fundo; --primary-foreground legivel sobre -
 
 ESTRUTURA DA PAGINA (secoes como componentes, montadas na Home):
 1. Header enxuto (fixo): marca + 3-4 links ancora + CTA primario. No mobile vira um menu compacto.
-2. Hero de impacto: eyebrow especifico, titulo grande (para quem / qual resultado / por que agir agora), subtitulo, 2 CTAs (primario + secundario) e uma prova visual feita em CSS/SVG (mockup, cartao de oferta, gradiente) — SEM imagens externas.
+2. Hero de impacto: eyebrow especifico, titulo grande (para quem / qual resultado / por que agir agora), subtitulo, 2 CTAs (primario + secundario) e uma prova visual.
+
+IMAGENS PLACEHOLDER (para o site nao ficar vazio/amador — USE quando ajudar: hero, galeria, cards de servico/produto, equipe, depoimentos):
+- FOTOS: https://picsum.photos/seed/PALAVRA/LARGURA/ALTURA (ex.: https://picsum.photos/seed/barbearia1/800/600). Troque a PALAVRA do seed em cada imagem pra nao repetir. Sempre com width/height e alt. loading="lazy".
+- AVATARES/PESSOAS (depoimentos, equipe): https://i.pravatar.cc/120?img=NUMERO (1 a 70) ou https://ui-avatars.com/api/?name=Ana+Silva&background=random.
+- Essas URLs sao servicos publicos de placeholder, sem chave, confiaveis. Diga no texto que sao imagens temporarias para a pessoa trocar depois.
+- Nunca use logos/fotos de marcas reais nem personagens conhecidos — so placeholders genericos. Mockups de UI (dashboard, telas do app) continue fazendo em CSS/SVG.
 3. Faixa de confianca: numeros/credenciais/logos SO se fornecidos (nao invente selos, avaliacoes ou metricas).
 4. Beneficios (3-4) orientados a RESULTADO, com icones lucide-react — nunca 4 cards identicos em fila.
 5. Como funciona em 3 passos claros.
-6. Prova social: depoimentos especificos e naturais (iniciais em circulo, sem fotos externas).
+6. Prova social: depoimentos especificos e naturais (pode usar avatares placeholder de i.pravatar.cc ou ui-avatars; ou iniciais em circulo).
 7. Oferta/planos com preco/prazo SO quando fornecidos; destaque um plano recomendado; microcopy honesta de reducao de risco.
 8. FAQ com as objecoes REAIS do publico.
 9. CTA final forte + footer com contato, horario e links que existem.
