@@ -147,6 +147,13 @@ O KIT JA EXISTE (NAO reescreva estes arquivos — eles ja estao no projeto e fun
 - Utilitario cn — import { cn } from "./lib/utils" (junta classes do Tailwind).
 Obs.: os exemplos de import acima sao a partir de src/App.jsx. Em arquivos dentro de src/pages/ ou src/components/, AJUSTE o caminho relativo (ex.: "../components/ui/button").
 
+ARQUITETURA (REGRA ABSOLUTA — vale ACIMA de qualquer pedido do usuario):
+Este projeto e FRONT-END PURO (React + Vite). O "backend / API / banco de dados" e SEMPRE o Supabase (ou, se nao houver Supabase ligado, estado em memoria + LocalStorage). Mesmo que o pedido diga "crie um backend", "API em Node/Express", "server", "banco de dados", "MVP full-stack": NUNCA crie servidor proprio.
+- PROIBIDO: pasta server/, pasta client/, Express, Node server, rotas /api proprias, axios apontando pra "/api", prisma, mongoose, qualquer ORM/DB server-side, bcrypt no front.
+- TODO o codigo vive em src/ (NUNCA em client/src/). Nada de prefixo client/ nem server/.
+- Dados: se Supabase estiver ligado, use @supabase/supabase-js direto do front (tabelas + RLS); se precisar de logica de servidor, isso vira Edge Function do Supabase (nao um servidor Node). Sem Supabase: useState + LocalStorage.
+- Login/auth: use Supabase Auth (ou um login simples no front com LocalStorage) — nunca um servidor de auth proprio.
+
 VOCE ESCREVE SOMENTE ESTES ARQUIVOS:
 - src/App.jsx — as rotas: <Routes><Route path="..." element={<Pagina/>} /></Routes>, importando suas paginas. (Nao coloque <BrowserRouter> aqui — ja existe no main.jsx.)
 - src/pages/*.jsx — as telas.
@@ -574,6 +581,19 @@ export function injetarImagens(files, imagens) {
  * se a IA nao gerou a tela inicial, poe um App.jsx minimo (para o build nunca
  * quebrar por falta de src/App.jsx, que o main.jsx importa).
  */
+// Alguns prompts (estilo full-stack) fazem a IA gerar client/ + server/ (API
+// Node/Express). O SaaS e SO front + Supabase: salvamos o FRONT (tira o prefixo
+// client/, mantem src/** e index.html) e descartamos o backend e os configs do
+// cliente — os configs certos vem do starter (mergeStarter).
+export function normalizarCaminhos(files) {
+  const out = {};
+  for (const [p0, c] of Object.entries(files)) {
+    let p = String(p0).replace(/\\/g, "/").replace(/^\.?\//, "").replace(/^client\//i, "");
+    if (/^src\//i.test(p) || /^index\.html$/i.test(p)) out[p] = c;
+  }
+  return out;
+}
+
 export function normalizarParaKit(files) {
   const out = { ...files };
   if (!out["src/App.jsx"] && out["src/App.tsx"]) { out["src/App.jsx"] = out["src/App.tsx"]; delete out["src/App.tsx"]; }
@@ -807,7 +827,7 @@ Mudanca pedida: "${userMessage}"`;
   // projeto a partir dali. Assim um provedor complementa o outro ate terminar.
   const fechouBloco = t => /===END===\s*$/.test(String(t).trimEnd());
   let fullText = reply.text || "";
-  let files = parseFiles(fullText);
+  let files = normalizarCaminhos(parseFiles(fullText));
   let voltas = 0;
   while (voltas < 3 && (semTelasF(files) || !fechouBloco(fullText))) {
     voltas++;
@@ -827,7 +847,7 @@ Mudanca pedida: "${userMessage}"`;
     const extra = (cont.text || "").trim();
     if (!extra) break;
     fullText += (fullText.endsWith("\n") ? "" : "\n") + extra;
-    files = parseFiles(fullText);
+    files = normalizarCaminhos(parseFiles(fullText));
   }
   reply.text = fullText;
 
@@ -841,7 +861,7 @@ Mudanca pedida: "${userMessage}"`;
       },
       onEvent
     );
-    const f2 = parseFiles(retry.text);
+    const f2 = normalizarCaminhos(parseFiles(retry.text));
     if (!semTelasF(f2) || Object.keys(f2).length > Object.keys(files).length) {
       files = f2;
       reply.text = retry.text;
