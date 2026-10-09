@@ -703,6 +703,7 @@ function eventoTexto(ev) {
     case "commit": return `Salvo no GitHub${ev.shortSha ? ` (${ev.shortSha})` : ""}.`;
     case "tool_error": return `⚠️ erro em ${ev.name}: ${ev.message}`;
     case "notice": return "⚠️ " + ev.text;
+    case "continuacao": return `A resposta foi cortada — a próxima IA está continuando de onde parou${ev.parte > 1 ? ` (parte ${ev.parte})` : ""}…`;
     case "html_retry": return "A resposta veio incompleta — pedindo de novo…";
     case "assistant_text": return (ev.text || "").replace(/\s+/g, " ").trim().slice(0, 120);
     default: return "";

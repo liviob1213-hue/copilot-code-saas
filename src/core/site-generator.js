@@ -748,17 +748,46 @@ Mudanca pedida: "${userMessage}"`;
     onEvent
   );
 
-  let files = parseFiles(reply.text);
-
-  // Sem telas (nem App.jsx nem paginas) = resposta vazia/cortada: uma tentativa
-  // de reforco, pedindo um projeto COMPACTO com App.jsx primeiro.
   const semTelasF = f => !f["src/App.jsx"] && !f["src/App.tsx"] &&
     !Object.keys(f).some(p => /^src\/pages\//i.test(p));
+
+  // CONTINUIDADE ENTRE PROVEDORES: se a resposta veio CORTADA (nao fechou o
+  // ultimo ===END=== ou ainda faltam telas), pedimos para CONTINUAR de onde
+  // parou — SEM recomecar. Como o complete() faz rodizio, a continuacao pode
+  // cair em OUTRO provedor: ele recebe tudo que ja foi escrito e completa o
+  // projeto a partir dali. Assim um provedor complementa o outro ate terminar.
+  const fechouBloco = t => /===END===\s*$/.test(String(t).trimEnd());
+  let fullText = reply.text || "";
+  let files = parseFiles(fullText);
+  let voltas = 0;
+  while (voltas < 3 && (semTelasF(files) || !fechouBloco(fullText))) {
+    voltas++;
+    onEvent({ type: "continuacao", parte: voltas });
+    let cont;
+    try {
+      cont = await complete(
+        {
+          system: systemBase + contexto +
+            "\n\nCONTINUACAO: voce (ou outra IA) estava gerando um projeto React em blocos ===FILE: caminho=== ... ===END=== e a resposta FOI CORTADA. Continue EXATAMENTE de onde parou, SEM repetir nenhum caractere do que ja foi escrito e SEM comentarios nem introducao. Se parou no meio de um arquivo, termine aquele arquivo primeiro; depois gere os que ainda faltam (src/App.jsx com TODAS as rotas, src/theme.css, e as paginas em src/pages/ — uma por rota, cada uma completa). Feche cada bloco com ===END===. NAO reescreva blocos ja completos.",
+          messages: [...messages, { role: "assistant", text: fullText }, { role: "user", text: "Continue de onde parou, sem repetir, ate fechar o ultimo ===END===." }],
+          tools: [], preferredProviderId: providerId
+        },
+        onEvent
+      );
+    } catch { break; }
+    const extra = (cont.text || "").trim();
+    if (!extra) break;
+    fullText += (fullText.endsWith("\n") ? "" : "\n") + extra;
+    files = parseFiles(fullText);
+  }
+  reply.text = fullText;
+
+  // ULTIMO RECURSO: se mesmo continuando nao vieram telas, regenera do zero 1x.
   if (semTelasF(files)) {
     onEvent({ type: "html_retry", mode: "projeto" });
     const retry = await complete(
       {
-        system: systemBase + contexto + "\n\nRETRY: sua resposta anterior veio incompleta (sem as telas). Gere o sistema COMPLETO (4 a 6 telas), bem ordenado. Escreva PRIMEIRO ===FILE: src/App.jsx=== com TODAS as rotas, depois ===FILE: src/theme.css===, depois as paginas em src/pages/ — uma por rota, cada uma completa. Use exatamente ===FILE: caminho=== e ===END===, nada fora dos blocos, e feche o ultimo ===END===.",
+        system: systemBase + contexto + "\n\nRETRY: a resposta anterior veio incompleta (sem as telas). Gere o sistema COMPLETO (4 a 6 telas), bem ordenado. Escreva PRIMEIRO ===FILE: src/App.jsx=== com TODAS as rotas, depois ===FILE: src/theme.css===, depois as paginas em src/pages/ — uma por rota, cada uma completa. Use exatamente ===FILE: caminho=== e ===END===, nada fora dos blocos, e feche o ultimo ===END===.",
         messages, tools: [], preferredProviderId: providerId
       },
       onEvent
@@ -766,7 +795,7 @@ Mudanca pedida: "${userMessage}"`;
     const f2 = parseFiles(retry.text);
     if (!semTelasF(f2) || Object.keys(f2).length > Object.keys(files).length) {
       files = f2;
-      reply.text = retry.text;   // e este texto que a rede de seguranca de HTML vai olhar
+      reply.text = retry.text;
     } else if (!Object.keys(files).length) reply.text = retry.text;
   }
 
