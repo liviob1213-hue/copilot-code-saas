@@ -1179,19 +1179,42 @@ function AiProviders({ showToast }) {
   }
   async function setModel(id, model) { const arr = (await store.get("providers")).map(p => p.id === id ? { ...p, model } : p); await store.set("providers", arr); setProvs(arr); }
   async function toggle(id) { const arr = (await store.get("providers")).map(p => p.id === id ? { ...p, enabled: !p.enabled } : p); await store.set("providers", arr); setProvs(arr); }
+  // Reordena a fila: sobe/desce um provedor DENTRO do mesmo grupo (grátis/paga).
+  // A ordem define quem o rodízio tenta primeiro.
+  const tierDe = id => (PROVIDER_CATALOG.find(p => p.id === id)?.tier === "paid" ? 1 : 0);
+  async function mover(id, dir) {
+    let arr = (await store.get("providers")).slice()
+      .sort((a, b) => (tierDe(a.id) - tierDe(b.id)) || ((a.priority ?? 0) - (b.priority ?? 0)));
+    const i = arr.findIndex(p => p.id === id);
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return;
+    if (tierDe(arr[j].id) !== tierDe(id)) return;   // não cruza grátis <-> paga
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    arr = arr.map((p, k) => ({ ...p, priority: k }));
+    await store.set("providers", arr);
+    setProvs(arr);
+  }
   if (!secrets) return null;
   return (
     <div style={{ marginTop: 10 }}>
-      <p className="hint" style={{ marginTop: 0 }}>Preencha ao menos uma e clique <b>Salvar</b> — ao salvar, testo os modelos pra você. Comece pelas <b>grátis</b>: Gemini, OpenRouter, Mistral, Groq.</p>
-      {PROVIDER_CATALOG.map(pc => {
+      <p className="hint" style={{ marginTop: 0 }}>Preencha ao menos uma e clique <b>Salvar</b>. Use as setas <b>↑↓</b> pra definir a ordem do rodízio (quem é tentado primeiro). As grátis sempre vêm antes das pagas.</p>
+      {[...PROVIDER_CATALOG]
+        .sort((a, b) => (tierDe(a.id) - tierDe(b.id)) || ((cfg(a.id).priority ?? 99) - (cfg(b.id).priority ?? 99)))
+        .map((pc, idx, lista) => {
         const c = cfg(pc.id); const salva = Boolean((secrets[pc.secretKey] || "").trim());
         const opcoes = [...new Set([c.model, ...(pc.models || []), ...(fetched[pc.id] || [])].filter(Boolean))].filter(EH_CODIGO);
         const H = health[pc.id] || {};
         const testOn = testando === pc.id;
         const icone = m => testOn ? "⏳" : ({ ok: "✅", fail: "❌", retry: "⏳" })[H[m]?.status] || "";
+        const primeiroDoTier = idx === 0 || tierDe(lista[idx - 1].id) !== tierDe(pc.id);
+        const ultimoDoTier = idx === lista.length - 1 || tierDe(lista[idx + 1].id) !== tierDe(pc.id);
         return (
           <div className="ai-card" key={pc.id}>
             <div className="ai-head">
+              <span className="ai-order">
+                <button className="ord" disabled={primeiroDoTier} onClick={() => mover(pc.id, -1)} title="Subir">↑</button>
+                <button className="ord" disabled={ultimoDoTier} onClick={() => mover(pc.id, 1)} title="Descer">↓</button>
+              </span>
               <label className="ai-enable">
                 <input type="checkbox" checked={c.enabled !== false} onChange={() => toggle(pc.id)} />
                 <span className="ai-avatar">{iniciais(pc.label)}</span>

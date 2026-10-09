@@ -93,7 +93,10 @@ export const PROVIDER_CATALOG = [
     id: "groq",
     tier: "free",
     maxOutput: 8000,
-    contextBudget: 6500,
+    // Antes era 6500 (teto do TPM antigo) — pequeno demais pra gerar codigo, entao
+    // o rodizio SEMPRE pulava o Groq ("pedido grande demais"). Subimos pra ele ao
+    // menos ser tentado; se estourar o limite por minuto, o rodizio passa adiante.
+    contextBudget: 28000,
     vision: false,
     label: "Groq",
     kind: "openai",
