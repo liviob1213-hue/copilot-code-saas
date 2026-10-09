@@ -19,6 +19,10 @@ const SUGESTOES = [
   "Dashboard financeiro com gráficos e filtros"
 ];
 
+// Plano antes de construir (1o comando de projeto novo): DESATIVADO a pedido —
+// ir direto pra construção. Troque pra true pra reativar o fluxo de plano.
+const PLANO_ATIVO = false;
+
 export default function App({ oauthResult, oauthError }) {
   const [view, setView] = useState("home");        // home | workspace
   const [messages, setMessages] = useState([]);
@@ -229,7 +233,7 @@ export default function App({ oauthResult, oauthError }) {
     // PLANO PRIMEIRO: só no 1º comando de um projeto NOVO (sem repo). A IA monta
     // um plano, a pessoa aprova/edita/recusa, e só então constrói. Edições de
     // projeto já aberto e os comandos seguintes passam direto.
-    if (!repo && !hardening && !planoAprovado) {
+    if (PLANO_ATIVO && !repo && !hardening && !planoAprovado) {
       setView("workspace");
       flowRef.current = "ia";
       setBusy(true);
