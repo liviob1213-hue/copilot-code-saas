@@ -682,7 +682,9 @@ export default function App(){
 const NPM_PERMITIDOS = new Set([
   "react", "react-dom", "react-router-dom", "lucide-react",
   "@supabase/supabase-js", "clsx", "tailwind-merge", "class-variance-authority",
-  "date-fns", "framer-motion", "react-day-picker"
+  "date-fns", "framer-motion", "react-day-picker",
+  // ferramentas de build (aparecem nos configs) — NUNCA podem virar stub
+  "vite", "@vitejs/plugin-react", "tailwindcss", "autoprefixer", "postcss"
 ]);
 function clausulaParaStubs(clause) {
   const decls = [];
@@ -706,6 +708,10 @@ export function blindarImportsNpm(files) {
     return NPM_PERMITIDOS.has(base);
   };
   for (const [path, content] of Object.entries(out)) {
+    // SO arquivos de codigo dentro de src/. NUNCA tocar nos configs da raiz
+    // (vite.config.js, tailwind.config.js, etc.) — eles importam ferramentas de
+    // build e o stub quebraria o build inteiro (foi exatamente o que aconteceu).
+    if (!/^src\//i.test(path)) continue;
     if (!/\.(jsx?|tsx?)$/i.test(path)) continue;
     let txt = String(content), mexeu = false;
     txt = txt.replace(/import\s+([^;]*?)\s+from\s+["']([^"']+)["'];?/g, (full, clause, spec) => {
