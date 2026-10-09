@@ -594,14 +594,22 @@ export function injetarImagens(files, imagens) {
  * quebrar por falta de src/App.jsx, que o main.jsx importa).
  */
 // Alguns prompts (estilo full-stack) fazem a IA gerar client/ + server/ (API
-// Node/Express). O SaaS e SO front + Supabase: salvamos o FRONT (tira o prefixo
-// client/, mantem src/** e index.html) e descartamos o backend e os configs do
-// cliente — os configs certos vem do starter (mergeStarter).
+// Node/Express). O SaaS e SO front + Supabase. SO agimos quando REALMENTE ha
+// esse split: tiramos o prefixo client/ e descartamos o backend (server/ etc.)
+// e os configs do cliente (o starter tem os certos). No caso NORMAL (sem split)
+// nao mexemos em NADA — pra nunca descartar um arquivo legitimo por engano.
 export function normalizarCaminhos(files) {
+  const temSplit = Object.keys(files).some(p => /^(\.?\/)?(client|server|backend)\//i.test(p));
+  if (!temSplit) return files;
   const out = {};
   for (const [p0, c] of Object.entries(files)) {
-    let p = String(p0).replace(/\\/g, "/").replace(/^\.?\//, "").replace(/^client\//i, "");
-    if (/^src\//i.test(p) || /^index\.html$/i.test(p)) out[p] = c;
+    let p = String(p0).replace(/\\/g, "/").replace(/^\.?\//, "");
+    if (/^(server|backend|api)\//i.test(p)) continue;                 // backend: fora
+    p = p.replace(/^client\//i, "");                                   // tira o prefixo client/
+    if (!p) continue;
+    // configs do cliente saem (o starter fornece os certos)
+    if (/^package\.json$/i.test(p) || /\.config\.(js|ts|cjs|mjs)$/i.test(p) || /^tsconfig/i.test(p) || /^vercel\.json$/i.test(p)) continue;
+    out[p] = c;
   }
   return out;
 }
