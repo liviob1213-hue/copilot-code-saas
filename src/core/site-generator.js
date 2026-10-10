@@ -836,6 +836,77 @@ export function blindarImportsNpm(files) {
   return out;
 }
 
+// Corrige o ESTILO do import de arquivos LOCAIS para bater com o que o arquivo
+// realmente exporta. Causa #1 nova de build quebrado: a IA faz
+//   import Button from "./ui/button"   (default)
+// mas o arquivo exporta NOMEADO (export function Button). Rollup quebra com
+// '"default" is not exported'. Aqui detectamos os exports de cada arquivo e
+// convertemos default<->nomeado conforme o necessario.
+export function corrigirEstiloImports(files) {
+  const norm = (p) => { const parts = []; for (const seg of String(p).split("/")) { if (seg === "." || seg === "") continue; if (seg === "..") parts.pop(); else parts.push(seg); } return parts.join("/"); };
+  // 1) mapa de exports por arquivo
+  const exp = {};
+  for (const [path, content] of Object.entries(files)) {
+    if (!/\.(jsx?|tsx?)$/i.test(path)) continue;
+    const txt = String(content);
+    const named = new Set();
+    for (const m of txt.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)) named.add(m[1]);
+    for (const m of txt.matchAll(/export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) named.add(m[1]);
+    for (const m of txt.matchAll(/export\s+class\s+([A-Za-z_$][\w$]*)/g)) named.add(m[1]);
+    let hasDefault = false, defaultName = null;
+    for (const m of txt.matchAll(/export\s*\{([^}]*)\}/g)) {
+      for (const n of m[1].split(",")) {
+        const parts = n.split(/\s+as\s+/).map(s => s.trim());
+        const exported = parts[1] || parts[0];
+        if (exported === "default") hasDefault = true;
+        else if (exported) named.add(exported);
+      }
+    }
+    const dm = txt.match(/export\s+default\s+(?:function\s+([A-Za-z_$][\w$]*)|class\s+([A-Za-z_$][\w$]*)|([A-Za-z_$][\w$]*))/);
+    if (/export\s+default/.test(txt)) { hasDefault = true; defaultName = dm ? (dm[1] || dm[2] || dm[3] || null) : null; }
+    exp[path] = { hasDefault, defaultName, named };
+  }
+  const resolve = (fromPath, spec) => {
+    if (!spec.startsWith(".") && !spec.startsWith("@/")) return null;
+    let base;
+    if (spec.startsWith("@/")) base = norm("src/" + spec.slice(2));
+    else { const dir = fromPath.split("/").slice(0, -1).join("/"); base = norm((dir ? dir + "/" : "") + spec); }
+    for (const v of ["", ".jsx", ".js", ".tsx", ".ts", "/index.jsx", "/index.js", "/index.tsx"]) if (exp[base + v]) return base + v;
+    return null;
+  };
+  // 2) corrige imports
+  const out = {};
+  for (const [path, content] of Object.entries(files)) {
+    if (!/\.(jsx?|tsx?)$/i.test(path)) { out[path] = content; continue; }
+    let txt = String(content);
+    // default -> nomeado, quando o alvo NAO tem default mas tem o nomeado
+    txt = txt.replace(/import\s+([A-Za-z_$][\w$]*)\s+from\s+["'](\.[^"']+|@\/[^"']+)["'];?/g, (full, name, spec) => {
+      const t = resolve(path, spec); const e = t && exp[t];
+      if (e && !e.hasDefault && e.named.has(name)) return `import { ${name} } from "${spec}";`;
+      return full;
+    });
+    // nomeado -> default, para o(s) nome(s) que na verdade sao o default do alvo
+    txt = txt.replace(/import\s*\{([^}]*)\}\s*from\s+["'](\.[^"']+|@\/[^"']+)["'];?/g, (full, inner, spec) => {
+      const t = resolve(path, spec); const e = t && exp[t];
+      if (!e) return full;
+      const names = inner.split(",").map(s => s.trim()).filter(Boolean);
+      const keep = [], asDefault = [];
+      for (const n of names) {
+        const bare = n.split(/\s+as\s+/)[0].trim();
+        if (e.named.has(bare)) keep.push(n);
+        else if (e.hasDefault && (e.defaultName === bare || names.length === 1)) asDefault.push(bare);
+        else keep.push(n);
+      }
+      if (!asDefault.length) return full;
+      let res = `import ${asDefault[0]} from "${spec}";`;
+      if (keep.length) res += `\nimport { ${keep.join(", ")} } from "${spec}";`;
+      return res;
+    });
+    out[path] = txt;
+  }
+  return out;
+}
+
 export function garantirImportsLocais(files) {
   const out = { ...files };
   const norm = (p) => {
@@ -1051,6 +1122,7 @@ Mudanca pedida: "${userMessage}"`;
   // Encaixa os arquivos da IA no kit estiloso (Tailwind + componentes prontos).
   files = normalizarParaKit(files);
   files = mergeStarter(files);
+  files = corrigirEstiloImports(files);   // corrige default<->nomeado conforme o export real
   files = garantirImportsLocais(files);   // cria stubs para imports LOCAIS que faltarem
   files = garantirIconesEComponentes(files); // icone/componente usado sem import -> importa ou stub (evita tela branca)
   files = blindarImportsNpm(files);       // neutraliza imports de pacotes npm nao instalados
