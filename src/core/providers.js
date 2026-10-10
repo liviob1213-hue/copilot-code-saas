@@ -901,3 +901,85 @@ export async function completeComEspera(args, onEvent = () => {}) {
     }
   }
 }
+
+/**
+ * STREAMING (geracao ao vivo). Transmite a resposta token a token chamando
+ * onDelta(trecho) conforme chega. So funciona com o PRIMEIRO provedor da fila
+ * SE ele for OpenAI-compativel (kind "openai"): Mistral, OpenRouter, Groq,
+ * DeepSeek, xAI. Se o 1o for Gemini/Claude (adaptador nativo) ou der erro,
+ * LANCA um erro — o chamador cai no complete() normal (sem stream). Streaming
+ * passa pelo mesmo Worker /proxy (que repassa o corpo em stream).
+ */
+export async function streamComplete({ system, messages, tools = [], preferredProviderId = "" }, onEvent = () => {}, onDelta = () => {}) {
+  messages = normalizeConversation(messages);
+  const queue = await resolveQueue();
+  let usable;
+  if (preferredProviderId) {
+    usable = queue.filter(q => q.provider.id === preferredProviderId && q.cfg.enabled && q.hasKey);
+  } else {
+    usable = queue.filter(q => q.cfg.enabled && q.hasKey)
+      .sort((a, b) => tierRank(a.provider) - tierRank(b.provider) || a.cfg.priority - b.cfg.priority);
+  }
+  usable = usable.filter(q => !q.cooling);
+  const entry = usable[0];
+  if (!entry) throw new Error("sem provedor disponivel para stream");
+  if (entry.provider.kind !== "openai") throw new Error("1o provedor nao e openai-compat; usar complete()");
+
+  const { provider, cfg, apiKey } = entry;
+  const model = cfg.model || provider.defaultModel;
+  const orcamento = provider.contextBudget || 60000;
+  const { messages: msgs, tokens } = compact(messages, orcamento, system, tools);
+  if (tokens > orcamento) throw new Error("pedido maior que o limite do provedor; usar complete()");
+
+  const req = buildRequest(provider, cfg, apiKey, { system, messages: msgs, tools, model });
+  req.body.stream = true;
+
+  onEvent({ type: "provider_try", provider: provider.label, model });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), provider.id === "deepseek" ? 240_000 : 120_000);
+  let res;
+  try {
+    res = await fetch(req.url, { method: "POST", headers: req.headers, body: JSON.stringify(req.body), signal: controller.signal });
+  } catch (e) {
+    clearTimeout(timeout);
+    throw new Error("stream: rede/timeout");
+  }
+  if (!res.ok || !res.body) {
+    clearTimeout(timeout);
+    const t = await res.text().catch(() => "");
+    const err = new Error(`stream ${res.status}: ${errorDetail(t) || t.slice(0, 120)}`);
+    err.status = res.status;
+    throw err;
+  }
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buffer = "", full = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += dec.decode(value, { stream: true });
+      const linhas = buffer.split("\n");
+      buffer = linhas.pop() || "";
+      for (const linha of linhas) {
+        const l = linha.trim();
+        if (!l.startsWith("data:")) continue;
+        const data = l.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        try {
+          const j = JSON.parse(data);
+          const delta = j.choices?.[0]?.delta?.content;
+          if (delta) { full += delta; onDelta(delta); }
+        } catch { /* fragmento parcial — ignora */ }
+      }
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!full.trim()) throw new Error("stream vazio");
+  await store.markProviderSuccess(provider.id, {});
+  onEvent({ type: "provider_ok", provider: provider.label, model });
+  return { text: full, toolCalls: [], providerId: provider.id, providerLabel: provider.label, model };
+}

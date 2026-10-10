@@ -1,6 +1,6 @@
 // [gerado por sync-core.mjs] copia de ../../src/core — NAO edite aqui.
 // Edite na extensao (src/core) e rode `npm run sync-core`.
-import { complete } from "./providers.js";
+import { complete, streamComplete } from "./providers.js";
 import { mergeStarter, STARTER_FILES } from "./starter-template.js";
 
 /**
@@ -838,10 +838,28 @@ Mudanca pedida: "${userMessage}"`;
 
   const messages = [...baseHistory, { role: "user", text: userContent, images: images || [] }];
 
-  const reply = await complete(
-    { system: systemBase + contexto + instrucaoImagens, messages, tools: [], preferredProviderId: providerId },
-    onEvent
-  );
+  // GERACAO AO VIVO (streaming): mostra os arquivos surgindo em tempo real.
+  // Conforme o texto chega, detecta cada novo bloco ===FILE: caminho=== e avisa
+  // a interface ("escrevendo X"). Se o 1o provedor nao for openai-compat ou o
+  // stream falhar, cai no complete() normal (sem stream).
+  const argsGer = { system: systemBase + contexto + instrucaoImagens, messages, tools: [], preferredProviderId: providerId };
+  let reply;
+  try {
+    let acc = "", ultimoArq = null, nArq = 0;
+    const onDelta = (chunk) => {
+      acc += chunk;
+      const re = /===\s*FILE:\s*([^\n=]+?)\s*===/g;
+      let m, ultimo = null;
+      while ((m = re.exec(acc)) !== null) ultimo = m[1].trim();
+      if (ultimo && ultimo !== ultimoArq) {
+        ultimoArq = ultimo; nArq++;
+        onEvent({ type: "arquivo_stream", path: ultimo, n: nArq });
+      }
+    };
+    reply = await streamComplete(argsGer, onEvent, onDelta);
+  } catch {
+    reply = await complete(argsGer, onEvent);
+  }
 
   const semTelasF = f => !f["src/App.jsx"] && !f["src/App.tsx"] &&
     !Object.keys(f).some(p => /^src\/pages\//i.test(p));
