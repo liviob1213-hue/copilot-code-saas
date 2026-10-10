@@ -44,6 +44,12 @@ const WEB_OWNED = new Set(["storage.js", "config.js", "net.js", "oauth-web.js"])
 // App STANDALONE: o core próprio já vive em src/core. Este script é só um
 // utilitário OPCIONAL pra puxar melhorias da extensão quando ela estiver ao
 // lado (em ../). Sem a extensão, não há o que sincronizar — sai sem erro.
+// O core do SaaS ja evoluiu alem do da extensao (kits, clonador, blindagem de
+// edicao). Sincronizar sem querer apagaria isso: so roda com --forcar.
+if (!process.argv.includes("--forcar")) {
+  console.log("[sync-core] bloqueado: o core do SaaS e a fonte da verdade. Use `npm run sync-core -- --forcar` so se tiver certeza.");
+  process.exit(0);
+}
 if (!existsSync(SRC)) {
   console.log(`[sync-core] extensão não encontrada em ${SRC} — app standalone, nada a sincronizar.`);
   process.exit(0);

@@ -1,5 +1,5 @@
-// [gerado por sync-core.mjs] copia de ../../src/core — NAO edite aqui.
-// Edite na extensao (src/core) e rode `npm run sync-core`.
+// Core do SaaS (standalone). Este arquivo E a fonte da verdade: edite aqui.
+// Nao rode `npm run sync-core` sem revisar — ele sobrescreve com a versao da extensao.
 // ============================================================================
 //  STARTER "estiloso" — a base fixa de todo projeto de app/site multi-arquivo.
 //  A IA escreve SO o app (App.jsx, paginas, componentes de feature, theme.css)

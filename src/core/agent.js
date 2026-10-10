@@ -1,5 +1,5 @@
-// [gerado por sync-core.mjs] copia de ../../src/core — NAO edite aqui.
-// Edite na extensao (src/core) e rode `npm run sync-core`.
+// Core do SaaS (standalone). Este arquivo E a fonte da verdade: edite aqui.
+// Nao rode `npm run sync-core` sem revisar — ele sobrescreve com a versao da extensao.
 import { completeComEspera, normalizeConversation } from "./providers.js";
 import { TOOL_SCHEMAS, runTool, stagedSummary } from "./tools.js";
 import { AGENT_LIMITS } from "./config.js";
