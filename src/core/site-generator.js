@@ -715,6 +715,96 @@ export function corrigirSintaxe(files) {
   return out;
 }
 
+// Ícones lucide-react mais usados pela IA. Se um deles aparece no JSX SEM import,
+// a gente adiciona o import sozinho (causa #1 de "X is not defined" = tela branca).
+const LUCIDE_COMUNS = new Set(("Scissors ChevronDown ChevronUp ChevronLeft ChevronRight ChevronsRight ChevronsLeft " +
+  "ArrowRight ArrowLeft ArrowUp ArrowDown ArrowUpRight MoveRight Menu X Check CheckCircle CheckCircle2 Star Heart " +
+  "Home User Users UserPlus UserCheck UserX Settings Search Calendar CalendarDays Clock MapPin Phone PhoneCall Mail " +
+  "MessageCircle MessageSquare Send Plus Minus PlusCircle MinusCircle Trash Trash2 Edit Edit2 Edit3 Pencil Save " +
+  "Download Upload Share Share2 ExternalLink Link Link2 Eye EyeOff Lock Unlock Bell BellOff Bookmark Tag Tags Filter " +
+  "Grid List LayoutGrid LayoutDashboard ShoppingCart ShoppingBag CreditCard DollarSign Wallet Package Truck Gift " +
+  "Camera Image ImageIcon Video Music Play Pause Volume2 VolumeX Mic MicOff Wifi Zap Sun Moon Cloud Droplet Flame " +
+  "Wind Thermometer Globe Map Navigation Compass Flag Award Trophy Target TrendingUp TrendingDown BarChart BarChart2 " +
+  "BarChart3 PieChart LineChart Activity Briefcase Building Building2 Store Factory Coffee Utensils UtensilsCrossed " +
+  "Pizza Wine Beer Dumbbell Bike Car Plane Train Bus Ship Rocket Smile Frown ThumbsUp ThumbsDown HelpCircle Info " +
+  "AlertCircle AlertTriangle XCircle Loader Loader2 RefreshCw RotateCw MoreHorizontal MoreVertical Copy Clipboard " +
+  "File FileText Files Folder FolderOpen Database Server Code Code2 Terminal Cpu Smartphone Tablet Monitor Laptop " +
+  "Printer Headphones Watch Key Shield ShieldCheck Fingerprint LogIn LogOut Sparkles Gem Crown Palette Brush Ruler " +
+  "Wrench Hammer Lightbulb BookOpen Book GraduationCap Newspaper Megaphone Quote Hash AtSign Percent Instagram " +
+  "Facebook Twitter Youtube Linkedin Github Dribbble Figma Chrome Slack Circle Square Triangle Dot CircleDot " +
+  "CalendarCheck CalendarClock Timer Hourglass Sunrise Sunset Umbrella Snowflake Leaf Flower Flower2 TreePine " +
+  "Sprout Apple Carrot Cake CupSoda Soup Salad IceCream Candy Croissant Egg Fish Beef Drumstick Milk Wheat Scale " +
+  "Stethoscope Pill Syringe HeartPulse Activity Baby Accessibility Glasses Shirt ShoppingBasket Receipt BadgeCheck " +
+  "BadgePercent Ticket Tickets Armchair Bed BedDouble Bath ShowerHead Sofa Lamp DoorOpen DoorClosed KeyRound " +
+  "ParkingCircle Fuel Wrench Cog Settings2 SlidersHorizontal Sliders Power PowerOff Plug PlugZap Wand Wand2 " +
+  "Paintbrush Paintbrush2 PaintBucket Pipette Eraser Highlighter Type Bold Italic Underline AlignLeft AlignCenter " +
+  "AlignRight AlignJustify ListOrdered ListChecks CheckSquare XSquare PlusSquare Columns Rows Table Kanban " +
+  "GanttChart Workflow GitBranch GitCommit GitMerge GitPullRequest Boxes Box Container Component Puzzle Blocks " +
+  "Layers Layout PanelLeft PanelRight Sidebar Maximize Maximize2 Minimize Minimize2 Expand Shrink Move Move3d " +
+  "MousePointer MousePointer2 Hand Grab Pointer Crosshair Focus Scan ScanLine QrCode Barcode").split(/\s+/).filter(Boolean));
+const ROUTER_NOMES = new Set(["Routes", "Route", "Navigate", "Outlet", "NavLink", "Link", "BrowserRouter", "HashRouter"]);
+
+// Nomes que o arquivo "conhece": imports (default/namespace/nomeados) + definidos
+// localmente (function/const/let/class). Usado para achar o que foi USADO sem import.
+function nomesConhecidos(txt) {
+  const set = new Set(["React", "Fragment", "Suspense", "StrictMode", "Children", "Profiler"]);
+  for (const m of txt.matchAll(/import\s+([\s\S]*?)\s+from\s+["'][^"']+["']/g)) {
+    const clausula = m[1];
+    for (const d of clausula.matchAll(/(?:^|,)\s*(?:\*\s+as\s+)?([A-Za-z_$][\w$]*)\s*(?=,|$|\{)/g)) if (d[1]) set.add(d[1]);
+    const bloco = clausula.match(/\{([\s\S]*?)\}/);
+    if (bloco) for (const n of bloco[1].split(",")) { const nome = n.split(/\s+as\s+/).pop().trim(); if (nome) set.add(nome); }
+  }
+  for (const m of txt.matchAll(/\b(?:function|class)\s+([A-Z][\w$]*)/g)) set.add(m[1]);
+  for (const m of txt.matchAll(/\b(?:const|let|var)\s+([A-Z][\w$]*)\s*=/g)) set.add(m[1]);
+  return set;
+}
+
+// Garante que todo <CamelCase> usado no JSX exista: adiciona o import do lucide
+// (icones), do react-router-dom (Link/Routes/etc.) ou, se for desconhecido,
+// cria um stub local — pra NUNCA mais dar "X is not defined" / tela branca.
+export function garantirIconesEComponentes(files) {
+  const out = { ...files };
+  for (const [path, content] of Object.entries(out)) {
+    if (!/\.(jsx|tsx)$/i.test(path)) continue;
+    let txt = String(content);
+    const conhecidos = nomesConhecidos(txt);
+    const usados = new Set();
+    for (const m of txt.matchAll(/<([A-Z][A-Za-z0-9]*)(?=[\s/>])/g)) usados.add(m[1]);
+    const faltando = [...usados].filter(n => !conhecidos.has(n));
+    if (!faltando.length) continue;
+
+    const icones = faltando.filter(n => LUCIDE_COMUNS.has(n) && !ROUTER_NOMES.has(n));
+    const router = faltando.filter(n => ROUTER_NOMES.has(n));
+    const desconhecidos = faltando.filter(n => !LUCIDE_COMUNS.has(n) && !ROUTER_NOMES.has(n));
+
+    // 1) adiciona icones ao import existente de lucide-react, ou cria um
+    if (icones.length) {
+      const re = /import\s*\{([^}]*)\}\s*from\s*["']lucide-react["'];?/;
+      if (re.test(txt)) {
+        txt = txt.replace(re, (full, nomes) => `import {${nomes.replace(/\s*$/, "")}, ${icones.join(", ")} } from "lucide-react";`);
+      } else {
+        txt = `import { ${icones.join(", ")} } from "lucide-react";\n` + txt;
+      }
+    }
+    // 2) adiciona nomes de rota ao import do react-router-dom, ou cria um
+    if (router.length) {
+      const re = /import\s*\{([^}]*)\}\s*from\s*["']react-router-dom["'];?/;
+      if (re.test(txt)) {
+        txt = txt.replace(re, (full, nomes) => `import {${nomes.replace(/\s*$/, "")}, ${router.join(", ")} } from "react-router-dom";`);
+      } else {
+        txt = `import { ${router.join(", ")} } from "react-router-dom";\n` + txt;
+      }
+    }
+    // 3) desconhecidos viram stub local (nao crasha; so nao renderiza nada)
+    if (desconhecidos.length) {
+      const stubs = desconhecidos.map(n => `const ${n} = (p) => (p && p.children != null ? p.children : null);`).join(" ");
+      txt = stubs + "\n" + txt;
+    }
+    out[path] = txt;
+  }
+  return out;
+}
+
 export function blindarImportsNpm(files) {
   const out = { ...files };
   const permitido = (spec) => {
@@ -962,6 +1052,7 @@ Mudanca pedida: "${userMessage}"`;
   files = normalizarParaKit(files);
   files = mergeStarter(files);
   files = garantirImportsLocais(files);   // cria stubs para imports LOCAIS que faltarem
+  files = garantirIconesEComponentes(files); // icone/componente usado sem import -> importa ou stub (evita tela branca)
   files = blindarImportsNpm(files);       // neutraliza imports de pacotes npm nao instalados
   files = corrigirSintaxe(files);         // aspas curvas -> retas (evita build quebrado)
   files = injetarCredenciais(files, supabase);
