@@ -294,11 +294,12 @@ ESTRUTURA DA PAGINA (secoes como componentes, montadas na Home):
 1. Header enxuto (fixo): marca + 3-4 links ancora + CTA primario. No mobile vira um menu compacto.
 2. Hero de impacto: eyebrow especifico, titulo grande (para quem / qual resultado / por que agir agora), subtitulo, 2 CTAs (primario + secundario) e uma prova visual.
 
-IMAGENS PLACEHOLDER (para o site nao ficar vazio/amador — USE quando ajudar: hero, galeria, cards de servico/produto, equipe, depoimentos):
-- FOTOS: https://picsum.photos/seed/PALAVRA/LARGURA/ALTURA (ex.: https://picsum.photos/seed/barbearia1/800/600). Troque a PALAVRA do seed em cada imagem pra nao repetir. Sempre com width/height e alt. loading="lazy".
-- AVATARES/PESSOAS (depoimentos, equipe): https://i.pravatar.cc/120?img=NUMERO (1 a 70) ou https://ui-avatars.com/api/?name=Ana+Silva&background=random.
-- Essas URLs sao servicos publicos de placeholder, sem chave, confiaveis. Diga no texto que sao imagens temporarias para a pessoa trocar depois.
-- Nunca use logos/fotos de marcas reais nem personagens conhecidos — so placeholders genericos. Mockups de UI (dashboard, telas do app) continue fazendo em CSS/SVG.
+IMAGENS (o site NAO pode ficar vazio/amador — use em hero, galeria, cards de servico/produto, equipe, depoimentos):
+- FOTOS DO TEMA, GERADAS POR IA (preferido — combinam com o negocio): https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=LARGURA&height=ALTURA&nologo=true&seed=NUMERO — a DESCRICAO e especifica e fotografica, em ingles, com espacos como %20 (ex.: https://image.pollinations.ai/prompt/modern%20barbershop%20interior%20warm%20light%20professional%20photo?width=1200&height=800&nologo=true&seed=11). Uma descricao e seed DIFERENTES por imagem.
+- SEMPRE com fallback, porque a geracao pode demorar/falhar: onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://picsum.photos/seed/FALLBACK/LARGURA/ALTURA"; }} + width, height, alt e loading="lazy" (no hero use loading="eager"). Coloque a <img> dentro de um container com fundo neutro (bg-muted) e aspect-ratio fixo, pra nao "pular" o layout enquanto carrega.
+- AVATARES/PESSOAS (depoimentos, equipe): https://i.pravatar.cc/160?img=NUMERO (1 a 70).
+- Diga no texto/README que sao imagens temporarias para a pessoa trocar pelas reais.
+- Nunca use logos/fotos de marcas reais nem personagens conhecidos — so imagens genericas. Mockups de UI (dashboard, telas do app) continue fazendo em CSS/SVG.
 3. Faixa de confianca: numeros/credenciais/logos SO se fornecidos (nao invente selos, avaliacoes ou metricas).
 4. Beneficios (3-4) orientados a RESULTADO, com icones lucide-react — nunca 4 cards identicos em fila.
 5. Como funciona em 3 passos claros.
@@ -339,13 +340,107 @@ ROTAS (um unico <Routes> no src/App.jsx):
 
 LIGACAO (o mais importante): o site publico e o admin usam as MESMAS colecoes do useStore — nao crie dois conjuntos de dados. Um agendamento criado em "/agendar" TEM que aparecer na AGENDA e em AGENDAMENTOS do admin automaticamente.
 Entregue tudo caprichado e funcional: validar o form, impedir marcar horario ocupado, formatar preco em R$ e datas em pt-BR.`,
-  delivery: "Este e um CARDAPIO DIGITAL + DELIVERY. Telas obrigatorias: CARDAPIO por categorias (itens com nome, descricao e preco), CARRINHO, CHECKOUT (nome, endereco, forma de pagamento e um botao 'Enviar pedido pelo WhatsApp' montando a mensagem), PAINEL DE PEDIDOS com colunas (recebido, preparando, saiu para entrega, entregue) e GESTAO de produtos e categorias.",
-  ecommerce: "Esta e uma LOJA / CATALOGO online. Telas obrigatorias: VITRINE de produtos (grade com foto, nome e preco), pagina do PRODUTO, CARRINHO, CHECKOUT (finalizar pedido pelo WhatsApp caso nao haja pagamento) e PAINEL ADMIN (produtos e pedidos). Inclua filtro por categoria e busca.",
-  membros: "Esta e uma AREA DE MEMBROS / plataforma de CURSO. Telas obrigatorias: LOGIN, DASHBOARD do aluno com progresso, MODULOS e AULAS (player de video + botao 'marcar como concluida' + barra de progresso), PERFIL, e AREA ADMIN para gerenciar cursos, modulos, aulas e alunos. Use papel de aluno e admin.",
-  crm: "Este e um CRM de vendas / FUNIL. Telas obrigatorias: DASHBOARD com metricas, FUNIL em KANBAN por etapas (cards de negocio/cliente que dao para mover entre as colunas), CLIENTES com historico, e TAREFAS/atividades. Layout de painel de gestao.",
-  financeiro: "Este e um CONTROLE FINANCEIRO. Telas obrigatorias: DASHBOARD (saldo atual, total de entradas, total de saidas e um grafico simples em CSS), LANCAMENTOS (receita ou despesa, com categoria, data e valor), CATEGORIAS, e um RESUMO por periodo. Valores formatados em Real (R$).",
-  estoque: "Este e um sistema de GESTAO DE ESTOQUE. Telas obrigatorias: DASHBOARD, PRODUTOS (com quantidade em estoque e alerta de estoque minimo), ENTRADAS e SAIDAS de estoque com historico, e FORNECEDORES. Layout de painel de gestao."
+  delivery: `Este e um CARDAPIO DIGITAL + DELIVERY (restaurante, lanchonete, pizzaria, acai, doceria) = CARDAPIO PUBLICO + PAINEL DO DONO no mesmo app, com os MESMOS dados (useStore: "categorias", "produtos", "pedidos", "config").
+- "/" CARDAPIO: capa com logo/nome, horario e status aberto/fechado; abas/chips de CATEGORIA fixas no topo; cards de produto com FOTO, nome, descricao curta, preco em R$ e botao "+". Produto pode ter OPCIONAIS/adicionais (ex.: tamanho, borda, extras) num MODAL ao tocar.
+- CARRINHO em gaveta lateral (mobile: barra fixa no rodape com total e "Ver carrinho"); alterar quantidade, observacao por item, subtotal, taxa de entrega e total.
+- CHECKOUT: nome, telefone, entrega ou retirada, endereco, forma de pagamento (Pix, cartao na entrega, dinheiro + troco). Ao finalizar: grava em "pedidos" (status "recebido") E abre o WhatsApp do estabelecimento com a mensagem do pedido formatada (wa.me/NUMERO?text=...).
+- "/admin": login simples; PEDIDOS em colunas (recebido, preparando, saiu para entrega, entregue) movendo o status; PRODUTOS e CATEGORIAS (CRUD em modal, ativar/pausar item); CONFIG (nome, WhatsApp, taxa, horario).
+SEMEIE 3 categorias e 8 produtos plausiveis com fotos placeholder para funcionar na hora.`,
+  ecommerce: `Esta e uma LOJA ONLINE / CATALOGO = vitrine publica + painel admin, mesmos dados (useStore: "produtos", "categorias", "pedidos", "config").
+- "/" VITRINE: banner, categorias, grade de produtos (foto, nome, preco, preco antigo riscado, selo de desconto), BUSCA e FILTROS (categoria, faixa de preco, ordenar).
+- "/produto/:id": galeria de fotos, variacoes (tamanho/cor), quantidade, descricao, "Adicionar ao carrinho".
+- CARRINHO (gaveta) e CHECKOUT (dados + entrega + pagamento; finalizar grava o pedido e envia pelo WhatsApp quando nao houver gateway).
+- "/admin": DASHBOARD (vendas, pedidos, ticket medio), PRODUTOS (CRUD em modal com estoque), PEDIDOS (status), CATEGORIAS.
+SEMEIE 8-12 produtos plausiveis com fotos placeholder.`,
+  membros: `Esta e uma AREA DE MEMBROS / PLATAFORMA DE CURSOS, com papeis "aluno" e "admin" (useStore: "cursos", "modulos", "aulas", "alunos", "progresso", "sessao").
+- "/" pagina de vendas do curso (beneficios, modulos, depoimentos, garantia, CTA) e "/login".
+- "/app" (aluno logado): DASHBOARD com cursos e % concluida; "/app/curso/:id" com lista de MODULOS > AULAS na lateral e PLAYER (video do YouTube/Vimeo por embed) + descricao + materiais + botao "Marcar como concluida" que atualiza a barra de progresso; proxima aula automatica.
+- "/admin": CURSOS, MODULOS, AULAS (CRUD em modal, reordenar), ALUNOS (liberar/bloquear acesso), e visao de progresso por aluno.
+Login: Supabase Auth se estiver ligado; senao, login simples guardado no store. SEMEIE 1 curso com 3 modulos e 8 aulas.`,
+  crm: `Este e um CRM DE VENDAS (useStore: "contatos", "negocios", "etapas", "atividades").
+- DASHBOARD: valor no funil, negocios ganhos/perdidos no mes, taxa de conversao, proximas atividades.
+- FUNIL em KANBAN por etapas (Lead, Contato, Proposta, Negociacao, Ganho, Perdido): cards com nome, valor em R$, responsavel e dias parado; mover entre colunas (arrastar ou menu "Mover para"); clicar abre o DETALHE em modal/painel lateral com historico.
+- CONTATOS: tabela com busca, filtros e tags; cadastro/edicao em MODAL; historico de interacoes.
+- ATIVIDADES/TAREFAS: lista com data, tipo (ligacao, reuniao, email) e concluir.
+Sidebar fixa de painel. SEMEIE 10 contatos e 8 negocios espalhados nas etapas.`,
+  financeiro: `Este e um CONTROLE FINANCEIRO (useStore: "lancamentos", "categorias", "contas").
+- DASHBOARD: saldo, entradas e saidas do mes, grafico de barras por mes e de pizza por categoria FEITOS EM CSS/SVG (sem lib de grafico), alertas de contas a vencer.
+- LANCAMENTOS: tabela filtravel (periodo, tipo, categoria), novo lancamento em MODAL (receita/despesa, valor, categoria, data, pago/pendente, recorrente).
+- CATEGORIAS com cor; CONTAS (carteira, banco); RELATORIO por periodo exportavel (CSV gerado no front).
+Valores em R$ (Intl.NumberFormat pt-BR). SEMEIE 3 meses de lancamentos plausiveis.`,
+  estoque: `Este e um GESTOR DE ESTOQUE (useStore: "produtos", "movimentos", "fornecedores").
+- DASHBOARD: total de itens, valor em estoque, produtos abaixo do minimo (alerta vermelho), ultimas movimentacoes.
+- PRODUTOS: tabela com SKU, nome, quantidade, minimo, custo e preco; CRUD em MODAL; badge de status (ok / baixo / zerado).
+- ENTRADAS e SAIDAS: registrar movimento em modal (atualiza a quantidade do produto) e historico filtravel.
+- FORNECEDORES (CRUD). SEMEIE 12 produtos e alguns movimentos.`,
+  gerador_imagem: `Este e um GERADOR DE IMAGENS COM IA (funciona DE VERDADE e de graca, sem chave).
+- Geracao: monte a URL https://image.pollinations.ai/prompt/{PROMPT_CODIFICADO}?width=W&height=H&seed=SEED&nologo=true&model=flux e use como src de <img> (encodeURIComponent no prompt). A imagem leva alguns segundos: mostre um SKELETON animado ate o onLoad; trate onError com mensagem e botao "Tentar de novo".
+- TELA PRINCIPAL: campo de prompt grande, chips de ESTILO (fotorealista, anime, 3D, aquarela, cinematografico, logo minimalista) que acrescentam termos ao prompt, seletor de PROPORCAO (1:1, 16:9, 9:16, 4:3 -> width/height), quantidade (1-4 variacoes com seeds diferentes) e botao "Gerar".
+- RESULTADOS em grade; cada imagem com BAIXAR (fetch -> blob -> download), copiar link, "variar" (nova seed) e salvar na GALERIA (useStore "galeria").
+- "/galeria" com o historico salvo. Visual de produto de IA moderno (escuro, cards com brilho sutil).`,
+  gerador_video: `Este e um GERADOR DE VIDEOS COM IA. Geracao de video exige um provedor pago (ex.: Replicate, fal.ai, Luma, Runway) — NUNCA coloque chave secreta no front.
+- Arquitetura: o front chama uma Supabase EDGE FUNCTION ("gerar-video") que guarda a chave do provedor como secret e retorna o id do job; o front faz POLLING do status ate ficar pronto e mostra o <video>. Se o Supabase/chave nao estiver configurado, mostre uma tela clara "Configure sua chave do provedor" com o passo a passo (o app NAO pode quebrar sem a chave).
+- TELA: prompt, imagem inicial opcional (upload -> image-to-video), duracao, proporcao, estilo; botao "Gerar video"; barra de progresso com etapas; resultado com player, baixar e salvar na galeria (useStore "videos").
+- Inclua tambem um modo GRATIS que funciona sem chave: "Slideshow com IA" — gera 4-6 imagens pelo Pollinations (https://image.pollinations.ai/prompt/...) e anima como video (transicoes CSS Ken Burns) com texto sobreposto.`,
+  chat_ia: `Este e um ASSISTENTE / CHATBOT COM IA (atendimento, tira-duvidas, agente de vendas).
+- Interface de chat moderna: bolhas, digitando..., markdown basico, sugestoes de perguntas, historico de conversas na lateral (useStore "conversas").
+- A IA responde via uma Supabase EDGE FUNCTION ("chat") que guarda a chave do modelo como secret (nunca no front). Sem Supabase/chave: modo DEMO com respostas pre-programadas por palavra-chave para o app funcionar na hora.
+- CONFIG do assistente: nome, persona, base de conhecimento (texto/FAQ que vai no system prompt), cor; e um WIDGET embutivel (botao flutuante) para colocar em outros sites.`,
+  link_bio: `Este e um LINK NA BIO (estilo Linktree premium). Pagina unica mobile-first: avatar, nome, bio, icones sociais, botoes de link grandes com icone (WhatsApp, Instagram, loja, agenda), destaque de oferta, galeria/embed de video e rodape. Painel "/admin" para editar links (CRUD em modal, reordenar, ativar/desativar) e tema (cores, fundo com gradiente/foto). Dados em useStore "perfil" e "links".`,
+  portfolio: `Este e um PORTFOLIO PROFISSIONAL (designer, fotografo, dev, arquiteto, agencia). Hero com nome e frase forte, sobre, especialidades, PROJETOS em grade com filtro por categoria e pagina de detalhe (galeria, desafio, solucao, resultado), depoimentos, clientes, contato (form + WhatsApp). Direcao editorial premium (tipografia grande, muito respiro, animacao de entrada nos cards). Painel "/admin" opcional para cadastrar projetos (useStore "projetos").`,
+  imobiliaria: `Este e um site/sistema de IMOBILIARIA (useStore "imoveis", "leads"). Busca com filtros (comprar/alugar, cidade, bairro, preco, quartos), grade de imoveis (foto, preco, area, quartos, vagas), pagina do imovel (galeria, caracteristicas, mapa por embed, botao WhatsApp/agendar visita que grava um lead), e "/admin" com IMOVEIS (CRUD em modal, destaque, status disponivel/vendido) e LEADS. SEMEIE 9 imoveis.`,
+  academia: `Este e um sistema de ACADEMIA / PERSONAL / ESTUDIO FITNESS (useStore "alunos", "planos", "treinos", "checkins", "pagamentos"). Site publico com planos e aula experimental; painel com ALUNOS (ficha, plano, vencimento, status), TREINOS montados por aluno (exercicios, series, repeticoes), CHECK-IN, FINANCEIRO de mensalidades (pago/atrasado) e DASHBOARD (ativos, inadimplentes, check-ins do dia). Area do aluno ve o proprio treino.`,
+  quiz: `Este e um QUIZ / FUNIL DE CAPTURA. Fluxo de perguntas uma por tela (barra de progresso, opcoes em cards grandes, animacao entre passos), resultado personalizado por pontuacao/perfil, captura de lead (nome, WhatsApp, email) antes do resultado e CTA final. Painel "/admin" para editar perguntas/resultados e ver os LEADS em tabela exportavel (CSV). Dados em useStore "quiz" e "leads".`,
+  eventos: `Este e um site de EVENTO / INGRESSOS (useStore "lotes", "inscricoes"). Landing do evento (data, local com mapa por embed, programacao, palestrantes, contagem regressiva), lotes de ingresso com preco e vagas, inscricao em passos gerando um INGRESSO com QR code (gere o QR via https://api.qrserver.com/v1/create-qr-code/?data=...), e "/admin" com inscritos, check-in por codigo e totais.`
 };
+
+// Detecta o nicho pelo pedido e devolve a chave do KIT (ou null). A ordem importa:
+// do mais especifico para o mais generico.
+export function detectarKit(texto) {
+  const t = String(texto || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const regras = [
+    ["gerador_video", /\b(gera(dor|r)?|criar?|cria|faz|faca)\b[^.]{0,30}\bvideos?\b|\bvideo\s*(com|por)\s*ia\b|\btext[o]?\s*(para|pra|to)\s*video\b/],
+    ["gerador_imagem", /\b(gera(dor|r)?|criar?|cria|faz|faca)\b[^.]{0,30}\b(imagens?|fotos?|artes?|logos?)\b[^.]{0,20}\b(ia|inteligencia)\b|\bimagens?\s*(com|por)\s*ia\b|\b(text[o]?\s*(para|pra|to)\s*imagem|ai image)\b/],
+    ["chat_ia", /\b(chatbot|chat\s*bot|assistente\s*(virtual|de ia|com ia)?|agente\s*de\s*(ia|atendimento|vendas)|atendimento\s*(com|por)\s*ia)\b/],
+    ["agendamento", /\b(agendament|agenda(r|mento)?\b|marcar\s*horario|horarios?\s*disponiveis|barbearia|salao|manicure|clinica|consultorio|estetica|pilates|fisioterap|dentista|psicolog|tatuag)\b/],
+    ["delivery", /\b(cardapio|delivery|lanchonete|hamburgueria|pizzaria|restaurante|acai|marmit|doceria|confeitaria|pedido\s*(pelo|no)\s*whats)\b/],
+    ["membros", /\b(area\s*de\s*membros|plataforma\s*de\s*cursos?|curso\s*online|ead|aulas?\s*em\s*video|alunos?\s*e\s*aulas)\b/],
+    ["imobiliaria", /\b(imobiliaria|imoveis|corretor(a)?\s*de\s*imoveis|aluguel\s*de\s*casas?)\b/],
+    ["academia", /\b(academia|personal\s*trainer|crossfit|studio\s*fitness|treinos?\s*de\s*alunos)\b/],
+    ["eventos", /\b(evento|ingressos?|inscricoes?\s*(do|para)\s*evento|congresso|workshop\s*presencial)\b/],
+    ["quiz", /\b(quiz|funil\s*de\s*captura|questionario|teste\s*de\s*perfil)\b/],
+    ["link_bio", /\b(link\s*na\s*bio|linktree|bio\s*do\s*instagram)\b/],
+    ["portfolio", /\b(portfolio|portifolio)\b/],
+    ["ecommerce", /\b(loja\s*(online|virtual)?|e-?commerce|catalogo\s*de\s*produtos|vender\s*produtos)\b/],
+    ["crm", /\b(crm|funil\s*de\s*vendas|pipeline|kanban\s*de\s*vendas|leads?\s*e\s*clientes)\b/],
+    ["financeiro", /\b(financeiro|financas|fluxo\s*de\s*caixa|controle\s*de\s*gastos|contas\s*a\s*pagar)\b/],
+    ["estoque", /\b(estoque|inventario|almoxarifado)\b/]
+  ];
+  for (const [kit, re] of regras) if (re.test(t)) return kit;
+  return null;
+}
+
+// Pedido de CLONE de pagina? Devolve a URL a clonar (ou null).
+export function urlParaClonar(texto) {
+  const t = String(texto || "");
+  const m = t.match(/https?:\/\/[^\s"'<>)]+/i);
+  if (!m) return null;
+  return /\b(clon|copi|igual|replic|recri|inspirad|baseado|parecido|mesmo\s*(estilo|layout|design))/i.test(t) ? m[0] : null;
+}
+
+// Le a pagina-alvo como markdown (estrutura, textos, menus, imagens) por um
+// leitor publico com CORS liberado. Sem servidor proprio. Falha -> null.
+export async function lerPaginaReferencia(url) {
+  try {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 20000);
+    const r = await fetch("https://r.jina.ai/" + url, { headers: { "X-Return-Format": "markdown", "X-With-Images-Summary": "true" }, signal: ctrl.signal });
+    clearTimeout(to);
+    if (!r.ok) return null;
+    const txt = await r.text();
+    return txt.slice(0, 14000);
+  } catch { return null; }
+}
 
 /**
  * Separa a resposta multi-arquivo em { caminho: conteudo }.
@@ -756,6 +851,10 @@ function nomesConhecidos(txt) {
   }
   for (const m of txt.matchAll(/\b(?:function|class)\s+([A-Z][\w$]*)/g)) set.add(m[1]);
   for (const m of txt.matchAll(/\b(?:const|let|var)\s+([A-Z][\w$]*)\s*=/g)) set.add(m[1]);
+  // TypeScript: tipos/interfaces/enums tambem contam (ex.: useState<User>).
+  for (const m of txt.matchAll(/\b(?:interface|type|enum)\s+([A-Z][\w$]*)/g)) set.add(m[1]);
+  ["Array", "Record", "Partial", "Promise", "Map", "Set", "Omit", "Pick", "ReturnType", "HTMLElement", "HTMLDivElement",
+   "HTMLInputElement", "HTMLButtonElement", "HTMLFormElement", "HTMLTextAreaElement", "HTMLSelectElement"].forEach(n => set.add(n));
   return set;
 }
 
@@ -805,12 +904,13 @@ export function garantirIconesEComponentes(files) {
   return out;
 }
 
-export function blindarImportsNpm(files) {
+export function blindarImportsNpm(files, extras = null) {
   const out = { ...files };
   const permitido = (spec) => {
-    if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@/")) return true; // local
+    if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("@/") || spec.startsWith("~/")) return true; // local
     const base = spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0];
-    return NPM_PERMITIDOS.has(base);
+    // extras = dependencias REAIS do package.json do repo (usado nas edicoes)
+    return NPM_PERMITIDOS.has(base) || Boolean(extras && extras.has(base));
   };
   for (const [path, content] of Object.entries(out)) {
     // SO arquivos de codigo dentro de src/. NUNCA tocar nos configs da raiz
@@ -978,7 +1078,17 @@ REGRAS QUE EVITAM BUILD QUEBRADO (siga a risca):
 ESTILO (deixa com cara profissional, nao de template):
 - Estilize com Tailwind. Use style inline SO para valor dinamico (ex.: uma cor calculada). NUNCA CSS-in-JS nem arquivo .css por componente (o unico CSS e o theme.css/index.css ja existente).
 - Responsivo MOBILE-FIRST de verdade (sm: / md: / lg:); nada estoura a tela no celular (320px+).
-- Em sistemas/CRM: cadastrar/editar abre em MODAL (pop-up), nao numa tela crua; use badges de status coloridos, estados vazios bonitos ("nenhum X ainda"), e acoes claras. Nada de tela "pelada".`;
+- Em sistemas/CRM: cadastrar/editar abre em MODAL (pop-up), nao numa tela crua; use badges de status coloridos, estados vazios bonitos ("nenhum X ainda"), e acoes claras. Nada de tela "pelada".
+
+PADRAO DE PRODUTO PRONTO PRA VENDER (o que separa um app de verdade de um rascunho):
+- ESTADOS: toda lista/tela tem estado de CARREGANDO (skeleton), VAZIO (icone + frase + botao de acao) e ERRO (mensagem clara + tentar de novo).
+- FEEDBACK: toda acao confirma (toast discreto "Salvo!", "Removido" — faca um Toast simples com useState, SEM biblioteca) e acoes destrutivas pedem confirmacao em modal.
+- FORMULARIOS: labels visiveis, placeholders uteis, validacao com mensagem embaixo do campo, botao com estado "Salvando..." desabilitado.
+- DADOS DE EXEMPLO REALISTAS em pt-BR (nomes, valores, datas) — nunca lorem ipsum. Moeda em R$ com Intl.NumberFormat("pt-BR"), datas em dd/mm/aaaa.
+- PERSISTENCIA: o que a pessoa cria NAO some ao recarregar (useStore de src/lib/useStore.js, ou Supabase se ligado).
+- ACESSIVEL: contraste bom, foco visivel (focus-visible:ring), botoes com aria-label quando so tem icone, alvos de toque >= 44px.
+- MOVIMENTO com proposito: transicoes de 150-300ms em hover/abrir modal; entrada suave dos cards; respeite prefers-reduced-motion.
+- Em apps com produtos/servicos/imoveis/pratos, use FOTOS do tema geradas por IA: https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=800&height=600&nologo=true&seed=N com onError trocando para https://picsum.photos/seed/N/800/600.`;
 
 export async function generateProject({ history, userMessage, images, embedImages = [], providerId = "", mode = "create", currentFiles = null, supabase = {}, kind = "app", brief = "" }, onEvent = () => {}) {
   const baseHistory = [...(history || [])];
@@ -1023,9 +1133,31 @@ TAREFA: aplique APENAS a mudanca pedida, preservando todo o resto (mesmo tema, m
 Mudanca pedida: "${userMessage}"`;
   }
 
-  const contexto = supabase.url
+  let contexto = supabase.url
     ? `\n\nO projeto Supabase da pessoa ja esta ligado. Escreva o cliente lendo as variaveis de ambiente normalmente; a URL e a chave serao injetadas automaticamente.`
     : `\n\nNao ha Supabase ligado ainda. Escreva o cliente lendo as variaveis de ambiente e deixe o .env.example pronto para a pessoa preencher.`;
+
+  // KIT DO NICHO: blueprint completo (telas, dados, fluxo) para o app nascer
+  // certo sem a pessoa descrever tudo. So na CRIACAO de apps.
+  if (mode === "create") {
+    const kit = kind === "app" ? detectarKit(userMessage) : null;
+    if (kit && KITS[kit]) {
+      onEvent({ type: "kit", kit });
+      contexto += `\n\nKIT DO NICHO (blueprint — siga as telas, dados e fluxos abaixo, adaptando ao negocio da pessoa):\n${KITS[kit]}`;
+    }
+    // CLONADOR: "clone/igual a https://..." -> le a pagina e usa como referencia.
+    const alvo = urlParaClonar(userMessage);
+    if (alvo) {
+      onEvent({ type: "status", text: `Lendo a página de referência (${alvo.replace(/^https?:\/\//, "").slice(0, 40)})…` });
+      const ref = await lerPaginaReferencia(alvo);
+      if (ref) {
+        onEvent({ type: "clone", url: alvo });
+        contexto += `\n\nPAGINA DE REFERENCIA PARA RECRIAR (conteudo lido de ${alvo}):\n"""\n${ref}\n"""\nRECRIE essa pagina em React com a MESMA estrutura de secoes, ordem, hierarquia, tom e tipo de layout (header, hero, blocos, cards, rodape), com visual moderno e acabado. Use os textos da referencia como base, adaptando ao pedido da pessoa. NAO copie logotipos nem marcas registradas de terceiros: use o nome/marca da pessoa (ou um nome generico) e imagens placeholder. Se a pessoa pediu mudancas, aplique-as por cima.`;
+      } else {
+        onEvent({ type: "notice", text: "Não consegui ler essa página (pode estar bloqueada). Vou criar inspirado no que você descreveu. Dica: anexe um print da página que eu recrio pelo visual." });
+      }
+    }
+  }
 
   const messages = [...baseHistory, { role: "user", text: userContent, images: images || [] }];
 

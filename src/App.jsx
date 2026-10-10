@@ -707,7 +707,9 @@ function eventoTexto(ev) {
     case "commit": return `Salvo no GitHub${ev.shortSha ? ` (${ev.shortSha})` : ""}.`;
     case "tool_error": return `⚠️ erro em ${ev.name}: ${ev.message}`;
     case "notice": return "⚠️ " + ev.text;
-    case "arquivo_stream": return `✍️ Escrevendo ${ev.path}…`;
+    case "arquivo_stream": return `Escrevendo ${ev.path}…`;
+    case "kit": return `Usando o kit de ${({ agendamento: "agendamento", delivery: "cardápio/delivery", ecommerce: "loja online", membros: "área de membros", crm: "CRM", financeiro: "financeiro", estoque: "estoque", gerador_imagem: "gerador de imagens", gerador_video: "gerador de vídeos", chat_ia: "assistente de IA", link_bio: "link na bio", portfolio: "portfólio", imobiliaria: "imobiliária", academia: "academia", quiz: "quiz/funil", eventos: "eventos" })[ev.kit] || ev.kit} — telas e dados prontos do nicho`;
+    case "clone": return `Página de referência lida — recriando a estrutura de ${String(ev.url || "").replace(/^https?:\/\//, "").slice(0, 40)}`;
     case "continuacao": return `A resposta foi cortada — a próxima IA está continuando de onde parou${ev.parte > 1 ? ` (parte ${ev.parte})` : ""}…`;
     case "html_retry": return "A resposta veio incompleta — pedindo de novo…";
     case "assistant_text": return (ev.text || "").replace(/\s+/g, " ").trim().slice(0, 120);

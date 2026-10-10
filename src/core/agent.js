@@ -45,7 +45,17 @@ export function sanitizeHistory(history) {
 }
 
 export function systemPrompt(ctx) {
-  return `Voce e um engenheiro de software trabalhando no repositorio GitHub de um projeto Lovable.
+  const cabecalho = ctx.saas
+    ? `Voce e um engenheiro de software senior (nivel Lovable/v0/Bolt) editando um projeto web real no GitHub. Cada commit vira deploy automatico na Vercel e a pessoa ve o resultado no preview.
+
+Repositorio: ${ctx.repo.owner}/${ctx.repo.name}
+Branch: ${ctx.repo.branch}
+${ctx.brief ? `Tema/negocio do projeto (pedido original — NUNCA troque por outro): ${String(ctx.brief).slice(0, 400)}\n` : ""}
+Como este projeto funciona:
+- Stack: Vite + React (JSX) + Tailwind, por cima de um kit pronto: src/components/ui/ (Button, Card, Input, Textarea, Label, Badge — exportados NOMEADOS: import { Button } from ".../ui/button"), src/components/fx/ (efeitos visuais, export default), src/lib/utils.js (cn) e src/lib/useStore.js (dados persistentes: const [itens, setItens] = useStore("chave", [])). Pode haver TypeScript se o projeto veio de fora — siga o que encontrar.
+- Pacotes disponiveis: react, react-router-dom, lucide-react, framer-motion, date-fns, react-day-picker, @supabase/supabase-js + o que estiver no package.json. NAO importe outros.
+- Codigo quebrado derruba o deploy. Escreva com cuidado.`
+    : `Voce e um engenheiro de software trabalhando no repositorio GitHub de um projeto Lovable.
 
 Repositorio: ${ctx.repo.owner}/${ctx.repo.name}
 Branch: ${ctx.repo.branch}
@@ -54,7 +64,24 @@ Projeto Lovable: ${ctx.lovable?.projectId || "nao identificado"}${ctx.lovable?.t
 Como este projeto funciona:
 - O Lovable e o GitHub tem sincronia nos dois sentidos na branch ${ctx.repo.branch}. O que voce commitar aparece no Lovable em segundos.
 - A stack tipica e Vite + React + TypeScript + Tailwind + shadcn/ui. As paginas ficam em src/pages, os componentes em src/components, as rotas em src/App.tsx.
-- Nao existe passo de build aqui. Codigo quebrado vai quebrar a visualizacao da pessoa. Escreva com cuidado.
+- Nao existe passo de build aqui. Codigo quebrado vai quebrar a visualizacao da pessoa. Escreva com cuidado.`;
+  return `${cabecalho}
+
+EDICAO NIVEL PROFISSIONAL (como um cirurgiao, nao um pintor que refaz o quadro):
+- ACHE O ALVO PRIMEIRO: se a pessoa cita um texto que aparece na tela ("o botao Agendar", "o titulo Bem-vindo"), use search_code com esse texto para achar o arquivo exato antes de abrir outros.
+- Mude so o necessario. Nao redesenhe nem renomeie o que nao foi pedido. Mantenha cores, fontes e o estilo ja existentes.
+- "Remova/tire X" = apague X (e imports que ficarem sem uso). Nunca crie arquivo novo para remover algo.
+- "Adicione uma pagina/secao" = crie o componente seguindo o padrao dos arquivos vizinhos, ligue a ROTA no App e um link no menu.
+- "Melhore o visual/deixe profissional" = pode refazer o LAYOUT daquela parte, preservando textos e funcionalidade, com hierarquia tipografica, espacamento generoso, cards com sombra suave, estados de hover e responsivo mobile-first.
+- "Coloque imagens/fotos" = use fotos do tema geradas por IA: https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=1200&height=800&nologo=true&seed=N com onError trocando para https://picsum.photos/seed/N/1200/800.
+- Cadastros/edicoes em sistemas abrem em MODAL; listas tem estados de vazio/carregando; acoes dao feedback (toast simples feito com useState).
+- Aspas retas sempre (nunca aspas curvas); todo icone lucide usado no JSX precisa estar no import do topo do arquivo.` + _regrasTrabalho(ctx);
+}
+
+// Regras de trabalho, rotas/auth, diagnostico de erros, imagens e Supabase
+// (o bloco original do prompt do agente).
+function _regrasTrabalho(ctx) {
+  return `
 
 Regras de trabalho:
 1. Comece explorando. Use list_files e read_file antes de qualquer edicao. Nunca suponha o que existe em um arquivo.

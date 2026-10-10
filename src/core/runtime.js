@@ -180,11 +180,25 @@ function objToFiles(obj) {
   return Object.entries(obj).map(([path, content]) => ({ path, content }));
 }
 
+// Palavras de "pedido" que nao dizem nada sobre o negocio — saem do nome do repo.
+const PALAVRAS_VAZIAS = new Set(("crie cria criar faca faz fazer gere gera gerar monte monta montar construa construir desenvolva " +
+  "quero queria preciso gostaria pode poderia me mim pra para por pro um uma uns umas o a os as de do da dos das e em no na nos nas " +
+  "com sem que seu sua meu minha nosso nossa site sites app aplicativo sistema plataforma pagina landing page web projeto novo nova " +
+  "profissional moderno moderna bonito bonita completo completa simples robusto robusta incrivel top estiloso estilosa premium " +
+  "efeitos efeito animacoes animacao algo tipo igual estilo bem muito mais todo toda the a an for my " +
+  "cards card entrada secao secoes cores cor layout design visual tela telas botao botoes area").split(" "));
+
 function nomeDoPedido(texto) {
-  const base = String(texto || "projeto").toLowerCase()
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "projeto";
-  return `${base}-${Date.now().toString(36).slice(-4)}`;
+  const sufixo = Date.now().toString(36).slice(-4);
+  const t = String(texto || "");
+  // Clone de uma URL: o nome vem do dominio (ex.: clone-vercel-ab12).
+  const url = t.match(/https?:\/\/(?:www\.)?([a-z0-9-]+)\./i);
+  if (url && /\b(clon|copi|igual|replic|recri)/i.test(t)) return `clone-${url[1].toLowerCase()}-${sufixo}`;
+  const palavras = t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/https?:\/\/\S+/g, " ").split(/[^a-z0-9]+/)
+    .filter(w => w && w.length > 2 && !PALAVRAS_VAZIAS.has(w));
+  const base = palavras.slice(0, 2).join("-").slice(0, 40) || "projeto";
+  return `${base}-${sufixo}`;
 }
 
 /** Ha pelo menos uma chave de IA salva? (senao, nao da pra gerar nada) */
@@ -333,6 +347,8 @@ export async function editarProjeto({ repo, userMessage, providerId = "", deploy
 
   const ctx = {
     repo: { owner, name, branch },
+    saas: true,                       // projeto do Copilot Code (Vite + kit + Vercel)
+    brief: repo.brief || "",          // pedido original: o "tema" do projeto
     lovable: null,
     lovableCloud: false,
     supabase: sb.projectRef ? { connected: true, projectRef: sb.projectRef, projectName: sb.projectName } : null

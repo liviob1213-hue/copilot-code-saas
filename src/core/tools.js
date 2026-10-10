@@ -1,8 +1,47 @@
-// [gerado por sync-core.mjs] copia de ../../src/core — NAO edite aqui.
-// Edite na extensao (src/core) e rode `npm run sync-core`.
+// Copia do core da extensao, agora mantida no SaaS (que e standalone).
 import * as gh from "./github.js";
 import * as sb from "./supabase-mgmt.js";
 import { AGENT_LIMITS } from "./config.js";
+import { corrigirEstiloImports, garantirIconesEComponentes, blindarImportsNpm, corrigirSintaxe } from "./site-generator.js";
+import { STARTER_FILES } from "./starter-template.js";
+
+// Rede de seguranca do build aplicada tambem nas EDICOES (antes so a criacao
+// tinha). Usa o package.json REAL do repo para nao neutralizar pacotes que o
+// projeto de fato tem (ex.: projetos do Lovable com @radix-ui, sonner...).
+export async function blindarEdicao(ws, files) {
+  const textos = {};
+  for (const f of files) {
+    if (f.delete || f.base64 || !/\.(jsx?|tsx?|css|html)$/i.test(f.path)) continue;
+    textos[f.path] = f.content;
+  }
+  if (!Object.keys(textos).length) return;
+  const { owner, name: repo, branch } = ws.repo;
+
+  // dependencias reais do projeto
+  let extras = new Set();
+  try {
+    const pkgTxt = ws.fileCache.get("package.json") ?? (await gh.readFile(owner, repo, branch, "package.json")).content;
+    const pkg = JSON.parse(pkgTxt);
+    extras = new Set([...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.devDependencies || {})]);
+  } catch { /* sem package.json legivel: segue so com a lista padrao */ }
+
+  // contexto para saber os EXPORTS de quem e importado: arquivos ja lidos +
+  // componentes do kit que existem neste repo
+  const noRepo = new Set((ws.treeCache?.files || []).map(x => x.path));
+  const contexto = {};
+  for (const [p, c] of Object.entries(STARTER_FILES)) if (/^src\/components\//.test(p) && noRepo.has(p)) contexto[p] = c;
+  for (const [p, c] of ws.fileCache) contexto[p] = c;
+
+  try {
+    const corrigidos = corrigirEstiloImports({ ...contexto, ...textos });
+    let mapa = {};
+    for (const p of Object.keys(textos)) mapa[p] = corrigidos[p];
+    mapa = garantirIconesEComponentes(mapa);
+    mapa = blindarImportsNpm(mapa, extras);
+    mapa = corrigirSintaxe(mapa);
+    for (const f of files) if (mapa[f.path] !== undefined) f.content = mapa[f.path];
+  } catch { /* a rede de seguranca nunca pode impedir o commit */ }
+}
 
 export const TOOL_SCHEMAS = [
   {
@@ -376,6 +415,9 @@ export async function runTool(ws, name, args, emit = () => {}) {
             .replace(/["'](?:SUA_CHAVE|SUA_ANON_KEY|YOUR_SUPABASE_ANON_KEY|SUPABASE_ANON_KEY|ANON_KEY|COLE_SUA_ANON_KEY)["']/gi, `"${k}"`);
         }
       }
+
+      // Mesma rede de seguranca da criacao (imports, icones, pacotes, aspas).
+      await blindarEdicao(ws, files);
 
       const prefix = ws.settings?.commitPrefix ? ws.settings.commitPrefix + " " : "";
       const result = await gh.commitFiles({
