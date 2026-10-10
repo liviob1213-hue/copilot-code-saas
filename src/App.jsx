@@ -11,13 +11,35 @@ import * as github from "./core/github.js";
 import * as vercel from "./core/vercel.js";
 import * as sbmgmt from "./core/supabase-mgmt.js";
 
-// Sugestões da home: só preenchem o campo (a pessoa revisa e envia).
-const SUGESTOES = [
-  "Landing page para uma barbearia com agendamento",
-  "CRM simples com login e pipeline de vendas",
-  "Cardápio digital com carrinho e pedido no WhatsApp",
-  "Dashboard financeiro com gráficos e filtros"
+// Galeria de modelos da home: só preenchem o campo (a pessoa revisa e envia).
+// Os textos batem com os kits de nicho do gerador (detectarKit), então cada
+// modelo já nasce com telas, dados e fluxos do nicho.
+const CATEGORIAS = [
+  { id: "todos", label: "Todos" },
+  { id: "apps", label: "Apps e SaaS" },
+  { id: "sites", label: "Sites" },
+  { id: "ia", label: "IA e mídia" }
 ];
+const MODELOS = [
+  { cat: "apps", ic: "calendar", titulo: "Agendamento", desc: "Serviços, horários livres e painel do profissional", prompt: "Sistema de agendamento online para barbearia com serviços, profissionais, horários disponíveis, confirmação e painel admin" },
+  { cat: "apps", ic: "kanban", titulo: "CRM de vendas", desc: "Pipeline kanban, contatos, tarefas e métricas", prompt: "CRM de vendas com pipeline kanban, cadastro de contatos, tarefas, histórico de negociações e dashboard de métricas" },
+  { cat: "apps", ic: "utensils", titulo: "Cardápio digital", desc: "Categorias, carrinho e pedido no WhatsApp", prompt: "Cardápio digital para hamburgueria com categorias, carrinho, adicionais, taxa de entrega e pedido pelo WhatsApp" },
+  { cat: "apps", ic: "wallet", titulo: "Controle financeiro", desc: "Receitas, despesas, categorias e gráficos", prompt: "Controle financeiro com receitas, despesas, categorias, gráficos mensais, metas e exportação" },
+  { cat: "apps", ic: "bag", titulo: "Loja online", desc: "Catálogo, filtros, carrinho e pedidos", prompt: "Loja online de roupas com catálogo, filtros, página de produto, carrinho, checkout e painel de pedidos" },
+  { cat: "apps", ic: "play", titulo: "Área de membros", desc: "Cursos, módulos, aulas e progresso", prompt: "Área de membros com cursos, módulos, aulas em vídeo, progresso do aluno e certificado" },
+  { cat: "apps", ic: "box", titulo: "Estoque", desc: "Produtos, entradas, saídas e alertas", prompt: "Sistema de controle de estoque com produtos, entradas, saídas, fornecedores e alerta de estoque baixo" },
+  { cat: "apps", ic: "dumbbell", titulo: "Academia", desc: "Alunos, planos, treinos e check-in", prompt: "Sistema para academia com alunos, planos, fichas de treino, check-in e mensalidades" },
+  { cat: "sites", ic: "layout", titulo: "Landing de SaaS", desc: "Hero, benefícios, planos, depoimentos e FAQ", prompt: "Landing page para um SaaS com hero, benefícios, como funciona, depoimentos, planos de preço e FAQ" },
+  { cat: "sites", ic: "camera", titulo: "Portfólio", desc: "Galeria, sobre, serviços e contato", prompt: "Portfólio de fotógrafo com galeria em grid, sobre, serviços, depoimentos e contato" },
+  { cat: "sites", ic: "building", titulo: "Imobiliária", desc: "Busca de imóveis, filtros e detalhes", prompt: "Site de imobiliária com busca de imóveis, filtros por preço e bairro, página de detalhes e contato com corretor" },
+  { cat: "sites", ic: "link", titulo: "Link na bio", desc: "Página de links com a sua marca", prompt: "Página de link na bio para criadora de conteúdo com links, redes sociais, produtos em destaque e newsletter" },
+  { cat: "sites", ic: "ticket", titulo: "Evento", desc: "Programação, palestrantes e ingressos", prompt: "Site de evento com programação, palestrantes, lotes de ingressos, inscrição e ingresso com QR code" },
+  { cat: "ia", ic: "wand", titulo: "Gerador de imagens", desc: "Prompt, estilos, proporções e galeria", prompt: "Gerador de imagens com IA com prompt, estilos, proporções, galeria do histórico e download" },
+  { cat: "ia", ic: "film", titulo: "Gerador de vídeos", desc: "Texto para vídeo com fila e histórico", prompt: "Gerador de vídeos com IA a partir de texto, com fila de geração, histórico e download" },
+  { cat: "ia", ic: "bot", titulo: "Assistente de IA", desc: "Chat de atendimento treinado no seu negócio", prompt: "Assistente de IA em chat para atendimento de uma clínica odontológica, com respostas sobre serviços e agendamento" },
+  { cat: "ia", ic: "quiz", titulo: "Quiz e funil", desc: "Perguntas, resultado e captura de lead", prompt: "Quiz de funil de captação com perguntas, barra de progresso, resultado personalizado e captura de lead" }
+];
+const PROMPT_CLONE = "Recrie esta página com a minha marca e o meu conteúdo: https://";
 
 // Plano antes de construir (1o comando de projeto novo): DESATIVADO a pedido —
 // ir direto pra construção. Troque pra true pra reativar o fluxo de plano.
@@ -41,7 +63,8 @@ export default function App({ oauthResult, oauthError }) {
   const [repo, setRepo] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [viewport, setViewport] = useState("desktop");
-  const [conn, setConn] = useState({ github: null, supabase: false, vercel: false });
+  const [conn, setConn] = useState({ github: null, supabase: false, vercel: false, ia: true });
+  const [categoria, setCategoria] = useState("todos");
   const [vercelProjects, setVercelProjects] = useState(null);
   const [connOpen, setConnOpen] = useState(false);
   const [keysOpen, setKeysOpen] = useState(false);
@@ -62,7 +85,10 @@ export default function App({ oauthResult, oauthError }) {
   function showToast(text, err = false) { setToast({ text, err }); setTimeout(() => setToast(null), 4200); }
   async function refreshConn() {
     const gh = await store.get("github"), sb = await store.get("supabase"), vc = await store.getSecret("VERCEL_TOKEN");
-    setConn({ github: gh.login || (gh.token ? "conectado" : null), supabase: Boolean(sb.oauth || sb.token), vercel: Boolean(vc) });
+    // IA pronta = pelo menos um provedor ligado com chave salva.
+    const provs = (await store.get("providers")) || [], segredos = (await store.get("secrets")) || {};
+    const ia = provs.some(p => p.enabled !== false && (segredos[PROVIDER_CATALOG.find(c => c.id === p.id)?.secretKey] || "").trim());
+    setConn({ github: gh.login || (gh.token ? "conectado" : null), supabase: Boolean(sb.oauth || sb.token), vercel: Boolean(vc), ia });
     if (vc) loadVercelProjects();
   }
   async function refreshHistory() { setSessions(await history.listSessions()); }
@@ -272,7 +298,7 @@ export default function App({ oauthResult, oauthError }) {
       endRun();
       let msg = e.message;
       if (/recusaram|timeout|refus/i.test(msg)) {
-        msg += "\n\n💡 Dica: no seletor de IA escolha um modelo de CÓDIGO (ex.: DeepSeek → deepseek-chat, ou Gemini). Evite modelos de visão/experimentais — eles travam. E deixe mais de um provedor ligado em Conexões pra ter reserva.";
+        msg += "\n\nDica:no seletor de IA escolha um modelo de CÓDIGO (ex.: DeepSeek → deepseek-chat, ou Gemini). Evite modelos de visão/experimentais — eles travam. E deixe mais de um provedor ligado em Conexões pra ter reserva.";
       }
       pushMsg("error", msg); showToast(e.message, true);
     }
@@ -322,7 +348,10 @@ export default function App({ oauthResult, oauthError }) {
   }
   function novoProjeto() { sessionRef.current = null; setRepo(null); setPreviewUrl(null); setMessages([]); setView("home"); }
   // Só preenche o campo (comportamento igual ao de digitar): não envia nada.
-  function sugerir(t) { setInput(t); setTimeout(() => inputRef.current?.focus(), 0); }
+  function sugerir(t) {
+    setInput(t);
+    setTimeout(() => { const el = inputRef.current; if (!el) return; el.focus(); el.setSelectionRange(t.length, t.length); el.scrollIntoView({ block: "center", behavior: "smooth" }); }, 0);
+  }
 
   async function openSession(id) {
     const s = await history.getSession(id);
@@ -417,23 +446,58 @@ export default function App({ oauthResult, oauthError }) {
           <div className="home">
             <div className="home-inner">
               <div className="hero-badge">
-                <span className="tag">BYOK</span> <b>Suas chaves de IA</b> · sem mensalidade escondida
+                <span className="tag">BYOK</span> <b>Suas chaves de IA</b><span className="dot-sep" />sites, apps e SaaS completos
               </div>
               <h1 className="hero-title">O que você quer <span className="grad">criar</span> hoje?</h1>
-              <p className="hero-sub">Descreva a ideia em uma frase. A IA escreve o código, versiona no seu GitHub e publica na Vercel — sem sair desta tela.</p>
+              <p className="hero-sub">Descreva a ideia em português. A IA escreve o código, versiona no seu GitHub e publica na Vercel, tudo nesta tela.</p>
               {composer}
               <div className="hero-chips">
-                {SUGESTOES.map((s, i) => (
-                  <button key={i} className="sug" onClick={() => sugerir(s)} title="Usar esta ideia">
-                    <IconSpark /> {s}
+                <button className="sug sug-clone" onClick={() => sugerir(PROMPT_CLONE)} title="Cole o link de um site para recriar a estrutura com a sua marca">
+                  <TplIcon ic="copy" /> Clonar um site
+                </button>
+                {MODELOS.filter(m => ["calendar", "utensils", "wand", "layout"].includes(m.ic)).map(m => (
+                  <button key={m.ic} className="sug" onClick={() => sugerir(m.prompt)} title={m.prompt}>
+                    <TplIcon ic={m.ic} /> {m.titulo}
                   </button>
                 ))}
               </div>
 
-              <div className="steps">
-                <StepCard n="1" titulo="Conecte as chaves" desc="GitHub pra versionar, Vercel pra publicar e a IA que você preferir (as grátis já bastam)." />
-                <StepCard n="2" titulo="Descreva a ideia" desc="Um prompt curto já começa o app. Depois é só pedir mudanças em português." />
-                <StepCard n="3" titulo="Veja no ar" desc="O projeto nasce no seu repositório e sobe sozinho. Preview ao lado, sem deploy manual." />
+              {!(conn.ia && conn.github && conn.vercel) && (
+                <div className="setup">
+                  <div className="setup-text">
+                    <b>Configure em 2 minutos</b>
+                    <span>As opções grátis já bastam para criar e publicar.</span>
+                  </div>
+                  <div className="setup-steps">
+                    <span className={"setup-step" + (conn.ia ? " ok" : "")}><span className="setup-dot">{conn.ia ? <IconCheck /> : "1"}</span>Chave de IA</span>
+                    <span className={"setup-step" + (conn.github ? " ok" : "")}><span className="setup-dot">{conn.github ? <IconCheck /> : "2"}</span>GitHub</span>
+                    <span className={"setup-step" + (conn.vercel ? " ok" : "")}><span className="setup-dot">{conn.vercel ? <IconCheck /> : "3"}</span>Vercel</span>
+                  </div>
+                  <button className="btn sm primary" onClick={() => { setKeysOpen(!conn.ia); setConnOpen(true); }}>Configurar</button>
+                </div>
+              )}
+
+              <div className="gallery">
+                <div className="gallery-head">
+                  <h2>Comece por um modelo</h2>
+                  <div className="seg" role="tablist">
+                    {CATEGORIAS.map(c => (
+                      <button key={c.id} role="tab" aria-selected={categoria === c.id} className={"seg-btn" + (categoria === c.id ? " on" : "")} onClick={() => setCategoria(c.id)}>{c.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="tpl-grid">
+                  {MODELOS.filter(m => categoria === "todos" || m.cat === categoria).map(m => (
+                    <button key={m.titulo} className="tpl" onClick={() => sugerir(m.prompt)} title={m.prompt}>
+                      <span className="tpl-ic"><TplIcon ic={m.ic} /></span>
+                      <span className="tpl-text">
+                        <span className="tpl-title">{m.titulo}</span>
+                        <span className="tpl-desc">{m.desc}</span>
+                      </span>
+                      <span className="tpl-go"><IconArrowUp /></span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {recentes.length > 0 && (
@@ -453,7 +517,7 @@ export default function App({ oauthResult, oauthError }) {
                 </div>
               )}
 
-              <p className="home-hint">Comece pelos modelos grátis (NVIDIA, Gemini, Groq). Já tem um projeto? Abra em <b>Projetos</b> ou peça alterações direto no chat.</p>
+              <p className="home-hint"><IconLock /> Suas chaves ficam só no seu navegador. O código é seu, no seu GitHub.</p>
             </div>
           </div>
         ) : (
@@ -595,9 +659,9 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
       <div className="side-section">Projetos recentes</div>
       <div className="side-list">
         {/* Estado da lista: se não há token da Vercel, nada vai carregar — dizemos isso. */}
-        {!conn.vercel ? <span className="side-empty">conecte a Vercel pra listar seus projetos</span>
-          : projects === null ? <span className="side-empty">carregando…</span>
-          : projects.length === 0 ? <span className="side-empty">nenhum projeto ainda</span>
+        {!conn.vercel ? <button className="side-empty linklike-muted" onClick={onConexoes}>Conecte a Vercel para listar seus projetos</button>
+          : projects === null ? <span className="side-empty">Carregando…</span>
+          : projects.length === 0 ? <span className="side-empty">Nenhum projeto ainda</span>
           : projects.slice(0, 8).map((p, i) => (
             <button key={i} className="side-proj" onClick={() => onOpenProject(p)} title={p.url || `${p.owner}/${p.name}`}>
               <span className={"proj-avatar" + CORES_AVATAR[i % 4]}><IconGem /></span>
@@ -622,15 +686,29 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
   );
 }
 
-/* ---------------- Card de passo (home) ---------------- */
-function StepCard({ n, titulo, desc }) {
-  return (
-    <div className="step-card">
-      <div className="step-n">{n}</div>
-      <div className="step-title">{titulo}</div>
-      <div className="step-desc">{desc}</div>
-    </div>
-  );
+/* ---------------- Ícones da galeria de modelos (traço fino, estilo lucide) ---------------- */
+const TPL_PATHS = {
+  calendar: <><rect x="3" y="4.5" width="18" height="16.5" rx="2.5" /><path d="M16 2.5v4M8 2.5v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01" /></>,
+  kanban: <><rect x="3" y="3" width="18" height="18" rx="2.5" /><path d="M8 7v7M12 7v4M16 7v9" /></>,
+  utensils: <><path d="M3 2v7a3 3 0 0 0 3 3h0a3 3 0 0 0 3-3V2M6 2v20" /><path d="M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3zm0 0v7" /></>,
+  wallet: <><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v4h-4a2 2 0 0 0 0 4h4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5" /></>,
+  bag: <><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18" /><path d="M16 10a4 4 0 0 1-8 0" /></>,
+  play: <><rect x="2.5" y="4" width="19" height="16" rx="3" /><path d="m10 9 5 3-5 3z" /></>,
+  box: <><path d="M21 8 12 3 3 8v8l9 5 9-5z" /><path d="m3 8 9 5 9-5M12 13v8" /></>,
+  dumbbell: <><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11" /></>,
+  layout: <><rect x="3" y="3" width="18" height="18" rx="2.5" /><path d="M3 9h18M9 21V9" /></>,
+  camera: <><path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" /><circle cx="12" cy="13" r="3.5" /></>,
+  building: <><rect x="4" y="2.5" width="16" height="19" rx="2" /><path d="M9 21.5v-4h6v4M8 6.5h.01M12 6.5h.01M16 6.5h.01M8 10.5h.01M12 10.5h.01M16 10.5h.01M8 14h.01M12 14h.01M16 14h.01" /></>,
+  link: <><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></>,
+  ticket: <><path d="M3 9a3 3 0 0 0 0 6v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a3 3 0 0 1 0-6V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z" /><path d="M13 5v2M13 11v2M13 17v2" /></>,
+  wand: <><path d="m15 4 .8 2.2L18 7l-2.2.8L15 10l-.8-2.2L12 7l2.2-.8zM19.5 12l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z" /><path d="m3 21 11-11" /></>,
+  film: <><rect x="2.5" y="2.5" width="19" height="19" rx="2.5" /><path d="M7 2.5v19M17 2.5v19M2.5 12h19M2.5 7H7M2.5 17H7M17 17h4.5M17 7h4.5" /></>,
+  bot: <><rect x="4" y="8" width="16" height="12" rx="3" /><path d="M12 8V4M8 4h8M9 13v1M15 13v1M2 14h2M20 14h2" /></>,
+  quiz: <><circle cx="12" cy="12" r="9.5" /><path d="M9.2 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01" /></>,
+  copy: <><rect x="8" y="8" width="13" height="13" rx="2.5" /><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-8A2.5 2.5 0 0 0 3 5.5v8A2.5 2.5 0 0 0 5.5 16H8" /></>
+};
+function TplIcon({ ic }) {
+  return <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{TPL_PATHS[ic] || TPL_PATHS.layout}</svg>;
 }
 
 /* ---------------- Composer (v0-style) ---------------- */
@@ -705,8 +783,8 @@ function eventoTexto(ev) {
       criar_edge_function: "Publicando a função no Supabase…"
     })[ev.name] || `Usando ${ev.name}…`;
     case "commit": return `Salvo no GitHub${ev.shortSha ? ` (${ev.shortSha})` : ""}.`;
-    case "tool_error": return `⚠️ erro em ${ev.name}: ${ev.message}`;
-    case "notice": return "⚠️ " + ev.text;
+    case "tool_error": return `Erro em ${ev.name}: ${ev.message}`;
+    case "notice": return ev.text;
     case "arquivo_stream": return `Escrevendo ${ev.path}…`;
     case "kit": return `Usando o kit de ${({ agendamento: "agendamento", delivery: "cardápio/delivery", ecommerce: "loja online", membros: "área de membros", crm: "CRM", financeiro: "financeiro", estoque: "estoque", gerador_imagem: "gerador de imagens", gerador_video: "gerador de vídeos", chat_ia: "assistente de IA", link_bio: "link na bio", portfolio: "portfólio", imobiliaria: "imobiliária", academia: "academia", quiz: "quiz/funil", eventos: "eventos" })[ev.kit] || ev.kit} — telas e dados prontos do nicho`;
     case "clone": return `Página de referência lida — recriando a estrutura de ${String(ev.url || "").replace(/^https?:\/\//, "").slice(0, 40)}`;
@@ -850,13 +928,13 @@ function PlanCard({ plano, onAprovar, onRecusar }) {
 }
 
 function Bubble({ role, text, images }) {
-  if (role === "system" || role === "error") return <div className={"note " + role}>{text}</div>;
+  if (role === "system" || role === "error") return <div className={"note " + role}><span className="note-ic">{role === "error" ? <IconAlert /> : <IconInfo />}</span><span>{text}</span></div>;
   const eu = role === "user";
   return (
     <div className={"bubble " + role}>
       <div className="bubble-head">
-        <span className={"avatar" + (eu ? " me" : "")}>{eu ? "VC" : "AI"}</span>
-        {eu ? "você" : "copilot code"}
+        {eu ? <span className="avatar me">VC</span> : <span className="avatar ai"><img src="/brand/logo.png" alt="" /></span>}
+        {eu ? "Você" : "Copilot Code"}
       </div>
       {images && images.length > 0 && (
         <div className="bubble-imgs">
@@ -1213,7 +1291,7 @@ function AiProviders({ showToast }) {
         const opcoes = [...new Set([c.model, ...(pc.models || []), ...(fetched[pc.id] || [])].filter(Boolean))].filter(EH_CODIGO);
         const H = health[pc.id] || {};
         const testOn = testando === pc.id;
-        const icone = m => testOn ? "⏳" : ({ ok: "✅", fail: "❌", retry: "⏳" })[H[m]?.status] || "";
+        const icone = m => testOn ? "…" : ({ ok: "✓", fail: "✕", retry: "…" })[H[m]?.status] || "";
         const primeiroDoTier = idx === 0 || tierDe(lista[idx - 1].id) !== tierDe(pc.id);
         const ultimoDoTier = idx === lista.length - 1 || tierDe(lista[idx + 1].id) !== tierDe(pc.id);
         return (
@@ -1283,6 +1361,8 @@ const IconArrowUp = () => <svg viewBox="0 0 24 24" width="17" height="17" {...S}
 const IconChevronDown = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S} strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg>;
 const IconChevronLeft = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S} strokeWidth="2.2"><path d="m15 18-6-6 6-6" /></svg>;
 const IconMenu = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S} strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>;
+const IconAlert = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>;
+const IconInfo = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><circle cx="12" cy="12" r="9.5" /><path d="M12 16v-4.5M12 8h.01" /></svg>;
 const IconPlus = () => <svg viewBox="0 0 24 24" width="14" height="14" {...S} strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>;
 const Gh = () => <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.73-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.5-1.11-1.5-.9-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>;
 const Sb = () => <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M13 2 4 13.5c-.4.5 0 1.3.7 1.3H12v7l9-11.5c.4-.5 0-1.3-.7-1.3H13V2z"/></svg>;

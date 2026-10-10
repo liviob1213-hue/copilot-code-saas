@@ -1140,7 +1140,11 @@ Mudanca pedida: "${userMessage}"`;
   // KIT DO NICHO: blueprint completo (telas, dados, fluxo) para o app nascer
   // certo sem a pessoa descrever tudo. So na CRIACAO de apps.
   if (mode === "create") {
-    const kit = kind === "app" ? detectarKit(userMessage) : null;
+    // Site usa so kits de pagina (uma landing "com agendamento" nao deve
+    // virar o sistema completo com painel admin); app usa qualquer kit.
+    const KITS_DE_SITE = ["portfolio", "imobiliaria", "link_bio", "eventos", "quiz"];
+    const achado = detectarKit(userMessage);
+    const kit = kind === "app" || KITS_DE_SITE.includes(achado) ? achado : null;
     if (kit && KITS[kit]) {
       onEvent({ type: "kit", kit });
       contexto += `\n\nKIT DO NICHO (blueprint — siga as telas, dados e fluxos abaixo, adaptando ao negocio da pessoa):\n${KITS[kit]}`;
