@@ -700,6 +700,21 @@ function clausulaParaStubs(clause) {
   }
   return decls.join(" ");
 }
+// Aspas curvas/"inteligentes" no codigo (‘ ’ “ ”) sao um dos
+// campeoes de build quebrado — a IA as insere sem querer. Trocamos por aspas
+// retas nos arquivos de codigo (seguro: no texto visivel a aspa reta renderiza igual).
+export function corrigirSintaxe(files) {
+  const out = {};
+  for (const [p, c] of Object.entries(files)) {
+    if (/\.(jsx?|tsx?|css|html|json)$/i.test(p)) {
+      out[p] = String(c)
+        .replace(/[‘’‛′]/g, "'")
+        .replace(/[“”‟″]/g, '"');
+    } else out[p] = c;
+  }
+  return out;
+}
+
 export function blindarImportsNpm(files) {
   const out = { ...files };
   const permitido = (spec) => {
@@ -789,10 +804,25 @@ export function garantirImportsLocais(files) {
 }
 
 /** Gera o projeto micro-SaaS completo. */
+// Regras somadas a TODO prompt de criacao. Reduzem a causa #1 de build quebrado
+// (sintaxe) e deixam o resultado mais profissional.
+const REGRAS_QUALIDADE = `
+
+REGRAS QUE EVITAM BUILD QUEBRADO (siga a risca):
+- ASPAS RETAS SEMPRE: use SO ' e " comuns. NUNCA use aspas curvas/"inteligentes" (‘ ’ “ ”) em lugar nenhum do codigo — elas quebram o build. Em palavras com apostrofo escreva reto.
+- ARQUIVO COMPLETO: cada arquivo do primeiro ao ultimo caractere, sem "..." nem "resto igual ao anterior". Feche TODAS as tags e, no formato multi-arquivo, o ultimo ===END===.
+- SO IMPORTE O QUE EXISTE: react, react-router-dom, lucide-react, @supabase/supabase-js, framer-motion, date-fns e os componentes de src/components/ui/ e src/components/fx/. Todo nome em CamelCase usado no JSX PRECISA ter import no topo do MESMO arquivo (icone sem import = tela branca).
+- NAO recrie arquivos de config (package.json, vite.config.js, tailwind.config.js, etc.) — ja existem.
+
+ESTILO (deixa com cara profissional, nao de template):
+- Estilize com Tailwind. Use style inline SO para valor dinamico (ex.: uma cor calculada). NUNCA CSS-in-JS nem arquivo .css por componente (o unico CSS e o theme.css/index.css ja existente).
+- Responsivo MOBILE-FIRST de verdade (sm: / md: / lg:); nada estoura a tela no celular (320px+).
+- Em sistemas/CRM: cadastrar/editar abre em MODAL (pop-up), nao numa tela crua; use badges de status coloridos, estados vazios bonitos ("nenhum X ainda"), e acoes claras. Nada de tela "pelada".`;
+
 export async function generateProject({ history, userMessage, images, embedImages = [], providerId = "", mode = "create", currentFiles = null, supabase = {}, kind = "app", brief = "" }, onEvent = () => {}) {
   const baseHistory = [...(history || [])];
   // "site" = pagina de vendas/landing; "app" = sistema/micro-SaaS. Muda so o prompt.
-  const systemBase = kind === "site" ? SYSTEM_SITE_KIT : SYSTEM_MICROSAAS;
+  const systemBase = (kind === "site" ? SYSTEM_SITE_KIT : SYSTEM_MICROSAAS) + REGRAS_QUALIDADE;
 
   // Imagens que a pessoa quer DENTRO do projeto. A IA nao consegue gravar
   // arquivo binario, entao ela usa marcadores e nos trocamos pelo conteudo
@@ -933,6 +963,7 @@ Mudanca pedida: "${userMessage}"`;
   files = mergeStarter(files);
   files = garantirImportsLocais(files);   // cria stubs para imports LOCAIS que faltarem
   files = blindarImportsNpm(files);       // neutraliza imports de pacotes npm nao instalados
+  files = corrigirSintaxe(files);         // aspas curvas -> retas (evita build quebrado)
   files = injetarCredenciais(files, supabase);
   files = injetarImagens(files, embedImages);
 
