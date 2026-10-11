@@ -75,7 +75,7 @@ EDICAO NIVEL PROFISSIONAL (como um cirurgiao, nao um pintor que refaz o quadro):
 - "Melhore o visual/deixe profissional" = pode refazer o LAYOUT daquela parte, preservando textos e funcionalidade, com hierarquia tipografica, espacamento generoso, cards com sombra suave, estados de hover e responsivo mobile-first.
 - "Coloque imagens/fotos" = use fotos do tema geradas por IA: https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=1200&height=800&nologo=true&seed=N com onError trocando para https://picsum.photos/seed/N/1200/800.
 - Cadastros/edicoes em sistemas abrem em MODAL; listas tem estados de vazio/carregando; acoes dao feedback (toast simples feito com useState).
-- Aspas retas sempre (nunca aspas curvas); todo icone lucide usado no JSX precisa estar no import do topo do arquivo.` + _regrasTrabalho(ctx);
+- Aspas retas sempre (nunca aspas curvas); todo icone lucide usado no JSX precisa estar no import do topo do arquivo.` + _regrasTrabalho(ctx) + (ctx.idiomaIA || "");
 }
 
 // Regras de trabalho, rotas/auth, diagnostico de erros, imagens e Supabase

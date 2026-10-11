@@ -7,6 +7,7 @@
 // usuario; o runtime grava so a resposta do assistente (resultado).
 // ============================================================================
 
+import { t, instrucaoIdiomaIA, idioma, infoIdioma } from "../i18n.js";
 import * as store from "./storage.js";
 import * as gen from "./site-generator.js";
 import * as github from "./github.js";
@@ -102,10 +103,10 @@ async function criarTabelasSeConectado({ files, providerId }, onEvent) {
     if (!sql) return null;
     onEvent({ type: "status", text: "Criando as tabelas no seu Supabase…" });
     await sbmgmt.runSql(sql);
-    onEvent({ type: "notice", text: `Tabelas criadas/atualizadas no seu Supabase ✅ (${nomes.join(", ")})` });
+    onEvent({ type: "notice", text: t("Tabelas criadas/atualizadas no seu Supabase ({tabelas})", { tabelas: nomes.join(", ") }) });
     return sql;
   } catch (e) {
-    onEvent({ type: "notice", text: "Não consegui criar as tabelas sozinho: " + e.message });
+    onEvent({ type: "notice", text: t("Não consegui criar as tabelas sozinho: ") + e.message });
     return null;
   }
 }
@@ -117,21 +118,21 @@ async function criarTabelasSeConectado({ files, providerId }, onEvent) {
  */
 export async function criarTabelas({ repo, providerId = "", sessionId = null }, onEvent = () => {}) {
   const sb = await store.get("supabase");
-  if (!sb.projectRef) throw new Error("Escolha um projeto Supabase primeiro (Conexões → Supabase → Projeto).");
+  if (!sb.projectRef) throw new Error(t("Escolha um projeto Supabase primeiro (Conexões → Supabase → Projeto)."));
   const owner = repo.owner, name = repo.name, branch = repo.branch || "main";
 
   onEvent({ type: "status", text: "Lendo o seu app pra descobrir as tabelas…" });
   const files = await lerArquivosDoProjeto(owner, name, branch);
 
   const { sql, nomes } = await gerarSqlTabelas({ files, providerId }, onEvent);
-  if (!sql) throw new Error("Não achei tabelas no código do app. Peça primeiro pra criar as telas que usam o banco.");
+  if (!sql) throw new Error(t("Não achei tabelas no código do app. Peça primeiro pra criar as telas que usam o banco."));
 
   onEvent({ type: "status", text: "Criando as tabelas no seu Supabase…" });
   await sbmgmt.runSql(sql);
 
   const texto = `Criei ${nomes.length} tabela(s) no seu Supabase: ${nomes.join(", ")}. Agora o app consegue ler e gravar dados (os erros 404 somem). As tabelas nascem abertas pra facilitar os testes — quando quiser, clique em Blindar pra deixar seguro.`;
   if (sessionId) await history.appendMessage(sessionId, { role: "assistant", text: texto });
-  onEvent({ type: "notice", text: `Tabelas criadas ✅ (${nomes.join(", ")})` });
+  onEvent({ type: "notice", text: t("Tabelas criadas ({tabelas})", { tabelas: nomes.join(", ") }) });
   return { nomes, texto };
 }
 
@@ -140,7 +141,7 @@ export async function criarTabelas({ repo, providerId = "", sessionId = null }, 
 async function resumirDidatico({ userMessage, files, mode, providerId }) {
   try {
     const nomes = Object.keys(files || {}).slice(0, 14).join(", ") || "alguns arquivos";
-    const sys = "Voce e um professor paciente que fala com quem esta comecando a programar. Responda em portugues do Brasil, simples e curto, SEM jargao tecnico (nada de 'endpoint', 'deploy', 'componente' sem explicar). Fale como se explicasse para um amigo leigo.";
+    const sys = "Voce e um professor paciente que fala com quem esta comecando a programar. Responda em " + infoIdioma().nomeIA + ", simples e curto, SEM jargao tecnico (nada de 'endpoint', 'deploy', 'componente' sem explicar). Fale como se explicasse para um amigo leigo.";
     const user =
       `Acabei de ${mode === "edit" ? "alterar" : "criar"} um projeto a partir deste pedido da pessoa: "${userMessage}".\n` +
       `Os arquivos que mexi foram: ${nomes}.\n\n` +
@@ -240,17 +241,17 @@ export async function gerarPlano({ userMessage, kind = "app", providerId = "" },
 }
 
 export async function criarProjeto({ userMessage, kind = "app", providerId = "", deploy = true, sessionId = null, embedImages = [] }, onEvent = () => {}) {
-  if (!(await temGithub())) throw new Error("Conecte o GitHub antes de criar um projeto (Conexoes).");
+  if (!(await temGithub())) throw new Error(t("Conecte o GitHub antes de criar um projeto (Conexões)."));
 
   const convHistory = await historicoDaSessao(sessionId);
   const sb = await store.get("supabase");
   const supaCtx = sb.url ? { url: sb.url, anonKey: sb.anonKey } : {};
 
   onEvent({ type: "status", text: "Pedindo pra IA escrever o código do seu projeto…" });
-  const result = await gen.generateProject({ history: convHistory, userMessage, kind, mode: "create", providerId, supabase: supaCtx, embedImages, images: embedImages }, onEvent);
+  const result = await gen.generateProject({ history: convHistory, userMessage, kind, idiomaIA: instrucaoIdiomaIA(), mode: "create", providerId, supabase: supaCtx, embedImages, images: embedImages }, onEvent);
 
   const files = result.paginaUnica ? { "index.html": result.html } : result.files;
-  if (!files || !Object.keys(files).length) throw new Error("A IA nao retornou arquivos. Tente de novo ou troque de modelo.");
+  if (!files || !Object.keys(files).length) throw new Error(t("A IA não retornou arquivos. Tente de novo ou troque de modelo."));
 
   onEvent({ type: "status", text: "Criando o repositório no GitHub (onde seu código fica guardado)…" });
   const repo = await github.createRepoWithFiles({
@@ -278,7 +279,7 @@ export async function criarProjeto({ userMessage, kind = "app", providerId = "",
         urls[full] = url; await store.set("previewUrls", urls);
       }
     } catch (e) {
-      onEvent({ type: "notice", text: "Projeto criado no GitHub, mas o deploy da Vercel falhou: " + e.message });
+      onEvent({ type: "notice", text: t("Projeto criado no GitHub, mas o deploy da Vercel falhou: ") + e.message });
     }
   }
 
@@ -351,6 +352,7 @@ export async function editarProjeto({ repo, userMessage, providerId = "", deploy
     brief: repo.brief || "",          // pedido original: o "tema" do projeto
     lovable: null,
     lovableCloud: false,
+    idiomaIA: instrucaoIdiomaIA(),    // textos do app e respostas no idioma da interface
     supabase: sb.projectRef ? { connected: true, projectRef: sb.projectRef, projectName: sb.projectName } : null
   };
 
@@ -373,7 +375,7 @@ export async function editarProjeto({ repo, userMessage, providerId = "", deploy
       const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }), ws.supabase);
       url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
     } catch (e) {
-      onEvent({ type: "notice", text: "Alteracao salva, mas o redeploy da Vercel falhou: " + e.message });
+      onEvent({ type: "notice", text: t("Alteração salva, mas o redeploy da Vercel falhou: ") + e.message });
     }
   }
 
@@ -394,7 +396,7 @@ export async function editarProjeto({ repo, userMessage, providerId = "", deploy
  */
 export async function reconectarSupabase(repo, onEvent = () => {}) {
   const sb = await store.get("supabase");
-  if (!sb.url || !sb.anonKey) throw new Error("Escolha um projeto Supabase primeiro (Conexões → Supabase → Projeto).");
+  if (!sb.url || !sb.anonKey) throw new Error(t("Escolha um projeto Supabase primeiro (Conexões → Supabase → Projeto)."));
   const owner = repo.owner, name = repo.name, branch = repo.branch || "main";
 
   onEvent({ type: "status", text: "Lendo o seu projeto…" });
@@ -414,9 +416,9 @@ export async function reconectarSupabase(repo, onEvent = () => {}) {
     onEvent({ type: "status", text: "Republicando na Vercel…" });
     const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }));
     url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
-  } catch (e) { onEvent({ type: "notice", text: "Credenciais aplicadas, mas o redeploy falhou: " + e.message }); }
+  } catch (e) { onEvent({ type: "notice", text: t("Credenciais aplicadas, mas o redeploy falhou: ") + e.message }); }
 
-  onEvent({ type: "notice", text: "Supabase conectado ao seu app ✅" });
+  onEvent({ type: "notice", text: t("Supabase conectado ao seu app.") });
   return { url };
 }
 
@@ -428,7 +430,7 @@ export async function reconectarSupabase(repo, onEvent = () => {}) {
  */
 export async function configurarChaveMapa({ repo, apiKey, envFront = "VITE_GOOGLE_MAPS_API_KEY", kind = "gmaps", label = "Google Maps", onEvent = () => {} }) {
   const owner = repo.owner, name = repo.name, branch = repo.branch || "main";
-  onEvent({ type: "status", text: `Lendo o seu app pra colocar a chave do ${label}…` });
+  onEvent({ type: "status", text: t("Lendo o seu app pra colocar a chave do {label}…", { label }) });
   const files = await lerArquivosDoProjeto(owner, name, branch);
 
   const out = {};
@@ -452,7 +454,7 @@ export async function configurarChaveMapa({ repo, apiKey, envFront = "VITE_GOOGL
 
   const mudados = Object.entries(out).map(([path, content]) => ({ path, content }));
   if (!mudados.length) {
-    onEvent({ type: "notice", text: `Não achei onde o app usa a chave do ${label} — talvez a tela do mapa ainda não exista ou use outro nome de variável.` });
+    onEvent({ type: "notice", text: t("Não achei onde o app usa a chave do {label} — talvez a tela do mapa ainda não exista ou use outro nome de variável.", { label }) });
     return { ok: false, url: repo.url || null };
   }
 
@@ -464,9 +466,9 @@ export async function configurarChaveMapa({ repo, apiKey, envFront = "VITE_GOOGL
     onEvent({ type: "status", text: "Republicando na Vercel…" });
     const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }));
     url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
-  } catch (e) { onEvent({ type: "notice", text: "Chave aplicada, mas o redeploy falhou: " + e.message }); }
+  } catch (e) { onEvent({ type: "notice", text: t("Chave aplicada, mas o redeploy falhou: ") + e.message }); }
 
-  onEvent({ type: "notice", text: `Chave do ${label} aplicada no app ✅` });
+  onEvent({ type: "notice", text: t("Chave do {label} aplicada no app.", { label }) });
   return { ok: true, url };
 }
 
@@ -483,8 +485,8 @@ export async function desfazerUltimo(repo, onEvent = () => {}) {
     onEvent({ type: "status", text: "Republicando na Vercel…" });
     const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }));
     url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
-  } catch (e) { onEvent({ type: "notice", text: "Revertido no GitHub, mas o redeploy falhou: " + e.message }); }
-  onEvent({ type: "notice", text: "Voltei pra versão anterior ✅" });
+  } catch (e) { onEvent({ type: "notice", text: t("Revertido no GitHub, mas o redeploy falhou: ") + e.message }); }
+  onEvent({ type: "notice", text: t("Voltei pra versão anterior.") });
   return { url };
 }
 

@@ -10,6 +10,7 @@ import { startGithubLoginWeb, startSupabaseLoginWeb, githubConfigurado, supabase
 import * as github from "./core/github.js";
 import * as vercel from "./core/vercel.js";
 import * as sbmgmt from "./core/supabase-mgmt.js";
+import { t, useIdioma, setIdioma, IDIOMAS, infoIdioma, locale } from "./i18n.js";
 
 // Galeria de modelos da home: só preenchem o campo (a pessoa revisa e envia).
 // Os textos batem com os kits de nicho do gerador (detectarKit), então cada
@@ -21,23 +22,30 @@ const CATEGORIAS = [
   { id: "ia", label: "IA e mídia" }
 ];
 const MODELOS = [
-  { cat: "apps", ic: "calendar", titulo: "Agendamento", desc: "Serviços, horários livres e painel do profissional", prompt: "Sistema de agendamento online para barbearia com serviços, profissionais, horários disponíveis, confirmação e painel admin" },
-  { cat: "apps", ic: "kanban", titulo: "CRM de vendas", desc: "Pipeline kanban, contatos, tarefas e métricas", prompt: "CRM de vendas com pipeline kanban, cadastro de contatos, tarefas, histórico de negociações e dashboard de métricas" },
-  { cat: "apps", ic: "utensils", titulo: "Cardápio digital", desc: "Categorias, carrinho e pedido no WhatsApp", prompt: "Cardápio digital para hamburgueria com categorias, carrinho, adicionais, taxa de entrega e pedido pelo WhatsApp" },
-  { cat: "apps", ic: "wallet", titulo: "Controle financeiro", desc: "Receitas, despesas, categorias e gráficos", prompt: "Controle financeiro com receitas, despesas, categorias, gráficos mensais, metas e exportação" },
-  { cat: "apps", ic: "bag", titulo: "Loja online", desc: "Catálogo, filtros, carrinho e pedidos", prompt: "Loja online de roupas com catálogo, filtros, página de produto, carrinho, checkout e painel de pedidos" },
-  { cat: "apps", ic: "play", titulo: "Área de membros", desc: "Cursos, módulos, aulas e progresso", prompt: "Área de membros com cursos, módulos, aulas em vídeo, progresso do aluno e certificado" },
-  { cat: "apps", ic: "box", titulo: "Estoque", desc: "Produtos, entradas, saídas e alertas", prompt: "Sistema de controle de estoque com produtos, entradas, saídas, fornecedores e alerta de estoque baixo" },
-  { cat: "apps", ic: "dumbbell", titulo: "Academia", desc: "Alunos, planos, treinos e check-in", prompt: "Sistema para academia com alunos, planos, fichas de treino, check-in e mensalidades" },
-  { cat: "sites", ic: "layout", titulo: "Landing de SaaS", desc: "Hero, benefícios, planos, depoimentos e FAQ", prompt: "Landing page para um SaaS com hero, benefícios, como funciona, depoimentos, planos de preço e FAQ" },
-  { cat: "sites", ic: "camera", titulo: "Portfólio", desc: "Galeria, sobre, serviços e contato", prompt: "Portfólio de fotógrafo com galeria em grid, sobre, serviços, depoimentos e contato" },
-  { cat: "sites", ic: "building", titulo: "Imobiliária", desc: "Busca de imóveis, filtros e detalhes", prompt: "Site de imobiliária com busca de imóveis, filtros por preço e bairro, página de detalhes e contato com corretor" },
-  { cat: "sites", ic: "link", titulo: "Link na bio", desc: "Página de links com a sua marca", prompt: "Página de link na bio para criadora de conteúdo com links, redes sociais, produtos em destaque e newsletter" },
-  { cat: "sites", ic: "ticket", titulo: "Evento", desc: "Programação, palestrantes e ingressos", prompt: "Site de evento com programação, palestrantes, lotes de ingressos, inscrição e ingresso com QR code" },
-  { cat: "ia", ic: "wand", titulo: "Gerador de imagens", desc: "Prompt, estilos, proporções e galeria", prompt: "Gerador de imagens com IA com prompt, estilos, proporções, galeria do histórico e download" },
-  { cat: "ia", ic: "film", titulo: "Gerador de vídeos", desc: "Texto para vídeo com fila e histórico", prompt: "Gerador de vídeos com IA a partir de texto, com fila de geração, histórico e download" },
-  { cat: "ia", ic: "bot", titulo: "Assistente de IA", desc: "Chat de atendimento treinado no seu negócio", prompt: "Assistente de IA em chat para atendimento de uma clínica odontológica, com respostas sobre serviços e agendamento" },
-  { cat: "ia", ic: "quiz", titulo: "Quiz e funil", desc: "Perguntas, resultado e captura de lead", prompt: "Quiz de funil de captação com perguntas, barra de progresso, resultado personalizado e captura de lead" }
+  { cat: "apps", ic: "calendar", thumb: "cal", titulo: "Agendamento", desc: "Serviços, horários livres e painel do profissional", prompt: "Sistema de agendamento online para barbearia com serviços, profissionais, horários disponíveis, confirmação e painel admin" },
+  { cat: "apps", ic: "kanban", thumb: "kanban", titulo: "CRM de vendas", desc: "Pipeline kanban, contatos, tarefas e métricas", prompt: "CRM de vendas com pipeline kanban, cadastro de contatos, tarefas, histórico de negociações e dashboard de métricas" },
+  { cat: "apps", ic: "utensils", thumb: "grid", titulo: "Cardápio digital", desc: "Categorias, carrinho e pedido no WhatsApp", prompt: "Cardápio digital para hamburgueria com categorias, carrinho, adicionais, taxa de entrega e pedido pelo WhatsApp" },
+  { cat: "apps", ic: "wallet", thumb: "dash", titulo: "Controle financeiro", desc: "Receitas, despesas, categorias e gráficos", prompt: "Controle financeiro com receitas, despesas, categorias, gráficos mensais, metas e exportação" },
+  { cat: "apps", ic: "bag", thumb: "grid", titulo: "Loja online", desc: "Catálogo, filtros, carrinho e pedidos", prompt: "Loja online de roupas com catálogo, filtros, página de produto, carrinho, checkout e painel de pedidos" },
+  { cat: "apps", ic: "play", thumb: "media", titulo: "Área de membros", desc: "Cursos, módulos, aulas e progresso", prompt: "Área de membros com cursos, módulos, aulas em vídeo, progresso do aluno e certificado" },
+  { cat: "apps", ic: "box", thumb: "dash", titulo: "Estoque", desc: "Produtos, entradas, saídas e alertas", prompt: "Sistema de controle de estoque com produtos, entradas, saídas, fornecedores e alerta de estoque baixo" },
+  { cat: "apps", ic: "dumbbell", thumb: "dash", titulo: "Academia", desc: "Alunos, planos, treinos e check-in", prompt: "Sistema para academia com alunos, planos, fichas de treino, check-in e mensalidades" },
+  { cat: "sites", ic: "layout", thumb: "landing", titulo: "Landing de SaaS", desc: "Hero, benefícios, planos, depoimentos e FAQ", prompt: "Landing page para um SaaS com hero, benefícios, como funciona, depoimentos, planos de preço e FAQ" },
+  { cat: "sites", ic: "camera", thumb: "grid", titulo: "Portfólio", desc: "Galeria, sobre, serviços e contato", prompt: "Portfólio de fotógrafo com galeria em grid, sobre, serviços, depoimentos e contato" },
+  { cat: "sites", ic: "building", thumb: "grid", titulo: "Imobiliária", desc: "Busca de imóveis, filtros e detalhes", prompt: "Site de imobiliária com busca de imóveis, filtros por preço e bairro, página de detalhes e contato com corretor" },
+  { cat: "sites", ic: "link", thumb: "bio", titulo: "Link na bio", desc: "Página de links com a sua marca", prompt: "Página de link na bio para criadora de conteúdo com links, redes sociais, produtos em destaque e newsletter" },
+  { cat: "sites", ic: "ticket", thumb: "landing", titulo: "Evento", desc: "Programação, palestrantes e ingressos", prompt: "Site de evento com programação, palestrantes, lotes de ingressos, inscrição e ingresso com QR code" },
+  { cat: "ia", ic: "wand", thumb: "media", titulo: "Gerador de imagens", desc: "Prompt, estilos, proporções e galeria", prompt: "Gerador de imagens com IA com prompt, estilos, proporções, galeria do histórico e download" },
+  { cat: "ia", ic: "film", thumb: "media", titulo: "Gerador de vídeos", desc: "Texto para vídeo com fila e histórico", prompt: "Gerador de vídeos com IA a partir de texto, com fila de geração, histórico e download" },
+  { cat: "ia", ic: "bot", thumb: "chat", titulo: "Assistente de IA", desc: "Chat de atendimento treinado no seu negócio", prompt: "Assistente de IA em chat para atendimento de uma clínica odontológica, com respostas sobre serviços e agendamento" },
+  { cat: "ia", ic: "quiz", thumb: "quiz", titulo: "Quiz e funil", desc: "Perguntas, resultado e captura de lead", prompt: "Quiz de funil de captação com perguntas, barra de progresso, resultado personalizado e captura de lead" }
+];
+// Blocos abaixo do campo (estilo Bolt): escolhem o tipo do projeto.
+const TIPOS = [
+  { id: "site", ic: "globe", label: "Site" },
+  { id: "app", ic: "apps", label: "App / SaaS" },
+  { id: "clone", ic: "copy", label: "Clonar site", novo: true },
+  { id: "ia", ic: "wand", label: "IA e mídia" }
 ];
 const PROMPT_CLONE = "Recrie esta página com a minha marca e o meu conteúdo: https://";
 
@@ -46,7 +54,10 @@ const PROMPT_CLONE = "Recrie esta página com a minha marca e o meu conteúdo: h
 const PLANO_ATIVO = false;
 
 export default function App({ oauthResult, oauthError }) {
-  const [view, setView] = useState("home");        // home | workspace
+  const lang = useIdioma();   // re-renderiza tudo ao trocar o idioma
+  useEffect(() => { document.title = t("Copilot Code — crie sites, apps e SaaS com IA"); }, [lang]);
+  const [view, setView] = useState("home");
+  const [modo, setModo] = useState("");   // "" | "site" | "app" — escolhido nos blocos da home (força o tipo)        // home | workspace
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [kind, setKind] = useState("app");
@@ -58,7 +69,16 @@ export default function App({ oauthResult, oauthError }) {
   // na working-bar durante a geração, pra pessoa ver quanto tempo está levando).
   const [runStartedAt, setRunStartedAt] = useState(null);
   const [runAgora, setRunAgora] = useState(Date.now());
-  const [sideOpen, setSideOpen] = useState(() => (typeof window !== "undefined" ? window.innerWidth > 820 : true));
+  // Menu aberto/recolhido: no desktop lembra a última escolha (como o Bolt);
+  // no celular começa sempre fechado.
+  const [sideOpen, setSideOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    if (window.innerWidth <= 820) return false;
+    try { return localStorage.getItem("copilot:sideOpen") !== "0"; } catch { return true; }
+  });
+  useEffect(() => {
+    if (window.innerWidth > 820) { try { localStorage.setItem("copilot:sideOpen", sideOpen ? "1" : "0"); } catch { /* ok */ } }
+  }, [sideOpen]);
   const [mobileView, setMobileView] = useState("chat");   // mobile: "chat" | "preview"
   const [repo, setRepo] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -79,6 +99,7 @@ export default function App({ oauthResult, oauthError }) {
   const sessionRef = useRef(null);
   const msgRef = useRef(null);
   const inputRef = useRef(null);
+  const homeFileRef = useRef(null);
   const flowRef = useRef("ia");   // "ia" = geração/edição por IA · "sistema" = deploy/reconexão sem IA
   async function loadModelsCache() { setModelsCache((await store.get("modelsCache")) || {}); setModelHealth((await store.get("modelHealth")) || {}); }
 
@@ -88,7 +109,7 @@ export default function App({ oauthResult, oauthError }) {
     // IA pronta = pelo menos um provedor ligado com chave salva.
     const provs = (await store.get("providers")) || [], segredos = (await store.get("secrets")) || {};
     const ia = provs.some(p => p.enabled !== false && (segredos[PROVIDER_CATALOG.find(c => c.id === p.id)?.secretKey] || "").trim());
-    setConn({ github: gh.login || (gh.token ? "conectado" : null), supabase: Boolean(sb.oauth || sb.token), vercel: Boolean(vc), ia });
+    setConn({ github: gh.login || (gh.token ? "conectado" : null), avatar: gh.avatar || "", supabase: Boolean(sb.oauth || sb.token), vercel: Boolean(vc), ia });
     if (vc) loadVercelProjects();
   }
   async function refreshHistory() { setSessions(await history.listSessions()); }
@@ -99,8 +120,8 @@ export default function App({ oauthResult, oauthError }) {
 
   useEffect(() => {
     refreshConn(); refreshHistory(); loadModelsCache();
-    if (oauthResult?.provider === "github") showToast(`GitHub conectado: @${oauthResult.login}`);
-    if (oauthResult?.provider === "supabase") showToast("Supabase conectado.");
+    if (oauthResult?.provider === "github") showToast(t("GitHub conectado: @{login}", { login: oauthResult.login }));
+    if (oauthResult?.provider === "supabase") showToast(t("Supabase conectado."));
     if (oauthError) showToast(oauthError, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -122,24 +143,24 @@ export default function App({ oauthResult, oauthError }) {
     if (!busy) return;
     const t0 = runStartedAt || Date.now();
     const batidas = flowRef.current === "ia" ? [
-      { s: 0,   texto: "Enviando seu pedido para a IA…" },
-      { s: 8,   texto: "A IA está entendendo o pedido e desenhando as telas…" },
-      { s: 20,  texto: "A IA está escrevendo o código do seu projeto…" },
-      { s: 40,  texto: "A IA ainda está escrevendo o código — projetos maiores levam mais tempo…" },
-      { s: 70,  texto: "Quase lá — ajustando detalhes e preparando o commit…" },
-      { s: 110, texto: "Finalizando: salvando no GitHub e preparando a publicação…" }
+      { s: 0,   texto: t("Enviando seu pedido para a IA…") },
+      { s: 8,   texto: t("A IA está entendendo o pedido e desenhando as telas…") },
+      { s: 20,  texto: t("A IA está escrevendo o código do seu projeto…") },
+      { s: 40,  texto: t("A IA ainda está escrevendo o código — projetos maiores levam mais tempo…") },
+      { s: 70,  texto: t("Quase lá — ajustando detalhes e preparando o commit…") },
+      { s: 110, texto: t("Finalizando: salvando no GitHub e preparando a publicação…") }
     ] : [
-      { s: 0,   texto: "Trabalhando no seu pedido…" },
-      { s: 15,  texto: "Aplicando as mudanças no projeto…" },
-      { s: 45,  texto: "Preparando a publicação…" },
-      { s: 90,  texto: "Quase pronto — aguardando o preview atualizar…" }
+      { s: 0,   texto: t("Trabalhando no seu pedido…") },
+      { s: 15,  texto: t("Aplicando as mudanças no projeto…") },
+      { s: 45,  texto: t("Preparando a publicação…") },
+      { s: 90,  texto: t("Quase pronto — aguardando o preview atualizar…") }
     ];
     let enviadas = 0;
     function tick() {
       const seg = Math.floor((Date.now() - t0) / 1000);
       while (enviadas < batidas.length && seg >= batidas[enviadas].s) {
         const b = batidas[enviadas++];
-        const passo = `${b.texto} (${fmtDur(seg * 1000)} de trabalho)`;
+        const passo = t("{texto} ({tempo} de trabalho)", { texto: b.texto, tempo: fmtDur(seg * 1000) });
         addStep(passo);
         setStatusText(passo);
       }
@@ -152,7 +173,7 @@ export default function App({ oauthResult, oauthError }) {
   }, [busy]);
 
   function pushMsg(role, text, images) { setMessages(m => [...m, { role, text, images }]); }
-  function startRun() { setStatusText("Preparando…"); setRunStartedAt(Date.now()); setMessages(m => [...m, { role: "run", steps: [], done: false, startedAt: Date.now() }]); }
+  function startRun() { setStatusText(t("Preparando…")); setRunStartedAt(Date.now()); setMessages(m => [...m, { role: "run", steps: [], done: false, startedAt: Date.now() }]); }
   function addStep(text) {
     setMessages(m => {
       const c = [...m];
@@ -163,13 +184,13 @@ export default function App({ oauthResult, oauthError }) {
   function endRun() { setMessages(m => m.map(x => (x.role === "run" && !x.done) ? { ...x, done: true, endedAt: Date.now() } : x)); }
 
   function onEvent(ev) {
-    const t = eventoTexto(ev);
-    if (t) { setStatusText(t); addStep(t); }
+    const passo = eventoTexto(ev);
+    if (passo) { setStatusText(passo); addStep(passo); }
   }
 
   async function run(userText, { hardening = false, images = [], planoAprovado = false } = {}) {
     if (!userText.trim()) return;
-    if (busy) { showToast("Ainda estou trabalhando no pedido anterior — espere terminar ou recarregue a página.", true); return; }
+    if (busy) { showToast(t("Ainda estou trabalhando no pedido anterior — espere terminar ou recarregue a página."), true); return; }
 
     // A pessoa colou uma chave (ex.: Google Maps)? Manda direto pro Supabase como
     // secret, sem passar pela geração de código — e sem mostrar a chave no chat.
@@ -177,11 +198,11 @@ export default function App({ oauthResult, oauthError }) {
     if (seg) {
       const sb = await store.get("supabase");
       const ehMapa = seg.kind === "gmaps" || seg.kind === "mapbox";   // chave de mapa vai NO APP (front)
-      if (ehMapa && !repo) { showToast("Abra um projeto primeiro (o mapa usa a chave no app).", true); return; }
-      if (!ehMapa && !sb.projectRef) { showToast("Escolha um projeto Supabase pra guardar a chave (Conexões).", true); setConnOpen(true); return; }
+      if (ehMapa && !repo) { showToast(t("Abra um projeto primeiro (o mapa usa a chave no app)."), true); return; }
+      if (!ehMapa && !sb.projectRef) { showToast(t("Escolha um projeto Supabase pra guardar a chave (Conexões)."), true); setConnOpen(true); return; }
 
       setView("workspace"); flowRef.current = "sistema"; setBusy(true);
-      pushMsg("user", `🔑 (enviei minha chave do ${seg.label})`);
+      pushMsg("user", t("(enviei minha chave do {label})", { label: seg.label }));
       startRun();
       try {
         let partes = [];
@@ -189,16 +210,16 @@ export default function App({ oauthResult, oauthError }) {
         if (ehMapa && repo) {
           const r = await configurarChaveMapa({ repo, apiKey: seg.value, envFront: seg.envFront, kind: seg.kind, label: seg.label, onEvent });
           if (r.url) { setPreviewUrl(r.url); setRepo({ ...repo, url: r.url }); }
-          if (r.ok) partes.push(`Coloquei sua chave do ${seg.label} no app e republiquei — o mapa deve carregar em ~1 min (recarregue o preview).`);
-          else partes.push(`Não achei onde o app usa a chave do ${seg.label} — talvez a tela do mapa ainda não exista. Peça primeiro pra criar o mapa.`);
+          if (r.ok) partes.push(t("Coloquei sua chave do {label} no app e republiquei — o mapa deve carregar em ~1 min (recarregue o preview).", { label: seg.label }));
+          else partes.push(t("Não achei onde o app usa a chave do {label} — talvez a tela do mapa ainda não exista. Peça primeiro pra criar o mapa.", { label: seg.label }));
         }
         // 2) Também guarda no Supabase (pra uso no servidor/Edge Functions, se houver).
-        if (sb.projectRef) { try { await sbmgmt.setSecrets({ [seg.name]: seg.value }); partes.push(`Também guardei a chave no seu Supabase (variável "${seg.name}").`); } catch { /* opcional */ } }
+        if (sb.projectRef) { try { await sbmgmt.setSecrets({ [seg.name]: seg.value }); partes.push(t("Também guardei a chave no seu Supabase (variável {nome}).", { nome: seg.name })); } catch { /* opcional */ } }
         endRun();
-        const txt = partes.join(" ") || `Guardei sua chave do ${seg.label}.`;
+        const txt = partes.join(" ") || t("Guardei sua chave do {label}.", { label: seg.label });
         pushMsg("assistant", txt);
         if (sessionRef.current) await history.appendMessage(sessionRef.current, { role: "assistant", text: txt });
-      } catch (e) { endRun(); pushMsg("error", "Não consegui aplicar a chave: " + e.message); showToast(e.message, true); }
+      } catch (e) { endRun(); pushMsg("error", t("Não consegui aplicar a chave: ") + e.message); showToast(e.message, true); }
       finally { setBusy(false); }
       return;
     }
@@ -219,8 +240,8 @@ export default function App({ oauthResult, oauthError }) {
       await history.appendMessage(sessionRef.current, { role: "user", text: userText });
       const sb = await store.get("supabase");
       const resp = sb.projectRef
-        ? 'Beleza! Me manda aqui a sua chave do Google Maps — ela começa com "AIza…". Assim que você colar, eu guardo direto no seu Supabase (variável GOOGLE_MAPS_API_KEY), fora do código.'
-        : "Pra guardar a chave com segurança, primeiro escolha um projeto Supabase em Conexões → Supabase → Projeto. Depois é só me mandar a chave.";
+        ? t('Beleza! Me manda aqui a sua chave do Google Maps — ela começa com "AIza…". Assim que você colar, eu guardo direto no seu Supabase (variável GOOGLE_MAPS_API_KEY), fora do código.')
+        : t("Pra guardar a chave com segurança, primeiro escolha um projeto Supabase em Conexões → Supabase → Projeto. Depois é só me mandar a chave.");
       pushMsg("assistant", resp);
       await history.appendMessage(sessionRef.current, { role: "assistant", text: resp });
       if (!sb.projectRef) setConnOpen(true);
@@ -228,7 +249,7 @@ export default function App({ oauthResult, oauthError }) {
       return;
     }
 
-    if (!conn.github) { showToast("Conecte o GitHub primeiro (Conexões).", true); setConnOpen(true); return; }
+    if (!conn.github) { showToast(t("Conecte o GitHub primeiro (Conexões)."), true); setConnOpen(true); return; }
 
     // "desfaz/reverte/volta a versão anterior" → restaura o commit anterior (sem IA).
     if (repo && /\b(desfaz|desfa[çc]|revert|revers|undo|volta?r?\s+(a|pra|para)\s+(vers|anterior)|vers[aã]o\s+anterior)/i.test(userText)) {
@@ -243,7 +264,7 @@ export default function App({ oauthResult, oauthError }) {
       && /\b(cri|gera|faz|monta|configur|precis|quero|adiciona)/i.test(userText);
     if (pedeTabelas) {
       const sb = await store.get("supabase");
-      if (!sb.projectRef) { showToast("Escolha um projeto Supabase primeiro (Conexões → Supabase → Projeto).", true); setConnOpen(true); return; }
+      if (!sb.projectRef) { showToast(t("Escolha um projeto Supabase primeiro (Conexões → Supabase → Projeto)."), true); setConnOpen(true); return; }
       setView("workspace"); flowRef.current = "sistema"; setBusy(true);
       pushMsg("user", userText); startRun();
       if (!sessionRef.current) sessionRef.current = await history.createSession({ title: userText.slice(0, 48), kind });
@@ -272,7 +293,7 @@ export default function App({ oauthResult, oauthError }) {
         setPlano({ prompt: userText, texto, images, kind: detectarTipo(userText) });
       } catch (e) {
         endRun();
-        pushMsg("error", "Não consegui montar o plano: " + e.message);
+        pushMsg("error", t("Não consegui montar o plano: ") + e.message);
         showToast(e.message, true);
       } finally { setBusy(false); }
       return;
@@ -281,24 +302,24 @@ export default function App({ oauthResult, oauthError }) {
     setView("workspace");
     flowRef.current = "ia";
     setBusy(true);
-    if (!planoAprovado) pushMsg("user", hardening ? "🛡️ Blindar o projeto" : userText, images.length ? images : undefined);
+    if (!planoAprovado) pushMsg("user", hardening ? t("Blindar o projeto") : userText, images.length ? images : undefined);
     startRun();
     if (!sessionRef.current) sessionRef.current = await history.createSession({ title: userText.slice(0, 48), kind });
-    await history.appendMessage(sessionRef.current, { role: "user", text: hardening ? "Blindar o projeto" : userText });
+    await history.appendMessage(sessionRef.current, { role: "user", text: hardening ? t("Blindar o projeto") : userText });
     try {
       const r = repo
         ? await editarProjeto({ repo, userMessage: userText, providerId, sessionId: sessionRef.current, embedImages: images }, onEvent)
-        : await criarProjeto({ userMessage: userText, kind: detectarTipo(userText), providerId, sessionId: sessionRef.current, embedImages: images }, onEvent);
+        : await criarProjeto({ userMessage: userText, kind: modo || detectarTipo(userText), providerId, sessionId: sessionRef.current, embedImages: images }, onEvent);
       endRun();
       setRepo(r.repo);
       if (r.url) setPreviewUrl(r.url);
-      pushMsg("assistant", r.resumo || `${repo ? "Pronto — alteração salva." : `Projeto criado: ${r.repo.owner}/${r.repo.name}`}${r.url ? `\nNo ar: ${r.url}` : ""}`);
+      pushMsg("assistant", r.resumo || `${repo ? t("Pronto — alteração salva.") : t("Projeto criado: {repo}", { repo: `${r.repo.owner}/${r.repo.name}` })}${r.url ? `\n${t("No ar:")} ${r.url}` : ""}`);
       refreshHistory(); loadVercelProjects();
     } catch (e) {
       endRun();
       let msg = e.message;
       if (/recusaram|timeout|refus/i.test(msg)) {
-        msg += "\n\nDica:no seletor de IA escolha um modelo de CÓDIGO (ex.: DeepSeek → deepseek-chat, ou Gemini). Evite modelos de visão/experimentais — eles travam. E deixe mais de um provedor ligado em Conexões pra ter reserva.";
+        msg += "\n\n" + t("Dica: no seletor de IA escolha um modelo de CÓDIGO (ex.: DeepSeek → deepseek-chat, ou Gemini). Evite modelos de visão/experimentais — eles travam. E deixe mais de um provedor ligado em Conexões pra ter reserva.");
       }
       pushMsg("error", msg); showToast(e.message, true);
     }
@@ -309,18 +330,18 @@ export default function App({ oauthResult, oauthError }) {
     const novos = [];
     for (const f of fileList) {
       if (!f.type.startsWith("image/")) continue;
-      if (attached.length + novos.length >= 4) { showToast("Máximo de 4 imagens por pedido.", true); break; }
+      if (attached.length + novos.length >= 4) { showToast(t("Máximo de 4 imagens por pedido."), true); break; }
       try { novos.push(await fileToDataUrl(f)); } catch { /* ignora imagem ilegível */ }
     }
     if (novos.length) setAttached(a => [...a, ...novos]);
   }
 
   function handleSend() {
-    const t = input.trim();
-    if (!t && !attached.length) return;
+    const texto = input.trim();
+    if (!texto && !attached.length) return;
     const imgs = attached.slice();
     setInput(""); setAttached([]);
-    run(t || "Use a imagem que enviei.", { images: imgs });
+    run(texto || t("Use a imagem que enviei."), { images: imgs });
   }
   function aprovarPlano(textoFinal) {
     if (!plano) return;
@@ -331,26 +352,26 @@ export default function App({ oauthResult, oauthError }) {
   }
   function recusarPlano() {
     setPlano(null);
-    pushMsg("assistant", "Plano descartado. Me diga o que mudar ou mande um novo pedido que eu monto outro plano.");
+    pushMsg("assistant", t("Plano descartado. Me diga o que mudar ou mande um novo pedido que eu monto outro plano."));
   }
-  function handleBlindar() { if (!repo) return showToast("Crie ou abra um projeto antes de blindar.", true); run(BLINDAR_PROMPT, { hardening: true }); }
+  function handleBlindar() { if (!repo) return showToast(t("Crie ou abra um projeto antes de blindar."), true); run(BLINDAR_PROMPT, { hardening: true }); }
   async function desfazer() {
-    if (!repo || busy) return showToast(repo ? "Aguarde terminar." : "Nenhum projeto aberto.", true);
+    if (!repo || busy) return showToast(repo ? t("Aguarde terminar.") : t("Nenhum projeto aberto."), true);
     setView("workspace"); flowRef.current = "sistema"; setBusy(true);
-    pushMsg("user", "↩ Desfazer a última alteração"); startRun();
+    pushMsg("user", t("Desfazer a última alteração")); startRun();
     try {
       const r = await desfazerUltimo(repo, onEvent);
       endRun();
       if (r.url) { setPreviewUrl(r.url + (r.url.includes("?") ? "&" : "?") + "r=" + Date.now()); setRepo({ ...repo, url: r.url }); }
-      pushMsg("assistant", "Voltei pra versão anterior do projeto e republiquei. Recarregue o preview em ~1 min.");
+      pushMsg("assistant", t("Voltei pra versão anterior do projeto e republiquei. Recarregue o preview em ~1 min."));
     } catch (e) { endRun(); pushMsg("error", e.message); showToast(e.message, true); }
     finally { setBusy(false); }
   }
-  function novoProjeto() { sessionRef.current = null; setRepo(null); setPreviewUrl(null); setMessages([]); setView("home"); }
+  function novoProjeto() { setModo(""); sessionRef.current = null; setRepo(null); setPreviewUrl(null); setMessages([]); setView("home"); }
   // Só preenche o campo (comportamento igual ao de digitar): não envia nada.
-  function sugerir(t) {
-    setInput(t);
-    setTimeout(() => { const el = inputRef.current; if (!el) return; el.focus(); el.setSelectionRange(t.length, t.length); el.scrollIntoView({ block: "center", behavior: "smooth" }); }, 0);
+  function sugerir(texto) {
+    setInput(texto);
+    setTimeout(() => { const el = inputRef.current; if (!el) return; el.focus(); el.setSelectionRange(texto.length, texto.length); el.scrollIntoView({ block: "center", behavior: "smooth" }); }, 0);
   }
 
   async function openSession(id) {
@@ -371,7 +392,7 @@ export default function App({ oauthResult, oauthError }) {
     sessionRef.current = null;
     const repoInfo = { owner: p.owner, name: p.name, branch: p.branch || "main", url: p.url || null, brief: "" };
     setRepo(repoInfo);
-    setMessages([{ role: "assistant", text: `Projeto aberto: ${p.owner}/${p.name}. Peça as alterações aqui que eu edito.` }]);
+    setMessages([{ role: "assistant", text: t("Projeto aberto: {repo}. Peça as alterações aqui que eu edito.", { repo: `${p.owner}/${p.name}` }) }]);
     setView("workspace");
     let url = p.url || null;
     if (!url) { try { url = await vercel.getProdUrl(p.owner, p.name); } catch {} }
@@ -390,7 +411,7 @@ export default function App({ oauthResult, oauthError }) {
       const r = await reconectarSupabase(repo, onEvent);
       endRun();
       if (r.url) { setPreviewUrl(r.url); setRepo({ ...repo, url: r.url }); }
-      pushMsg("assistant", "Conectei seu app ao Supabase que você escolheu. Agora ele fala com o seu banco de verdade (sem mais placeholder).");
+      pushMsg("assistant", t("Conectei seu app ao Supabase que você escolheu. Agora ele fala com o seu banco de verdade (sem mais placeholder)."));
     } catch (e) { endRun(); pushMsg("error", e.message); }
     finally { setBusy(false); }
   }
@@ -423,108 +444,146 @@ export default function App({ oauthResult, oauthError }) {
         abrir: () => openProject(p)
       }));
 
-  const sidebarAtivo = projOpen ? "projetos" : histOpen ? "conversas" : connOpen ? "conexoes" : (view === "home" ? "inicio" : "inicio");
+  const sidebarAtivo = projOpen ? "projetos" : histOpen ? "conversas" : connOpen ? "conexoes" : "inicio";
+  const abrirConexoes = () => { setKeysOpen(false); setConnOpen(true); };
+  const abrirChaves = () => { setKeysOpen(true); setConnOpen(true); };
+  const abrirProjetos = () => { loadVercelProjects(); setProjOpen(true); };
+  const abrirConversas = () => { refreshHistory(); setHistOpen(true); };
+  const irParaModelos = () => document.getElementById("modelos")?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Blocos estilo Bolt abaixo do campo: escolhem o TIPO do projeto.
+  function escolherTipo(id) {
+    if (id === "clone") { setModo(""); sugerir(t(PROMPT_CLONE)); return; }
+    if (id === "ia") { setModo("app"); setCategoria("ia"); irParaModelos(); return; }
+    const novo = modo === id ? "" : id;
+    setModo(novo);
+    setCategoria(novo === "site" ? "sites" : novo === "app" ? "apps" : "todos");
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+  const dicaComposer = modo === "site" ? t("Descreva o site: o negócio, as seções e o estilo…")
+    : modo === "app" ? t("Descreva o app: quem usa, as telas e o que precisa salvar…") : "";
 
   return (
     <div className="app">
-      <AuroraBackdrop />
-
-      {sideOpen && <Sidebar
-        conn={conn} projects={vercelProjects} ativo={sidebarAtivo}
-        onNew={novoProjeto}
-        onProjetos={() => { loadVercelProjects(); setProjOpen(true); }}
-        onConversas={() => { refreshHistory(); setHistOpen(true); }}
-        onConexoes={() => { setKeysOpen(false); setConnOpen(true); }}
-        onOpenProject={openProject}
-        onCollapse={() => setSideOpen(false)}
-      />}
+      {sideOpen
+        ? <Sidebar
+            conn={conn} projects={vercelProjects} ativo={sidebarAtivo}
+            onNew={novoProjeto} onProjetos={abrirProjetos} onConversas={abrirConversas}
+            onConexoes={abrirConexoes} onChaves={abrirChaves}
+            onOpenProject={openProject} onCollapse={() => setSideOpen(false)}
+          />
+        : <SideRail
+            conn={conn} ativo={sidebarAtivo} onExpand={() => setSideOpen(true)}
+            onNew={novoProjeto} onProjetos={abrirProjetos} onConversas={abrirConversas}
+            onConexoes={abrirConexoes} onChaves={abrirChaves}
+          />}
       {sideOpen && <div className="side-scrim" onClick={() => setSideOpen(false)} />}
 
       <div className="content">
-        {!sideOpen && <button className="icon-btn side-reopen" onClick={() => setSideOpen(true)} title="Mostrar menu"><IconMenu /></button>}
+        {!sideOpen && <button className="icon-btn side-reopen" onClick={() => setSideOpen(true)} title={t("Mostrar menu")}><IconMenu /></button>}
         {view === "home" ? (
           <div className="home">
+            <HomeBackdrop />
+            <div className="home-top"><LangSelect down /></div>
             <div className="home-inner">
-              <div className="hero-badge">
-                <span className="tag">BYOK</span> <b>Suas chaves de IA</b><span className="dot-sep" />sites, apps e SaaS completos
-              </div>
-              <h1 className="hero-title">O que você quer <span className="grad">criar</span> hoje?</h1>
-              <p className="hero-sub">Descreva a ideia em português. A IA escreve o código, versiona no seu GitHub e publica na Vercel, tudo nesta tela.</p>
-              {composer}
-              <div className="hero-chips">
-                <button className="sug sug-clone" onClick={() => sugerir(PROMPT_CLONE)} title="Cole o link de um site para recriar a estrutura com a sua marca">
-                  <TplIcon ic="copy" /> Clonar um site
-                </button>
-                {MODELOS.filter(m => ["calendar", "utensils", "wand", "layout"].includes(m.ic)).map(m => (
-                  <button key={m.ic} className="sug" onClick={() => sugerir(m.prompt)} title={m.prompt}>
-                    <TplIcon ic={m.ic} /> {m.titulo}
+              <button className="announce" onClick={() => escolherTipo("clone")}>
+                <span className="announce-tag">{t("Novo")}</span>
+                {t("Clone qualquer site com um link")}
+                <IconChevronRight />
+              </button>
+              <h1 className="hero-title">{t("O que você quer")} <span className="grad">{t("criar")}</span> {t("hoje?")}</h1>
+              <p className="hero-sub">{t("Crie sites, apps e SaaS conversando com a IA. Ela escreve o código, publica na Vercel e explica cada passo para você aprender junto.")}</p>
+              {React.cloneElement(composer, { dica: dicaComposer })}
+
+              <div className="kinds" role="group" aria-label={t("Tipo de projeto")}>
+                {TIPOS.map(k => (
+                  <button key={k.id} className={"kind" + (modo === k.id ? " on" : "")} onClick={() => escolherTipo(k.id)} aria-pressed={modo === k.id}>
+                    <span className="kind-ic">{k.novo && <span className="kind-new">{t("Novo")}</span>}<TplIcon ic={k.ic} /></span>
+                    <span className="kind-label">{t(k.label)}</span>
                   </button>
                 ))}
+              </div>
+
+              <div className="start-from">
+                <span>{t("ou comece de")}</span>
+                <button className="from-chip" onClick={irParaModelos}><IconGrid /> {t("Um modelo")}</button>
+                <button className="from-chip" onClick={() => homeFileRef.current?.click()}><IconImage /> {t("Um print ou imagem")}</button>
+                <button className="from-chip" onClick={abrirProjetos}><IconFolder /> {t("Um projeto seu")}</button>
+                <input ref={homeFileRef} type="file" accept="image/*" multiple hidden onChange={e => {
+                  addFiles([...e.target.files]); e.target.value = "";
+                  if (!input.trim()) sugerir(t("Recrie esta tela a partir da imagem que enviei, com o mesmo layout e estilo."));
+                }} />
               </div>
 
               {!(conn.ia && conn.github && conn.vercel) && (
                 <div className="setup">
                   <div className="setup-text">
-                    <b>Configure em 2 minutos</b>
-                    <span>As opções grátis já bastam para criar e publicar.</span>
+                    <b>{t("Configure em 2 minutos")}</b>
+                    <span>{t("As opções grátis já bastam para criar e publicar.")}</span>
                   </div>
                   <div className="setup-steps">
-                    <span className={"setup-step" + (conn.ia ? " ok" : "")}><span className="setup-dot">{conn.ia ? <IconCheck /> : "1"}</span>Chave de IA</span>
+                    <span className={"setup-step" + (conn.ia ? " ok" : "")}><span className="setup-dot">{conn.ia ? <IconCheck /> : "1"}</span>{t("Chave de IA")}</span>
                     <span className={"setup-step" + (conn.github ? " ok" : "")}><span className="setup-dot">{conn.github ? <IconCheck /> : "2"}</span>GitHub</span>
                     <span className={"setup-step" + (conn.vercel ? " ok" : "")}><span className="setup-dot">{conn.vercel ? <IconCheck /> : "3"}</span>Vercel</span>
                   </div>
-                  <button className="btn sm primary" onClick={() => { setKeysOpen(!conn.ia); setConnOpen(true); }}>Configurar</button>
+                  <button className="btn sm primary" onClick={() => (conn.ia ? abrirConexoes() : abrirChaves())}>{t("Configurar")}</button>
                 </div>
               )}
+            </div>
 
-              <div className="gallery">
-                <div className="gallery-head">
-                  <h2>Comece por um modelo</h2>
-                  <div className="seg" role="tablist">
-                    {CATEGORIAS.map(c => (
-                      <button key={c.id} role="tab" aria-selected={categoria === c.id} className={"seg-btn" + (categoria === c.id ? " on" : "")} onClick={() => setCategoria(c.id)}>{c.label}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="tpl-grid">
-                  {MODELOS.filter(m => categoria === "todos" || m.cat === categoria).map(m => (
-                    <button key={m.titulo} className="tpl" onClick={() => sugerir(m.prompt)} title={m.prompt}>
-                      <span className="tpl-ic"><TplIcon ic={m.ic} /></span>
-                      <span className="tpl-text">
-                        <span className="tpl-title">{m.titulo}</span>
-                        <span className="tpl-desc">{m.desc}</span>
-                      </span>
-                      <span className="tpl-go"><IconArrowUp /></span>
-                    </button>
+            <section className="home-section" id="modelos">
+              <div className="section-head">
+                <h2>{t("Modelos")}</h2>
+                <span className="section-sub">{t("Cada modelo já nasce com telas, dados de exemplo e fluxos do nicho.")}</span>
+                <div className="seg" role="tablist">
+                  {CATEGORIAS.map(c => (
+                    <button key={c.id} role="tab" aria-selected={categoria === c.id} className={"seg-btn" + (categoria === c.id ? " on" : "")} onClick={() => setCategoria(c.id)}>{t(c.label)}</button>
                   ))}
                 </div>
               </div>
+              <div className="tpl-grid">
+                {MODELOS.filter(m => categoria === "todos" || m.cat === categoria).map(m => (
+                  <button key={m.titulo} className="tpl" onClick={() => { setModo(m.cat === "sites" ? "site" : "app"); sugerir(t(m.prompt)); }} title={t(m.prompt)}>
+                    <Thumb tipo={m.thumb} />
+                    <span className="tpl-body">
+                      <span className="tpl-ic"><TplIcon ic={m.ic} /></span>
+                      <span className="tpl-text">
+                        <span className="tpl-title">{t(m.titulo)}</span>
+                        <span className="tpl-desc">{t(m.desc)}</span>
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
 
-              {recentes.length > 0 && (
-                <div className="recent">
-                  <div className="recent-head"><h2>Continue de onde parou</h2><span className="line" /></div>
-                  <div className="recent-grid">
-                    {recentes.map(r => (
-                      <button key={r.id} className="recent-card" onClick={r.abrir}>
-                        <span className="recent-thumb"><IconFolder /></span>
-                        <span className="recent-text">
-                          <span className="recent-title">{r.titulo}</span>
-                          <span className="recent-meta">{r.meta}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+            {recentes.length > 0 && (
+              <section className="home-section">
+                <div className="section-head">
+                  <h2>{t("Continue de onde parou")}</h2>
+                  <button className="section-link" onClick={sessions.length ? abrirConversas : abrirProjetos}>{t("Ver tudo")} <IconChevronRight /></button>
                 </div>
-              )}
+                <div className="recent-grid">
+                  {recentes.map(r => (
+                    <button key={r.id} className="recent-card" onClick={r.abrir}>
+                      <span className="recent-thumb"><IconFolder /></span>
+                      <span className="recent-text">
+                        <span className="recent-title">{r.titulo}</span>
+                        <span className="recent-meta">{r.meta}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
 
-              <p className="home-hint"><IconLock /> Suas chaves ficam só no seu navegador. O código é seu, no seu GitHub.</p>
-            </div>
+            <p className="home-hint"><IconLock /> {t("Suas chaves ficam só no seu navegador. O código é seu, no seu GitHub.")}</p>
           </div>
         ) : (
           <div className="workspace">
             <div className="m-tabs">
-              <button className={"m-tab" + (mobileView === "chat" ? " on" : "")} onClick={() => setMobileView("chat")}>Chat</button>
-              <button className={"m-tab" + (mobileView === "preview" ? " on" : "")} onClick={() => setMobileView("preview")}>Preview</button>
+              <button className={"m-tab" + (mobileView === "chat" ? " on" : "")} onClick={() => setMobileView("chat")}>{t("Chat")}</button>
+              <button className={"m-tab" + (mobileView === "preview" ? " on" : "")} onClick={() => setMobileView("preview")}>{t("Preview")}</button>
             </div>
             <div className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}>
               <div className="chat-top">
@@ -534,10 +593,10 @@ export default function App({ oauthResult, oauthError }) {
                     <span className="owner">{repo.owner}<span className="sep">/</span></span><b>{repo.name}</b>
                   </div>
                 ) : (
-                  <div className="repo-chip"><IconSpark /><b>Novo projeto</b></div>
+                  <div className="repo-chip"><IconSpark /><b>{t("Novo projeto")}</b></div>
                 )}
                 <div className={"live" + (busy ? " on" : "")}>
-                  {busy ? (statusText || "trabalhando…") : (repo ? "pronto pra editar" : "aguardando")}
+                  {busy ? (statusText || t("trabalhando…")) : (repo ? t("pronto pra editar") : t("aguardando"))}
                 </div>
               </div>
 
@@ -545,7 +604,7 @@ export default function App({ oauthResult, oauthError }) {
                 {messages.length === 0 && (
                   <div className="chat-empty">
                     <span className="orb"><IconSpark /></span>
-                    <div>Descreva o que você quer construir ou mudar neste projeto. Eu cuido do código, do commit e do deploy.</div>
+                    <div>{t("Descreva o que você quer construir ou mudar neste projeto. Eu cuido do código, do commit e do deploy.")}</div>
                   </div>
                 )}
                 {messages.map((m, i) => m.role === "run"
@@ -559,8 +618,8 @@ export default function App({ oauthResult, oauthError }) {
               {busy && (
                 <div className="working-bar">
                   <span className="spin" />
-                  <span className="working-text">{statusText || "Trabalhando…"}</span>
-                  <span className="working-time" title="Tempo decorrido">{fmtDur(Math.max(0, (runAgora - (runStartedAt || runAgora))))}</span>
+                  <span className="working-text">{statusText || t("Trabalhando…")}</span>
+                  <span className="working-time" title={t("Tempo decorrido")}>{fmtDur(Math.max(0, (runAgora - (runStartedAt || runAgora))))}</span>
                 </div>
               )}
               {composer}
@@ -569,26 +628,26 @@ export default function App({ oauthResult, oauthError }) {
             <div className={"preview-col" + (mobileView === "chat" ? " m-off" : "")}>
               <div className="preview-bar">
                 <div className="browser-dots"><i /><i /><i /></div>
-                <div className="url-bar" title={previewUrl || "sem preview ainda"}>
+                <div className="url-bar" title={previewUrl || t("sem preview ainda")}>
                   <span className="lock"><IconLock /></span>
-                  <span className="url">{previewUrl ? previewUrl.replace(/^https?:\/\//, "") : "sem preview ainda"}</span>
+                  <span className="url">{previewUrl ? previewUrl.replace(/^https?:\/\//, "") : t("sem preview ainda")}</span>
                 </div>
                 <div className="vp-toggle">
-                  <button className={"vp" + (viewport === "desktop" ? " on" : "")} onClick={() => setViewport("desktop")} title="Desktop"><IconDesktop /></button>
-                  <button className={"vp" + (viewport === "mobile" ? " on" : "")} onClick={() => setViewport("mobile")} title="Mobile"><IconMobile /></button>
+                  <button className={"vp" + (viewport === "desktop" ? " on" : "")} onClick={() => setViewport("desktop")} title={t("Computador")}><IconDesktop /></button>
+                  <button className={"vp" + (viewport === "mobile" ? " on" : "")} onClick={() => setViewport("mobile")} title={t("Celular")}><IconMobile /></button>
                 </div>
                 <div className="preview-actions">
-                  {repo && <button className="icon-btn" onClick={desfazer} disabled={busy} title="Desfazer a última alteração"><IconUndo /></button>}
-                  {previewUrl && <button className="icon-btn" onClick={() => setPreviewUrl(previewUrl + (previewUrl.includes("?") ? "&" : "?") + "r=" + Date.now())} title="Recarregar"><IconRefresh /></button>}
-                  {previewUrl && <button className="btn sm" onClick={() => window.open(previewUrl, "_blank")} title="Abrir em nova aba">Abrir <IconExternal /></button>}
+                  {repo && <button className="icon-btn" onClick={desfazer} disabled={busy} title={t("Desfazer a última alteração")}><IconUndo /></button>}
+                  {previewUrl && <button className="icon-btn" onClick={() => setPreviewUrl(previewUrl + (previewUrl.includes("?") ? "&" : "?") + "r=" + Date.now())} title={t("Recarregar")}><IconRefresh /></button>}
+                  {previewUrl && <button className="btn sm" onClick={() => window.open(previewUrl, "_blank")} title={t("Abrir em nova aba")}>{t("Abrir")} <IconExternal /></button>}
                 </div>
               </div>
               <div className={"preview-stage" + (viewport === "mobile" ? " mobile" : "")}>
                 {previewUrl ? <iframe className="preview-frame" src={previewUrl} title="preview" />
                   : <div className="preview-empty">
                       <span className="orb"><IconMonitor /></span>
-                      <b>O preview aparece aqui</b>
-                      <p>Assim que a Vercel publicar, a página roda neste painel. Use o ícone de celular pra ver o layout no mobile.</p>
+                      <b>{t("O preview aparece aqui")}</b>
+                      <p>{t("Assim que a Vercel publicar, a página roda neste painel. Use o ícone de celular pra ver o layout no mobile.")}</p>
                     </div>}
               </div>
             </div>
@@ -607,21 +666,61 @@ export default function App({ oauthResult, oauthError }) {
   );
 }
 
-/* ---------------- Fundo ambiente ---------------- */
-function AuroraBackdrop() {
+/* ---------------- Fundo da home (estilo Bolt: aurora + pontos + horizonte) ---------------- */
+function HomeBackdrop() {
   return (
-    <div className="aurora" aria-hidden="true">
-      <span className="aurora-orb o1" />
-      <span className="aurora-orb o2" />
-      <span className="aurora-orb o3" />
+    <div className="home-bg" aria-hidden="true">
       <Aurora
-        className="aurora-gl"
-        colorStops={["#180810", "#e11d48", "#2a0a16"]}
-        amplitude={0.9}
-        blend={0.55}
-        speed={0.6}
+        className="home-aurora"
+        colorStops={["#2b0716", "#e11d48", "#5b1240"]}
+        amplitude={0.85}
+        blend={0.6}
+        speed={0.5}
         mouse
       />
+      <div className="home-dots" />
+      <div className="home-horizon" />
+    </div>
+  );
+}
+
+/* ---------------- Miniaturas dos modelos (mockups em CSS, sem imagem externa) ---------------- */
+function Thumb({ tipo }) {
+  const n = k => Array.from({ length: k }, (_, i) => i);
+  const corpo = {
+    dash: <><i className="m-side" /><span className="m-main"><span className="m-row">{n(3).map(i => <i key={i} className="m-stat" />)}</span><span className="m-bars">{[40, 65, 50, 85, 60, 95, 72].map((h, i) => <i key={i} style={{ height: h + "%" }} />)}</span></span></>,
+    landing: <span className="m-col"><i className="m-nav" /><i className="m-h1" /><i className="m-h2" /><i className="m-cta" /><span className="m-row">{n(3).map(i => <i key={i} className="m-card" />)}</span></span>,
+    grid: <span className="m-col"><i className="m-nav" /><span className="m-tiles">{n(6).map(i => <i key={i} className="m-tile" />)}</span></span>,
+    chat: <span className="m-col m-chat"><i className="m-msg l" /><i className="m-msg r" /><i className="m-msg l w" /><i className="m-msg r s" /><i className="m-input" /></span>,
+    cal: <span className="m-col"><i className="m-nav" /><span className="m-cal">{n(21).map(i => <i key={i} className={[3, 9, 10, 16].includes(i) ? "on" : ""} />)}</span></span>,
+    kanban: <span className="m-kan">{n(3).map(c => <span key={c} className="m-lane">{n(3 - (c % 2)).map(i => <i key={i} />)}</span>)}</span>,
+    media: <span className="m-col"><i className="m-art" /><i className="m-input" /></span>,
+    bio: <span className="m-col m-bio"><i className="m-ava" /><i className="m-h2" />{n(4).map(i => <i key={i} className="m-pill" />)}</span>,
+    quiz: <span className="m-col m-quiz"><i className="m-prog" /><i className="m-h1" />{n(3).map(i => <i key={i} className={"m-opt" + (i === 1 ? " on" : "")} />)}</span>
+  }[tipo] || null;
+  return <span className={"tpl-thumb th-" + tipo} aria-hidden="true"><span className="m-win">{corpo}</span></span>;
+}
+
+/* ---------------- Seletor de idioma ---------------- */
+function LangSelect({ compact = false, down = false }) {
+  useIdioma();
+  const [open, setOpen] = useState(false);
+  const atual = infoIdioma();
+  return (
+    <div className={"pop-anchor lang" + (compact ? " compact" : "")}>
+      {compact
+        ? <button className="rail-btn" onClick={() => setOpen(v => !v)} data-tip={t("Idioma")} aria-label={t("Idioma")}><IconGlobe /></button>
+        : <button className="lang-btn" onClick={() => setOpen(v => !v)} aria-label={t("Idioma")}><IconGlobe /> <span>{atual.label}</span> <IconChevronDown /></button>}
+      {open && (<>
+        <div className="pop-back" onClick={() => setOpen(false)} />
+        <div className={"pop menu lang-pop" + (compact ? " side" : "") + (down ? " down" : "")}>
+          {IDIOMAS.map(x => (
+            <button key={x.id} onClick={() => { setIdioma(x.id); setOpen(false); }}>
+              <span className="lang-code">{x.curto}</span><span>{x.label}</span>{x.id === atual.id && <span className="lang-ok"><IconCheck /></span>}
+            </button>
+          ))}
+        </div>
+      </>)}
     </div>
   );
 }
@@ -633,35 +732,61 @@ function iniciais(nome) {
 }
 const CORES_AVATAR = ["", " c2", " c3", " c4"];
 
-function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onConexoes, onOpenProject, onCollapse }) {
+function Conta({ conn, onClick, compact = false }) {
+  const tudoOk = conn.ia && conn.github && conn.vercel;
+  const foto = conn.avatar
+    ? <img src={conn.avatar} alt="" />
+    : <span className="acc-ini">{conn.github && conn.github !== "conectado" ? iniciais(conn.github) : <IconUser />}</span>;
+  if (compact) {
+    return (
+      <button className="rail-acc" onClick={onClick} data-tip={conn.github && conn.github !== "conectado" ? "@" + conn.github : t("Conectar GitHub")}>
+        {foto}<span className={"acc-dot" + (tudoOk ? " ok" : "")} />
+      </button>
+    );
+  }
+  return (
+    <button className="acc" onClick={onClick} title={t("Conexões")}>
+      <span className="acc-pic">{foto}<span className={"acc-dot" + (tudoOk ? " ok" : "")} /></span>
+      <span className="acc-text">
+        <span className="acc-name">{conn.github && conn.github !== "conectado" ? "@" + conn.github : (conn.github ? t("GitHub conectado") : t("Conectar GitHub"))}</span>
+        <span className="acc-sub">{tudoOk ? t("Tudo conectado") : t("Configuração pendente")}</span>
+      </span>
+      <IconChevronDown />
+    </button>
+  );
+}
+
+function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onConexoes, onChaves, onOpenProject, onCollapse }) {
   return (
     <aside className="sidebar">
       <div className="side-head">
         <div className="brand">
-          <span className="brand-mark"><img src="/brand/logo.png" alt="logo" className="brand-logo" /></span>
+          <span className="brand-mark"><img src="/brand/logo.png" alt="Copilot Code" className="brand-logo" /></span>
         </div>
-        <button className="icon-btn side-collapse" onClick={onCollapse} title="Minimizar menu"><IconChevronLeft /></button>
+        <button className="icon-btn ghosty side-collapse" onClick={onCollapse} title={t("Recolher menu")}><IconPanel /></button>
       </div>
 
-      <button className="side-new" onClick={onNew}><IconPlus /> Nova conversa</button>
+      <Conta conn={conn} onClick={onConexoes} />
+
+      <button className="side-new" onClick={onNew}><IconPlus /> {t("Nova conversa")}</button>
 
       <nav className="side-nav">
-        <button className={"nav-item" + (ativo === "inicio" ? " on" : "")} onClick={onNew}><IconHome /> Início</button>
+        <button className={"nav-item" + (ativo === "inicio" ? " on" : "")} onClick={onNew}><IconHome /> {t("Início")}</button>
         <button className={"nav-item" + (ativo === "projetos" ? " on" : "")} onClick={onProjetos}>
-          <IconGrid /> Projetos
+          <IconGrid /> {t("Projetos")}
           {Array.isArray(projects) && projects.length > 0 && <span className="nav-count">{projects.length}</span>}
         </button>
-        <button className={"nav-item" + (ativo === "conversas" ? " on" : "")} onClick={onConversas}>
-          <IconChat /> Conversas
-        </button>
+        <button className={"nav-item" + (ativo === "conversas" ? " on" : "")} onClick={onConversas}><IconChat /> {t("Conversas")}</button>
+        <span className="side-sep" />
+        <button className={"nav-item" + (ativo === "conexoes" ? " on" : "")} onClick={onConexoes}><IconPlug /> {t("Conexões")}</button>
+        <button className="nav-item" onClick={onChaves}><IconKey /> {t("Chaves de IA")}</button>
       </nav>
 
-      <div className="side-section">Projetos recentes</div>
+      <div className="side-section">{t("Projetos recentes")}</div>
       <div className="side-list">
-        {/* Estado da lista: se não há token da Vercel, nada vai carregar — dizemos isso. */}
-        {!conn.vercel ? <button className="side-empty linklike-muted" onClick={onConexoes}>Conecte a Vercel para listar seus projetos</button>
-          : projects === null ? <span className="side-empty">Carregando…</span>
-          : projects.length === 0 ? <span className="side-empty">Nenhum projeto ainda</span>
+        {!conn.vercel ? <button className="side-empty linklike-muted" onClick={onConexoes}>{t("Conecte a Vercel para listar seus projetos")}</button>
+          : projects === null ? <span className="side-empty">{t("Carregando…")}</span>
+          : projects.length === 0 ? <span className="side-empty">{t("Nenhum projeto ainda")}</span>
           : projects.slice(0, 8).map((p, i) => (
             <button key={i} className="side-proj" onClick={() => onOpenProject(p)} title={p.url || `${p.owner}/${p.name}`}>
               <span className={"proj-avatar" + CORES_AVATAR[i % 4]}><IconGem /></span>
@@ -671,17 +796,34 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
       </div>
 
       <div className="side-foot">
-        <div className="side-card">
-          <div className="side-card-title"><IconPlug /> Conexões</div>
-          <div className="side-card-sub">GitHub versiona, Vercel publica, Supabase guarda os dados. Você usa as suas chaves.</div>
-          <button className="btn sm wide" style={{ marginTop: 10 }} onClick={onConexoes}>Gerenciar conexões</button>
-        </div>
+        <LangSelect />
         <div className="side-status">
+          <span className={conn.ia ? "on" : ""}>{t("IA")}</span>
           <span className={conn.github ? "on" : ""}>GitHub</span>
           <span className={conn.supabase ? "on" : ""}>Supabase</span>
           <span className={conn.vercel ? "on" : ""}>Vercel</span>
         </div>
       </div>
+    </aside>
+  );
+}
+
+// Menu recolhido (estilo Bolt): trilho só de ícones, com dica ao passar o mouse.
+function SideRail({ conn, ativo, onExpand, onNew, onProjetos, onConversas, onConexoes, onChaves }) {
+  return (
+    <aside className="rail">
+      <button className="rail-btn" onClick={onExpand} data-tip={t("Expandir menu")}><IconPanel /></button>
+      <button className="rail-logo" onClick={onNew} data-tip="Copilot Code"><img src="/brand/logo.png" alt="Copilot Code" /></button>
+      <button className="rail-btn rail-new" onClick={onNew} data-tip={t("Nova conversa")}><IconPlus /></button>
+      <button className={"rail-btn" + (ativo === "inicio" ? " on" : "")} onClick={onNew} data-tip={t("Início")}><IconHome /></button>
+      <button className={"rail-btn" + (ativo === "projetos" ? " on" : "")} onClick={onProjetos} data-tip={t("Projetos")}><IconGrid /></button>
+      <button className={"rail-btn" + (ativo === "conversas" ? " on" : "")} onClick={onConversas} data-tip={t("Conversas")}><IconChat /></button>
+      <span className="rail-sep" />
+      <button className={"rail-btn" + (ativo === "conexoes" ? " on" : "")} onClick={onConexoes} data-tip={t("Conexões")}><IconPlug /></button>
+      <button className="rail-btn" onClick={onChaves} data-tip={t("Chaves de IA")}><IconKey /></button>
+      <span className="spacer" />
+      <LangSelect compact />
+      <Conta conn={conn} onClick={onConexoes} compact />
     </aside>
   );
 }
@@ -705,6 +847,8 @@ const TPL_PATHS = {
   film: <><rect x="2.5" y="2.5" width="19" height="19" rx="2.5" /><path d="M7 2.5v19M17 2.5v19M2.5 12h19M2.5 7H7M2.5 17H7M17 17h4.5M17 7h4.5" /></>,
   bot: <><rect x="4" y="8" width="16" height="12" rx="3" /><path d="M12 8V4M8 4h8M9 13v1M15 13v1M2 14h2M20 14h2" /></>,
   quiz: <><circle cx="12" cy="12" r="9.5" /><path d="M9.2 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01" /></>,
+  globe: <><circle cx="12" cy="12" r="9.5" /><path d="M2.5 12h19M12 2.5a14.5 14.5 0 0 1 0 19M12 2.5a14.5 14.5 0 0 0 0 19" /></>,
+  apps: <><rect x="3" y="3" width="7.5" height="7.5" rx="2" /><rect x="13.5" y="3" width="7.5" height="7.5" rx="2" /><rect x="3" y="13.5" width="7.5" height="7.5" rx="2" /><path d="M17.25 13.5v7.5M13.5 17.25H21" /></>,
   copy: <><rect x="8" y="8" width="13" height="13" rx="2.5" /><path d="M16 8V5.5A2.5 2.5 0 0 0 13.5 3h-8A2.5 2.5 0 0 0 3 5.5v8A2.5 2.5 0 0 0 5.5 16H8" /></>
 };
 function TplIcon({ ic }) {
@@ -712,45 +856,45 @@ function TplIcon({ ic }) {
 }
 
 /* ---------------- Composer (v0-style) ---------------- */
-function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves }) {
+function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
   const [plus, setPlus] = useState(false);
   const fileRef = useRef(null);
   return (
     <div className={"composer" + (big ? " big" : "")}>
-      {repo && <div className="composer-ctx">Editando <b>{repo.owner}/{repo.name}</b> · <button className="linklike" onClick={onNew}>novo projeto</button></div>}
+      {repo && <div className="composer-ctx">{t("Editando")} <b>{repo.owner}/{repo.name}</b> · <button className="linklike" onClick={onNew}>{t("novo projeto")}</button></div>}
       {attached.length > 0 && (
         <div className="attach-strip">
           {attached.map((src, i) => (
             <div className="thumb" key={i}>
               <img src={src} alt="" />
-              <button className="thumb-x" onClick={() => onRemoveAttach(i)} title="Remover">×</button>
+              <button className="thumb-x" onClick={() => onRemoveAttach(i)} title={t("Remover")}>×</button>
             </div>
           ))}
         </div>
       )}
       <textarea className="composer-input" rows={big ? 2 : 3} ref={inputRef}
-        placeholder={repo ? "Peça uma alteração… (ou anexe uma imagem pra trocar/usar)" : "Descreva sua ideia, vamos dar vida a ela…"}
+        placeholder={repo ? t("Peça uma alteração… (ou anexe uma imagem pra trocar/usar)") : (dica || t("Descreva sua ideia, vamos dar vida a ela…"))}
         value={input} onChange={e => setInput(e.target.value)}
         onPaste={e => { const imgs = [...(e.clipboardData?.items || [])].filter(it => it.type.startsWith("image/")).map(it => it.getAsFile()).filter(Boolean); if (imgs.length) { e.preventDefault(); onAddFiles(imgs); } }}
         onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onSend(); } }} disabled={busy} />
       <div className="composer-row">
         <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={e => { onAddFiles([...e.target.files]); e.target.value = ""; }} />
-        <button className="chip" onClick={() => fileRef.current?.click()} title="Anexar imagem" disabled={busy}><IconImage /></button>
+        <button className="chip" onClick={() => fileRef.current?.click()} title={t("Anexar imagem")} disabled={busy}><IconImage /></button>
         <div className="pop-anchor">
-          <button className="chip icon" onClick={() => setPlus(v => !v)} title="Mais"><IconPlus /></button>
+          <button className="chip icon" onClick={() => setPlus(v => !v)} title={t("Mais")}><IconPlus /></button>
           {plus && (<>
             <div className="pop-back" onClick={() => setPlus(false)} />
             <div className="pop menu">
-              <button onClick={() => { setPlus(false); onPlusConexoes(); }}><IconPlug /> Conexões</button>
-              <button onClick={() => { setPlus(false); onPlusChaves(); }}><IconSpark /> Chaves de IA / modelos</button>
+              <button onClick={() => { setPlus(false); onPlusConexoes(); }}><IconPlug /> {t("Conexões")}</button>
+              <button onClick={() => { setPlus(false); onPlusChaves(); }}><IconSpark /> {t("Chaves de IA / modelos")}</button>
             </div>
           </>)}
         </div>
         <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} />
-        <button className="chip" onClick={onBlindar} disabled={busy || !repo} title="Blindar contra vazamento de dados"><IconShield /></button>
+        <button className="chip" onClick={onBlindar} disabled={busy || !repo} title={t("Blindar contra vazamento de dados")}><IconShield /></button>
         <div className="spacer" />
         <ProjectPicker projects={projects} onLoad={onLoadProjects} onOpen={onOpenProject} onNew={onNew} />
-        <button className="send" onClick={onSend} disabled={busy} title="Enviar">{busy ? <span className="spin" /> : <IconArrowUp />}</button>
+        <button className="send" onClick={onSend} disabled={busy} title={t("Enviar")}>{busy ? <span className="spin" /> : <IconArrowUp />}</button>
       </div>
     </div>
   );
@@ -765,31 +909,31 @@ const EH_CODIGO = m => !/vision|experimental|preview|(^|[-_])exp([-_]|$)|-exp\b/
 function eventoTexto(ev) {
   const a = ev.args || {};
   switch (ev.type) {
-    case "status": return ev.text;
-    case "provider_try": return `Pensando com a IA (${ev.provider})…`;
-    case "provider_switch": return `Trocando de IA (${ev.provider})…`;
-    case "provider": return `Pensando com a IA (${ev.label || ev.model || ev.providerId})…`;
-    case "deploy": return ev.text || ev.phase || "publicando…";
+    case "status": return t(ev.text);
+    case "provider_try": return t("Pensando com a IA ({ia})…", { ia: ev.provider });
+    case "provider_switch": return t("Trocando de IA ({ia})…", { ia: ev.provider });
+    case "provider": return t("Pensando com a IA ({ia})…", { ia: ev.label || ev.model || ev.providerId });
+    case "deploy": return ev.text ? t(ev.text) : (ev.phase || t("publicando…"));
     case "tool_start": return ({
-      list_files: "Olhando os arquivos do projeto…",
-      read_file: `Lendo ${a.path || "um arquivo"}…`,
-      search_code: `Procurando "${a.query || ""}"…`,
-      write_file: `Escrevendo ${a.path || "um arquivo"}…`,
-      delete_file: `Removendo ${a.path || "um arquivo"}…`,
-      commit_changes: "Salvando as mudanças no GitHub…",
-      salvar_imagem: "Salvando a imagem no projeto…",
-      listar_tabelas: "Vendo as tabelas do banco…",
-      criar_tabela: "Criando a tabela no Supabase…",
-      criar_edge_function: "Publicando a função no Supabase…"
-    })[ev.name] || `Usando ${ev.name}…`;
-    case "commit": return `Salvo no GitHub${ev.shortSha ? ` (${ev.shortSha})` : ""}.`;
-    case "tool_error": return `Erro em ${ev.name}: ${ev.message}`;
-    case "notice": return ev.text;
-    case "arquivo_stream": return `Escrevendo ${ev.path}…`;
-    case "kit": return `Usando o kit de ${({ agendamento: "agendamento", delivery: "cardápio/delivery", ecommerce: "loja online", membros: "área de membros", crm: "CRM", financeiro: "financeiro", estoque: "estoque", gerador_imagem: "gerador de imagens", gerador_video: "gerador de vídeos", chat_ia: "assistente de IA", link_bio: "link na bio", portfolio: "portfólio", imobiliaria: "imobiliária", academia: "academia", quiz: "quiz/funil", eventos: "eventos" })[ev.kit] || ev.kit} — telas e dados prontos do nicho`;
-    case "clone": return `Página de referência lida — recriando a estrutura de ${String(ev.url || "").replace(/^https?:\/\//, "").slice(0, 40)}`;
-    case "continuacao": return `A resposta foi cortada — a próxima IA está continuando de onde parou${ev.parte > 1 ? ` (parte ${ev.parte})` : ""}…`;
-    case "html_retry": return "A resposta veio incompleta — pedindo de novo…";
+      list_files: t("Olhando os arquivos do projeto…"),
+      read_file: t("Lendo {arquivo}…", { arquivo: a.path || t("um arquivo") }),
+      search_code: t("Procurando \"{busca}\"…", { busca: a.query || "" }),
+      write_file: t("Escrevendo {arquivo}…", { arquivo: a.path || t("um arquivo") }),
+      delete_file: t("Removendo {arquivo}…", { arquivo: a.path || t("um arquivo") }),
+      commit_changes: t("Salvando as mudanças no GitHub…"),
+      salvar_imagem: t("Salvando a imagem no projeto…"),
+      listar_tabelas: t("Vendo as tabelas do banco…"),
+      criar_tabela: t("Criando a tabela no Supabase…"),
+      criar_edge_function: t("Publicando a função no Supabase…")
+    })[ev.name] || t("Usando {ferramenta}…", { ferramenta: ev.name });
+    case "commit": return t("Salvo no GitHub") + (ev.shortSha ? ` (${ev.shortSha})` : "") + ".";
+    case "tool_error": return t("Erro em {ferramenta}: {erro}", { ferramenta: ev.name, erro: ev.message });
+    case "notice": return t(ev.text);
+    case "arquivo_stream": return t("Escrevendo {arquivo}…", { arquivo: ev.path });
+    case "kit": return t("Usando o kit de {kit} — telas e dados prontos do nicho", { kit: t(({ agendamento: "agendamento", delivery: "cardápio/delivery", ecommerce: "loja online", membros: "área de membros", crm: "CRM", financeiro: "financeiro", estoque: "estoque", gerador_imagem: "gerador de imagens", gerador_video: "gerador de vídeos", chat_ia: "assistente de IA", link_bio: "link na bio", portfolio: "portfólio", imobiliaria: "imobiliária", academia: "academia", quiz: "quiz/funil", eventos: "eventos" })[ev.kit] || ev.kit) });
+    case "clone": return t("Página de referência lida — recriando a estrutura de {site}", { site: String(ev.url || "").replace(/^https?:\/\//, "").slice(0, 40) });
+    case "continuacao": return t("A resposta foi cortada — a próxima IA está continuando de onde parou") + (ev.parte > 1 ? ` (${t("parte")} ${ev.parte})` : "") + "…";
+    case "html_retry": return t("A resposta veio incompleta — pedindo de novo…");
     case "assistant_text": return (ev.text || "").replace(/\s+/g, " ").trim().slice(0, 120);
     default: return "";
   }
@@ -824,6 +968,10 @@ function detectarTipo(texto) {
   if (/\b(landing|landing\s*page|p[áa]gina\s+de\s+vendas|p[áa]gina\s+de\s+captura|one[\s-]?page|portf[óo]lio|institucional|p[áa]gina\s+de\s+lan[çc]amento)\b/.test(t)) return "site";
   if (/\b(app|aplicativo|aplica[çc][ãa]o|micro[\s-]?saas|saas|sistema|plataforma|dashboard|painel|crm|erp|[áa]rea\s+de\s+membros|membros|curso|agendamento|delivery|card[áa]pio|e-?commerce|loja|estoque|financeiro|gest[ãa]o|controle|agenda)\b/.test(t)) return "app";
   if (/\b(site|website|p[áa]gina\s+web)\b/.test(t)) return "site";
+  // ingles / espanhol
+  if (/\b(landing|sales\s+page|portfolio|portafolio|one[\s-]?page|p[áa]gina\s+de\s+(ventas|aterrizaje))\b/.test(t)) return "site";
+  if (/\b(app|application|aplicaci[óo]n|platform|plataforma|dashboard|panel|crm|erp|store|shop|tienda|booking|reservas|inventory|finance|members?)\b/.test(t)) return "app";
+  if (/\b(sitio|website|web\s*page)\b/.test(t)) return "site";
   return "app";
 }
 
@@ -838,17 +986,17 @@ function detectarSegredo(texto) {
 function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {} }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const label = providerId ? (activeModel || "modelo") : "Automático";
+  const label = providerId ? (activeModel || t("modelo")) : t("Automático");
   return (
     <div className="pop-anchor">
-      <button className="chip" onClick={() => setOpen(v => !v)} title="Escolher IA/modelo"><IconSpark /> <span>{label}</span> <IconChevronDown /></button>
+      <button className="chip" onClick={() => setOpen(v => !v)} title={t("Escolher IA/modelo")}><IconSpark /> <span>{label}</span> <IconChevronDown /></button>
       {open && (<>
         <div className="pop-back" onClick={() => setOpen(false)} />
         <div className="pop models">
-          <input className="pop-search" placeholder="Buscar modelos" value={q} onChange={e => setQ(e.target.value)} autoFocus />
+          <input className="pop-search" placeholder={t("Buscar modelos")} value={q} onChange={e => setQ(e.target.value)} autoFocus />
           <div className="pop-scroll">
             <button className={"pop-item" + (!providerId ? " sel" : "")} onClick={() => { onPick("", ""); setOpen(false); }}>
-              <span>Automático (revezamento)</span>{!providerId && <IconCheck />}
+              <span>{t("Automático (revezamento)")}</span>{!providerId && <IconCheck />}
             </button>
             {PROVIDER_CATALOG.map(pc => {
               const h = modelHealth[pc.id] || {};
@@ -882,15 +1030,15 @@ function ProjectPicker({ projects, onLoad, onOpen, onNew }) {
   const list = (projects || []).filter(p => !q || (p.vercelName || p.name || "").toLowerCase().includes(q.toLowerCase()));
   return (
     <div className="pop-anchor">
-      <button className="chip" onClick={toggle} title="Projetos"><IconGrid /> <span>Projetos</span> <IconChevronDown /></button>
+      <button className="chip" onClick={toggle} title={t("Projetos")}><IconGrid /> <span>{t("Projetos")}</span> <IconChevronDown /></button>
       {open && (<>
         <div className="pop-back" onClick={() => setOpen(false)} />
         <div className="pop models right">
-          <input className="pop-search" placeholder="Buscar projetos" value={q} onChange={e => setQ(e.target.value)} autoFocus />
+          <input className="pop-search" placeholder={t("Buscar projetos")} value={q} onChange={e => setQ(e.target.value)} autoFocus />
           <div className="pop-scroll">
-            <button className="pop-item" onClick={() => { setOpen(false); onNew(); }}><span>+ Novo projeto</span></button>
-            {projects === null ? <div className="pop-group">carregando…</div>
-              : list.length === 0 ? <div className="pop-group">nenhum projeto na Vercel</div>
+            <button className="pop-item" onClick={() => { setOpen(false); onNew(); }}><span>+ {t("Novo projeto")}</span></button>
+            {projects === null ? <div className="pop-group">{t("carregando…")}</div>
+              : list.length === 0 ? <div className="pop-group">{t("nenhum projeto na Vercel")}</div>
               : list.map((p, i) => (
                 <button key={i} className="pop-item" onClick={() => { setOpen(false); onOpen(p); }}>
                   <span>{p.vercelName || p.name}</span>
@@ -910,18 +1058,18 @@ function PlanCard({ plano, onAprovar, onRecusar }) {
   return (
     <div className="plan-card">
       <div className="plan-head">
-        <span className="plan-badge">Plano</span>
-        <span className="plan-title">Revise antes de eu construir</span>
+        <span className="plan-badge">{t("Plano")}</span>
+        <span className="plan-title">{t("Revise antes de eu construir")}</span>
       </div>
       {editando
         ? <textarea className="plan-edit" value={texto} onChange={e => setTexto(e.target.value)} rows={10} autoFocus />
         : <div className="plan-body">{texto}</div>}
       <div className="plan-actions">
-        <button className="btn sm" onClick={() => onAprovar(texto)}><IconCheck /> Aprovar e construir</button>
+        <button className="btn sm" onClick={() => onAprovar(texto)}><IconCheck /> {t("Aprovar e construir")}</button>
         {editando
-          ? <button className="btn sm ghost" onClick={() => setEditando(false)}>Pronto</button>
-          : <button className="btn sm ghost" onClick={() => setEditando(true)}>Editar</button>}
-        <button className="btn sm ghost" onClick={onRecusar}>Recusar</button>
+          ? <button className="btn sm ghost" onClick={() => setEditando(false)}>{t("Pronto")}</button>
+          : <button className="btn sm ghost" onClick={() => setEditando(true)}>{t("Editar")}</button>}
+        <button className="btn sm ghost" onClick={onRecusar}>{t("Recusar")}</button>
       </div>
     </div>
   );
@@ -933,12 +1081,12 @@ function Bubble({ role, text, images }) {
   return (
     <div className={"bubble " + role}>
       <div className="bubble-head">
-        {eu ? <span className="avatar me">VC</span> : <span className="avatar ai"><img src="/brand/logo.png" alt="" /></span>}
-        {eu ? "Você" : "Copilot Code"}
+        {eu ? <span className="avatar me">{t("VC")}</span> : <span className="avatar ai"><img src="/brand/logo.png" alt="" /></span>}
+        {eu ? t("Você") : "Copilot Code"}
       </div>
       {images && images.length > 0 && (
         <div className="bubble-imgs">
-          {images.map((src, i) => <img key={i} src={src} alt="imagem enviada" />)}
+          {images.map((src, i) => <img key={i} src={src} alt={t("imagem enviada")} />)}
         </div>
       )}
       {text && <div className="bubble-body">{text}</div>}
@@ -967,22 +1115,22 @@ function RunCard({ steps, done, startedAt, endedAt }) {
 
   const base = startedAt || agora;
   const decorrido = done ? ((endedAt || base) - base) : (agora - base);
-  const last = steps[steps.length - 1] || "Começando…";
+  const last = steps[steps.length - 1] || t("Começando…");
 
   return (
     <div className={"run-card" + (done ? " done" : "")}>
       <div className="run-head">
         {done ? <span className="run-ok">✓</span> : <span className="spin" />}
-        <span className="run-title">{done ? "Concluído" : last}</span>
-        <span className="run-time" title={done ? "Tempo total" : "Tempo decorrido"}>{fmtDur(decorrido)}</span>
-        <button className="run-toggle" onClick={() => setOpen(o => !o)}>{open ? "Ocultar" : "Detalhes"}</button>
+        <span className="run-title">{done ? t("Concluído") : last}</span>
+        <span className="run-time" title={done ? t("Tempo total") : t("Tempo decorrido")}>{fmtDur(decorrido)}</span>
+        <button className="run-toggle" onClick={() => setOpen(o => !o)}>{open ? t("Ocultar") : t("Detalhes")}</button>
       </div>
       {!open && (
-        <div className="run-sub">{done ? `${steps.length} etapas · veja o resumo abaixo` : `${steps.length} etapa${steps.length === 1 ? "" : "s"} até agora`}</div>
+        <div className="run-sub">{done ? t("{n} etapas · veja o resumo abaixo", { n: steps.length }) : t(steps.length === 1 ? "{n} etapa até agora" : "{n} etapas até agora", { n: steps.length })}</div>
       )}
       {open && (
         <div className="run-steps">
-          {steps.length === 0 ? <div className="run-step cur"><span className="run-dot">▸</span> preparando…</div>
+          {steps.length === 0 ? <div className="run-step cur"><span className="run-dot">▸</span> {t("preparando…")}</div>
             : steps.map((s, i) => {
                 const atual = !done && i === steps.length - 1;
                 return (
@@ -1003,7 +1151,7 @@ function DrawerHead({ icon, titulo, children, onClose }) {
     <header>
       <h2><span className="h-ico">{icon}</span>{titulo}</h2>
       {children}
-      <button className="icon-btn" onClick={onClose} title="Fechar"><IconClose /></button>
+      <button className="icon-btn" onClick={onClose} title={t("Fechar")}><IconClose /></button>
     </header>
   );
 }
@@ -1056,16 +1204,16 @@ function ProjectsDrawer({ projects, onReload, onOpen, onClose }) {
     <>
       <div className="drawer-scrim" onClick={onClose} />
       <div className="drawer">
-        <DrawerHead icon={<IconGrid />} titulo="Projetos" onClose={onClose}>
-          <button className="btn sm ghost" onClick={onReload}><IconRefresh /> Atualizar</button>
+        <DrawerHead icon={<IconGrid />} titulo={t("Projetos")} onClose={onClose}>
+          <button className="btn sm ghost" onClick={onReload}><IconRefresh /> {t("Atualizar")}</button>
         </DrawerHead>
         <div className="body">
-          <p className="hint" style={{ marginTop: 0 }}>Seus projetos na Vercel. Clicar abre o projeto (puxa o repositório do GitHub ligado) para editar.</p>
-          {projects === null ? <p className="hint">carregando…</p>
+          <p className="hint" style={{ marginTop: 0 }}>{t("Seus projetos na Vercel. Clicar abre o projeto (puxa o repositório do GitHub ligado) para editar.")}</p>
+          {projects === null ? <p className="hint">{t("carregando…")}</p>
             : projects.length === 0 ? (
               <div className="empty">
                 <span className="orb"><IconGrid /></span>
-                <div>Nenhum projeto na Vercel ainda — ou o Worker <code>/proxy</code> não está no ar.</div>
+                <div>{t("Nenhum projeto na Vercel ainda — ou o Worker /proxy não está no ar.")}</div>
               </div>
             )
             : (
@@ -1091,7 +1239,7 @@ function ProjectsDrawer({ projects, onReload, onOpen, onClose }) {
   );
 }
 
-function fmtData(ts) { try { return new Date(ts).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } }
+function fmtData(ts) { try { return new Date(ts).toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } }
 function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
   return (
     <>
@@ -1100,14 +1248,14 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
         <BorderGlow className="drawer-glow" backgroundColor="transparent" borderRadius={0}
           glowColor="347 90 58" glowRadius={18} edgeSensitivity={40} glowIntensity={0.6} coneSpread={22}
           colors={["#e11d48", "#fb7185", "#f97316"]}>
-          <DrawerHead icon={<IconChat />} titulo="Conversas" onClose={onClose}>
-            {sessions.length > 0 && <button className="btn sm ghost" onClick={() => { if (window.confirm("Apagar todo o histórico?")) onClear(); }}>Limpar</button>}
+          <DrawerHead icon={<IconChat />} titulo={t("Conversas")} onClose={onClose}>
+            {sessions.length > 0 && <button className="btn sm ghost" onClick={() => { if (window.confirm(t("Apagar todo o histórico?"))) onClear(); }}>{t("Limpar")}</button>}
           </DrawerHead>
           <div className="body">
             {sessions.length === 0 ? (
               <div className="empty">
                 <span className="orb"><IconChat /></span>
-                <div>Nada aqui ainda. Cada conversa fica salva no seu navegador.</div>
+                <div>{t("Nada aqui ainda. Cada conversa fica salva no seu navegador.")}</div>
               </div>
             )
               : sessions.map(s => (
@@ -1115,9 +1263,9 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
                   <span className="proj-avatar"><IconChat /></span>
                   <div className="hist-main" onClick={() => onOpen(s.id)}>
                     <div className="hist-title">{s.title}</div>
-                    <div className="hist-meta">{fmtData(s.updatedAt)}{s.repo ? ` · ${s.repo.owner}/${s.repo.name}` : ""}{s.count ? ` · ${s.count} msg` : ""}</div>
+                    <div className="hist-meta">{fmtData(s.updatedAt)}{s.repo ? ` · ${s.repo.owner}/${s.repo.name}` : ""}{s.count ? ` · ${s.count} ${t("msg")}` : ""}</div>
                   </div>
-                  <button className="icon-btn" onClick={() => onDelete(s.id)} title="Apagar conversa"><IconClose /></button>
+                  <button className="icon-btn" onClick={() => onDelete(s.id)} title={t("Apagar conversa")}><IconClose /></button>
                 </div>
               ))}
           </div>
@@ -1141,8 +1289,8 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
   useEffect(() => { (async () => { setSecrets(await store.get("secrets")); setGh(await store.get("github")); setSb(await store.get("supabase")); })(); }, []);
   async function saveSecret(k, v) { setSecrets(s => ({ ...s, [k]: v })); await store.patch("secrets", { [k]: v }); }
   async function connectGithubToken() {
-    const t = window.prompt("Cole um token do GitHub (github_pat_… com Contents: Read/Write):"); if (!t) return;
-    try { const p = await github.validateToken(t.trim()); await store.patch("github", { token: t.trim(), login: p.login, avatar: p.avatar }); setGh(await store.get("github")); showToast(`GitHub conectado: @${p.login}`); }
+    const tok = window.prompt(t("Cole um token do GitHub (github_pat_… com Contents: Read/Write):")); if (!tok) return;
+    try { const p = await github.validateToken(tok.trim()); await store.patch("github", { token: tok.trim(), login: p.login, avatar: p.avatar }); setGh(await store.get("github")); showToast(t("GitHub conectado: @{login}", { login: p.login })); }
     catch (e) { showToast(e.message, true); }
   }
   async function ghLogout() { await store.patch("github", { token: "", login: "", avatar: "" }); setGh({}); }
@@ -1156,7 +1304,7 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
     try {
       await sbmgmt.bindProject(p.ref, p.name);
       setSb(await store.get("supabase")); setSbProjects(null);
-      showToast(`Projeto Supabase ligado: ${p.name}`);
+      showToast(t("Projeto Supabase ligado: {nome}", { nome: p.name }));
       if (repo && onSupabaseBound) { onClose(); onSupabaseBound(); }   // reconecta o app aberto
     }
     catch (e) { showToast(e.message, true); }
@@ -1168,32 +1316,32 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
     <>
       <div className="drawer-scrim" onClick={onClose} />
       <div className="drawer">
-        <DrawerHead icon={<IconPlug />} titulo="Conexões" onClose={onClose} />
+        <DrawerHead icon={<IconPlug />} titulo={t("Conexões")} onClose={onClose} />
         <div className="body">
-          <div className="drawer-section">Serviços</div>
+          <div className="drawer-section">{t("Serviços")}</div>
           <div className="conn-card">
-            <ConnRow icon={<Gh />} name="GitHub" sub={gh.login ? `@${gh.login}` : "desconectado"} subOff={!gh.login}>
-              {gh.login ? <button className="btn sm ghost" onClick={ghLogout}>sair</button>
-                : githubConfigurado() ? <button className="btn sm primary" onClick={startGithubLoginWeb}>Entrar</button>
-                : <button className="btn sm primary" onClick={connectGithubToken}>Token</button>}
-              {!gh.login && githubConfigurado() && <button className="btn sm ghost" onClick={connectGithubToken}>token</button>}
+            <ConnRow icon={<Gh />} name="GitHub" sub={gh.login ? `@${gh.login}` : t("desconectado")} subOff={!gh.login}>
+              {gh.login ? <button className="btn sm ghost" onClick={ghLogout}>{t("sair")}</button>
+                : githubConfigurado() ? <button className="btn sm primary" onClick={startGithubLoginWeb}>{t("Entrar")}</button>
+                : <button className="btn sm primary" onClick={connectGithubToken}>{t("Token")}</button>}
+              {!gh.login && githubConfigurado() && <button className="btn sm ghost" onClick={connectGithubToken}>{t("token")}</button>}
             </ConnRow>
-            <ConnRow icon={<Sb />} name="Supabase" sub={sbConn ? (sb.projectName ? `projeto: ${sb.projectName}` : "escolha um projeto") : "desconectado"} subOff={!sbConn || !sb.projectName}>
+            <ConnRow icon={<Sb />} name="Supabase" sub={sbConn ? (sb.projectName ? `${t("projeto:")} ${sb.projectName}` : t("escolha um projeto")) : t("desconectado")} subOff={!sbConn || !sb.projectName}>
               {sbConn
-                ? <><button className="btn sm" onClick={loadSbProjects} disabled={sbLoading}>{sbLoading ? "…" : (sb.projectName ? "Trocar" : "Projeto")}</button><button className="btn sm ghost" onClick={sbLogout}>sair</button></>
-                : supabaseConfigurado() ? <button className="btn sm primary" onClick={startSupabaseLoginWeb}>Conectar</button>
+                ? <><button className="btn sm" onClick={loadSbProjects} disabled={sbLoading}>{sbLoading ? "…" : (sb.projectName ? t("Trocar") : t("Projeto"))}</button><button className="btn sm ghost" onClick={sbLogout}>{t("sair")}</button></>
+                : supabaseConfigurado() ? <button className="btn sm primary" onClick={startSupabaseLoginWeb}>{t("Conectar")}</button>
                 : <span className="pill">config</span>}
             </ConnRow>
-            <ConnRow icon={<Vc />} name="Vercel" sub={secrets.VERCEL_TOKEN ? "token salvo" : "sem token"} subOff={!secrets.VERCEL_TOKEN}>
-              <input className="text mini" type="password" placeholder="token" defaultValue={secrets.VERCEL_TOKEN} onBlur={e => saveSecret("VERCEL_TOKEN", e.target.value.trim())} />
+            <ConnRow icon={<Vc />} name="Vercel" sub={secrets.VERCEL_TOKEN ? t("token salvo") : t("sem token")} subOff={!secrets.VERCEL_TOKEN}>
+              <input className="text mini" type="password" placeholder={t("token")} defaultValue={secrets.VERCEL_TOKEN} onBlur={e => saveSecret("VERCEL_TOKEN", e.target.value.trim())} />
             </ConnRow>
-            <ConnRow icon={<IconRepo />} name="Repositório" sub={repo ? `${repo.owner}/${repo.name}` : "nenhum"} subOff={!repo} />
+            <ConnRow icon={<IconRepo />} name={t("Repositório")} sub={repo ? `${repo.owner}/${repo.name}` : t("nenhum")} subOff={!repo} />
           </div>
 
           {sbProjects && (
             <div className="conn-card" style={{ marginTop: 10 }}>
-              <div className="sb-pick-head">Escolha o projeto Supabase</div>
-              {sbProjects.length === 0 ? <div className="sb-pick-empty">Nenhum projeto nesta conta.</div>
+              <div className="sb-pick-head">{t("Escolha o projeto Supabase")}</div>
+              {sbProjects.length === 0 ? <div className="sb-pick-empty">{t("Nenhum projeto nesta conta.")}</div>
                 : sbProjects.map(p => (
                   <button key={p.ref} className="sb-pick-item" onClick={() => bindSb(p)}>
                     <strong>{p.name}</strong><span>{p.region} · {p.status}</span>
@@ -1202,10 +1350,10 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
             </div>
           )}
 
-          <p className="hint">Token da Vercel: <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer">vercel.com/account/tokens</a></p>
+          <p className="hint">{t("Token da Vercel:")} <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer">vercel.com/account/tokens</a></p>
 
-          <div className="drawer-section">Chaves de IA (BYOK)</div>
-          <button className="btn wide" onClick={() => setShowKeys(v => !v)}>{showKeys ? "Ocultar chaves de IA" : "Configurar chaves de IA"}</button>
+          <div className="drawer-section">{t("Chaves de IA (BYOK)")}</div>
+          <button className="btn wide" onClick={() => setShowKeys(v => !v)}>{showKeys ? t("Ocultar chaves de IA") : t("Configurar chaves de IA")}</button>
           {showKeys && <AiProviders showToast={showToast} />}
         </div>
       </div>
@@ -1240,14 +1388,14 @@ function AiProviders({ showToast }) {
       const mapa = await healthCheck(pc.id);
       setHealth(h => ({ ...h, [pc.id]: mapa }));
       const ok = Object.values(mapa).filter(r => r.status === "ok").length;
-      showToast(`${pc.label}: ${ok} de ${Object.keys(mapa).length} modelo(s) funcionando.`);
+      showToast(t("{ia}: {ok} de {total} modelo(s) funcionando.", { ia: pc.label, ok, total: Object.keys(mapa).length }));
     } catch (e) { showToast(pc.label + ": " + e.message, true); }
     finally { setTestando(""); }
   }
   async function salvarChave(pc) {
     const v = (drafts[pc.secretKey] ?? secrets[pc.secretKey] ?? "").trim();
     await store.patch("secrets", { [pc.secretKey]: v }); setSecrets(s => ({ ...s, [pc.secretKey]: v }));
-    showToast(v ? `Chave do ${pc.label} salva.` : `Chave do ${pc.label} removida.`);
+    showToast(v ? t("Chave do {ia} salva.", { ia: pc.label }) : t("Chave do {ia} removida.", { ia: pc.label }));
     // Ao salvar uma chave, testa os modelos automaticamente (health check).
     if (v) testar(pc);
     else setHealth(h => { const n = { ...h }; delete n[pc.id]; return n; });
@@ -1259,7 +1407,7 @@ function AiProviders({ showToast }) {
       setFetched(f => ({ ...f, [pc.id]: list }));
       const cache = (await store.get("modelsCache")) || {};
       cache[pc.id] = list; await store.set("modelsCache", cache);   // compartilha com o seletor
-      showToast(`${pc.label}: ${list.length} modelos.`);
+      showToast(t("{ia}: {n} modelos.", { ia: pc.label, n: list.length }));
     }
     catch (e) { showToast(pc.label + ": " + e.message, true); } finally { setBuscando(""); }
   }
@@ -1283,7 +1431,7 @@ function AiProviders({ showToast }) {
   if (!secrets) return null;
   return (
     <div style={{ marginTop: 10 }}>
-      <p className="hint" style={{ marginTop: 0 }}>Preencha ao menos uma e clique <b>Salvar</b>. Use as setas <b>↑↓</b> pra definir a ordem do rodízio (quem é tentado primeiro). As grátis sempre vêm antes das pagas.</p>
+      <p className="hint" style={{ marginTop: 0 }}>{t("Preencha ao menos uma e clique Salvar. Use as setas ↑↓ pra definir a ordem do rodízio (quem é tentado primeiro). As grátis sempre vêm antes das pagas.")}</p>
       {[...PROVIDER_CATALOG]
         .sort((a, b) => (tierDe(a.id) - tierDe(b.id)) || ((cfg(a.id).priority ?? 99) - (cfg(b.id).priority ?? 99)))
         .map((pc, idx, lista) => {
@@ -1298,28 +1446,28 @@ function AiProviders({ showToast }) {
           <div className="ai-card" key={pc.id}>
             <div className="ai-head">
               <span className="ai-order">
-                <button className="ord" disabled={primeiroDoTier} onClick={() => mover(pc.id, -1)} title="Subir">↑</button>
-                <button className="ord" disabled={ultimoDoTier} onClick={() => mover(pc.id, 1)} title="Descer">↓</button>
+                <button className="ord" disabled={primeiroDoTier} onClick={() => mover(pc.id, -1)} title={t("Subir")}>↑</button>
+                <button className="ord" disabled={ultimoDoTier} onClick={() => mover(pc.id, 1)} title={t("Descer")}>↓</button>
               </span>
               <label className="ai-enable">
                 <input type="checkbox" checked={c.enabled !== false} onChange={() => toggle(pc.id)} />
                 <span className="ai-avatar">{iniciais(pc.label)}</span>
                 <span className="ai-name">{pc.label}</span>
               </label>
-              <span className={"pill " + (pc.tier === "free" ? "free" : "paid")}>{pc.tier === "free" ? "grátis" : "paga"}</span>
-              {salva && <span className="pill on">chave ✓</span>}
+              <span className={"pill " + (pc.tier === "free" ? "free" : "paid")}>{pc.tier === "free" ? t("grátis") : t("paga")}</span>
+              {salva && <span className="pill on">{t("chave")} ✓</span>}
             </div>
             <div className="ai-row">
-              <input className="text" type="password" placeholder={`chave ${pc.label}`} value={drafts[pc.secretKey] ?? secrets[pc.secretKey] ?? ""} onChange={e => setDrafts(d => ({ ...d, [pc.secretKey]: e.target.value }))} />
-              <button className="btn sm" onClick={() => salvarChave(pc)}>Salvar</button>
+              <input className="text" type="password" placeholder={`${t("chave")} ${pc.label}`} value={drafts[pc.secretKey] ?? secrets[pc.secretKey] ?? ""} onChange={e => setDrafts(d => ({ ...d, [pc.secretKey]: e.target.value }))} />
+              <button className="btn sm" onClick={() => salvarChave(pc)}>{t("Salvar")}</button>
             </div>
-            {pc.keyUrl && <a className="getkey" href={pc.keyUrl} target="_blank" rel="noreferrer">Obter chave <IconExternal /></a>}
+            {pc.keyUrl && <a className="getkey" href={pc.keyUrl} target="_blank" rel="noreferrer">{t("Obter chave")} <IconExternal /></a>}
             <div className="ai-row">
               <select className="text" value={c.model || pc.defaultModel} onChange={e => setModel(pc.id, e.target.value)}>
                 {opcoes.map(m => <option key={m} value={m} disabled={H[m]?.status === "fail"}>{icone(m) ? icone(m) + " " : ""}{m}</option>)}
               </select>
-              <button className="btn sm ghost" onClick={() => testar(pc)} disabled={!salva || testOn} title="Testar os modelos">{testOn ? "…" : "Testar"}</button>
-              <button className="btn sm ghost" onClick={() => buscar(pc)} disabled={buscando === pc.id} title="Buscar modelos disponíveis">{buscando === pc.id ? "…" : "Buscar"}</button>
+              <button className="btn sm ghost" onClick={() => testar(pc)} disabled={!salva || testOn} title={t("Testar os modelos")}>{testOn ? "…" : t("Testar")}</button>
+              <button className="btn sm ghost" onClick={() => buscar(pc)} disabled={buscando === pc.id} title={t("Buscar modelos disponíveis")}>{buscando === pc.id ? "…" : t("Buscar")}</button>
             </div>
             {Object.keys(H).length > 0 && !testOn && (
               <div className="ai-health">
@@ -1363,6 +1511,11 @@ const IconChevronLeft = () => <svg viewBox="0 0 24 24" width="15" height="15" {.
 const IconMenu = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S} strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>;
 const IconAlert = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>;
 const IconInfo = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><circle cx="12" cy="12" r="9.5" /><path d="M12 16v-4.5M12 8h.01" /></svg>;
+const IconPanel = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><rect x="3" y="3.5" width="18" height="17" rx="3" /><path d="M9 3.5v17" /></svg>;
+const IconGlobe = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><circle cx="12" cy="12" r="9.5" /><path d="M2.5 12h19M12 2.5a14.5 14.5 0 0 1 0 19M12 2.5a14.5 14.5 0 0 0 0 19" /></svg>;
+const IconKey = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2" /></svg>;
+const IconUser = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>;
+const IconChevronRight = () => <svg viewBox="0 0 24 24" width="13" height="13" {...S} strokeWidth="2.2"><path d="m9 18 6-6-6-6" /></svg>;
 const IconPlus = () => <svg viewBox="0 0 24 24" width="14" height="14" {...S} strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>;
 const Gh = () => <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.88-.01-1.73-2.78.62-3.37-1.37-3.37-1.37-.46-1.18-1.11-1.5-1.11-1.5-.9-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.28 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.33 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.6.69.49A10.03 10.03 0 0 0 22 12.25C22 6.58 17.52 2 12 2z"/></svg>;
 const Sb = () => <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M13 2 4 13.5c-.4.5 0 1.3.7 1.3H12v7l9-11.5c.4-.5 0-1.3-.7-1.3H13V2z"/></svg>;

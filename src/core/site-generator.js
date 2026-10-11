@@ -1,6 +1,7 @@
 // Core do SaaS (standalone). Este arquivo E a fonte da verdade: edite aqui.
 // Nao rode `npm run sync-core` sem revisar — ele sobrescreve com a versao da extensao.
 import { complete, streamComplete } from "./providers.js";
+import { t } from "../i18n.js";
 import { mergeStarter, STARTER_FILES } from "./starter-template.js";
 
 /**
@@ -401,7 +402,7 @@ export function detectarKit(texto) {
   const regras = [
     ["gerador_video", /\b(gera(dor|r)?|criar?|cria|faz|faca)\b[^.]{0,30}\bvideos?\b|\bvideo\s*(com|por)\s*ia\b|\btext[o]?\s*(para|pra|to)\s*video\b/],
     ["gerador_imagem", /\b(gera(dor|r)?|criar?|cria|faz|faca)\b[^.]{0,30}\b(imagens?|fotos?|artes?|logos?)\b[^.]{0,20}\b(ia|inteligencia)\b|\bimagens?\s*(com|por)\s*ia\b|\b(text[o]?\s*(para|pra|to)\s*imagem|ai image)\b/],
-    ["chat_ia", /\b(chatbot|chat\s*bot|assistente\s*(virtual|de ia|com ia)?|agente\s*de\s*(ia|atendimento|vendas)|atendimento\s*(com|por)\s*ia)\b/],
+    ["chat_ia", /\b(chatbot|chat\s*bot|as?sistente\s*(virtual|de ia|com ia|con ia)?|ai\s*(chat\s*)?assistant|agente\s*de\s*(ia|atendimento|vendas)|atendimento\s*(com|por)\s*ia)\b/],
     ["agendamento", /\b(agendament|agenda(r|mento)?\b|marcar\s*horario|horarios?\s*disponiveis|barbearia|salao|manicure|clinica|consultorio|estetica|pilates|fisioterap|dentista|psicolog|tatuag)\b/],
     ["delivery", /\b(cardapio|delivery|lanchonete|hamburgueria|pizzaria|restaurante|acai|marmit|doceria|confeitaria|pedido\s*(pelo|no)\s*whats)\b/],
     ["membros", /\b(area\s*de\s*membros|plataforma\s*de\s*cursos?|curso\s*online|ead|aulas?\s*em\s*video|alunos?\s*e\s*aulas)\b/],
@@ -417,6 +418,26 @@ export function detectarKit(texto) {
     ["estoque", /\b(estoque|inventario|almoxarifado)\b/]
   ];
   for (const [kit, re] of regras) if (re.test(t)) return kit;
+  // Mesmos nichos em ingles/espanhol (a interface e vendida em outros paises).
+  const outrasLinguas = [
+    ["gerador_video", /\b(generat\w*|create|make|crea(r)?|genera(dor|r)?)\b[^.]{0,30}\bvideos?\b|\bai\s*video\b|\btext\s*to\s*video\b/],
+    ["gerador_imagem", /\b(generat\w*|create|make|crea(r)?|genera(dor|r)?)\b[^.]{0,30}\b(images?|imagen(es)?|pictures?|art)\b[^.]{0,20}\b(ai|ia)\b|\b(images?|imagen(es)?)\s*(with|con)\s*(ai|ia)\b|\bimage\s*generator\b|\bgenerador\s*de\s*imagen/],
+    ["chat_ia", /\b(ai\s*(assistant|agent|chat\s*bot|chat)|asistente\s*(virtual|de\s*ia|con\s*ia)|support\s*bot)\b/],
+    ["agendamento", /\b(booking|appointments?|barber|salon|clinic|dentist|reservas?\s*de\s*(citas|turnos)|citas|turnos|peluquer\w*|barberia)\b/],
+    ["delivery", /\b(digital\s*menu|menu\s*(app|online)|food\s*(ordering|delivery)|restaurant|burger|pizzeria|pizza\s*shop|carta\s*digital|hamburgueser\w*)\b/],
+    ["membros", /\b(members?\s*area|membership|online\s*courses?|course\s*platform|lms|area\s*de\s*miembros|cursos?\s*en\s*linea)\b/],
+    ["imobiliaria", /\b(real\s*estate|realtor|property\s*listings?|inmobiliaria|propiedades)\b/],
+    ["academia", /\b(gym|fitness\s*(center|studio|app)|gimnasio)\b/],
+    ["eventos", /\b(events?\s*(site|page|tickets?)|conference|tickets?|entradas\s*para)\b/],
+    ["quiz", /\b(lead\s*funnel|survey|personality\s*test|cuestionario|encuesta)\b/],
+    ["link_bio", /\b(link\s*in\s*bio|enlace\s*en\s*la\s*bio)\b/],
+    ["portfolio", /\b(portafolio)\b/],
+    ["ecommerce", /\b((online|web)\s+(\w+\s+)?(store|shop)|e-?shop|tienda(\s*online)?)\b/],
+    ["crm", /\b(sales\s*funnel|embudo\s*de\s*ventas)\b/],
+    ["financeiro", /\b(personal\s*finance|expense\s*tracker|budget(ing)?\s*app|cash\s*flow|finanzas|control\s*de\s*gastos)\b/],
+    ["estoque", /\b(inventory|stock\s*control|inventario)\b/]
+  ];
+  for (const [kit, re] of outrasLinguas) if (re.test(t)) return kit;
   return null;
 }
 
@@ -425,7 +446,7 @@ export function urlParaClonar(texto) {
   const t = String(texto || "");
   const m = t.match(/https?:\/\/[^\s"'<>)]+/i);
   if (!m) return null;
-  return /\b(clon|copi|igual|replic|recri|inspirad|baseado|parecido|mesmo\s*(estilo|layout|design))/i.test(t) ? m[0] : null;
+  return /\b(clon|copi|copy|igual|replic|recri|recrea|rebuild|inspir|baseado|based\s*on|parecido|similar|like\s*this|mesmo\s*(estilo|layout|design)|mismo\s*(estilo|dise)|same\s*(style|layout|design))/i.test(t) ? m[0] : null;
 }
 
 // Le a pagina-alvo como markdown (estrutura, textos, menus, imagens) por um
@@ -1090,10 +1111,11 @@ PADRAO DE PRODUTO PRONTO PRA VENDER (o que separa um app de verdade de um rascun
 - MOVIMENTO com proposito: transicoes de 150-300ms em hover/abrir modal; entrada suave dos cards; respeite prefers-reduced-motion.
 - Em apps com produtos/servicos/imoveis/pratos, use FOTOS do tema geradas por IA: https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=800&height=600&nologo=true&seed=N com onError trocando para https://picsum.photos/seed/N/800/600.`;
 
-export async function generateProject({ history, userMessage, images, embedImages = [], providerId = "", mode = "create", currentFiles = null, supabase = {}, kind = "app", brief = "" }, onEvent = () => {}) {
+export async function generateProject({ history, userMessage, images, embedImages = [], providerId = "", mode = "create", currentFiles = null, supabase = {}, kind = "app", brief = "", idiomaIA = "" }, onEvent = () => {}) {
   const baseHistory = [...(history || [])];
   // "site" = pagina de vendas/landing; "app" = sistema/micro-SaaS. Muda so o prompt.
-  const systemBase = (kind === "site" ? SYSTEM_SITE_KIT : SYSTEM_MICROSAAS) + REGRAS_QUALIDADE;
+  // idiomaIA: instrucao de idioma (vazia em pt) — textos do projeto no idioma da pessoa.
+  const systemBase = (kind === "site" ? SYSTEM_SITE_KIT : SYSTEM_MICROSAAS) + REGRAS_QUALIDADE + idiomaIA;
 
   // Imagens que a pessoa quer DENTRO do projeto. A IA nao consegue gravar
   // arquivo binario, entao ela usa marcadores e nos trocamos pelo conteudo
@@ -1152,7 +1174,7 @@ Mudanca pedida: "${userMessage}"`;
     // CLONADOR: "clone/igual a https://..." -> le a pagina e usa como referencia.
     const alvo = urlParaClonar(userMessage);
     if (alvo) {
-      onEvent({ type: "status", text: `Lendo a página de referência (${alvo.replace(/^https?:\/\//, "").slice(0, 40)})…` });
+      onEvent({ type: "status", text: t("Lendo a página de referência ({site})…", { site: alvo.replace(/^https?:\/\//, "").slice(0, 40) }) });
       const ref = await lerPaginaReferencia(alvo);
       if (ref) {
         onEvent({ type: "clone", url: alvo });
@@ -1252,7 +1274,7 @@ Mudanca pedida: "${userMessage}"`;
     if (isCompleteHtml(html)) {
       return { paginaUnica: true, html, complete: true, provider: reply.providerLabel, model: reply.model };
     }
-    onEvent({ type: "notice", text: "A IA nao gerou as telas do sistema — a resposta pode ter sido cortada. Peca de novo, ou troque para Gemini ou gpt-4o (geram projetos maiores sem cortar)." });
+    onEvent({ type: "notice", text: t("A IA não gerou as telas do sistema — a resposta pode ter sido cortada. Peça de novo ou troque de modelo (Gemini costuma gerar projetos maiores sem cortar).") });
   }
 
   // Encaixa os arquivos da IA no kit estiloso (Tailwind + componentes prontos).
