@@ -131,8 +131,8 @@ export default function App({ oauthResult, oauthError }) {
   useEffect(() => {
     if (!busy) return;
     setRunAgora(Date.now());
-    const t = setInterval(() => setRunAgora(Date.now()), 250);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setRunAgora(Date.now()), 250);
+    return () => clearInterval(timer);
   }, [busy]);
 
   // Batimento de progresso: a geração pode demorar minutos sem emitir evento
@@ -166,8 +166,8 @@ export default function App({ oauthResult, oauthError }) {
       }
     }
     tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
     // addStep/setStatusText são estáveis (setState); fmtDur é função de módulo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
@@ -1109,8 +1109,8 @@ function RunCard({ steps, done, startedAt, endedAt }) {
   // cronometro ao vivo: so corre enquanto trabalha
   useEffect(() => {
     if (done) return;
-    const t = setInterval(() => setAgora(Date.now()), 250);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setAgora(Date.now()), 250);
+    return () => clearInterval(timer);
   }, [done]);
 
   const base = startedAt || agora;
