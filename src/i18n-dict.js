@@ -321,8 +321,10 @@ const en = {
   "imobiliária": "real estate",
   "academia": "gym",
   "quiz/funil": "quiz/funnel",
+  "tela": "screen",
   "telas": "screens",
   "Telas do projeto": "Project screens",
+  "Só achei a tela inicial. Se o projeto tem outras telas, conecte o GitHub para eu ler as rotas.": "I only found the home screen. If the project has other screens, connect GitHub so I can read the routes.",
   "eventos": "events"
 };
 
@@ -646,8 +648,10 @@ const es = {
   "imobiliária": "inmobiliaria",
   "academia": "gimnasio",
   "quiz/funil": "quiz/embudo",
+  "tela": "pantalla",
   "telas": "pantallas",
   "Telas do projeto": "Pantallas del proyecto",
+  "Só achei a tela inicial. Se o projeto tem outras telas, conecte o GitHub para eu ler as rotas.": "Solo encontré la pantalla de inicio. Si el proyecto tiene otras pantallas, conecta GitHub para que pueda leer las rutas.",
   "eventos": "eventos"
 };
 

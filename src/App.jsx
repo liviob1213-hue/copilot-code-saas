@@ -659,7 +659,7 @@ export default function App({ oauthResult, oauthError }) {
             <div className={"preview-col" + (mobileView === "chat" ? " m-off" : "")}>
               <div className="preview-bar">
                 <div className="browser-dots"><i /><i /><i /></div>
-                <RotaPicker rotas={rotas} rota={rota} onPick={irParaRota} previewUrl={previewUrl} />
+                <RotaPicker rotas={rotas} rota={rota} onPick={irParaRota} previewUrl={previewUrl} onAbrir={() => carregarRotas(repo)} />
                 <div className="vp-toggle">
                   <button className={"vp" + (viewport === "desktop" ? " on" : "")} onClick={() => setViewport("desktop")} title={t("Computador")}><IconDesktop /></button>
                   <button className={"vp" + (viewport === "mobile" ? " on" : "")} onClick={() => setViewport("mobile")} title={t("Celular")}><IconMobile /></button>
@@ -1081,22 +1081,23 @@ function ProjectPicker({ projects, onLoad, onOpen, onNew }) {
 
 // Barra de endereço do preview que também LISTA as rotas do projeto: clicou,
 // o preview abre aquela tela (/admin, /clientes…), como no Lovable.
-function RotaPicker({ rotas, rota, onPick, previewUrl }) {
+function RotaPicker({ rotas, rota, onPick, previewUrl, onAbrir }) {
   const [open, setOpen] = useState(false);
   const host = (() => { try { return new URL(previewUrl).host; } catch { return null; } })();
-  const temRotas = rotas.length > 1;
+  // Sempre clicavel: antes ficava desabilitado quando so havia "/" (por exemplo
+  // quando a leitura do App.jsx falhava) e dava a impressao de estar quebrado.
+  const soRaiz = rotas.length <= 1;
   return (
     <div className="url-bar-wrap">
       <button
-        className={"url-bar" + (temRotas ? " clicavel" : "")}
-        onClick={() => temRotas && setOpen(v => !v)}
+        className="url-bar clicavel"
+        onClick={() => { const abrindo = !open; setOpen(abrindo); if (abrindo && soRaiz) onAbrir?.(); }}
         title={previewUrl || t("sem preview ainda")}
-        disabled={!temRotas}
       >
         <span className="lock"><IconLock /></span>
         <span className="url">{host ? host : t("sem preview ainda")}<b className="url-rota">{host && rota !== "/" ? rota : ""}</b></span>
-        {temRotas && <span className="url-count">{rotas.length} {t("telas")}</span>}
-        {temRotas && <IconChevronDown />}
+        <span className="url-count">{rotas.length} {t(rotas.length === 1 ? "tela" : "telas")}</span>
+        <IconChevronDown />
       </button>
       {open && (<>
         <div className="pop-back" onClick={() => setOpen(false)} />
@@ -1107,6 +1108,7 @@ function RotaPicker({ rotas, rota, onPick, previewUrl }) {
               <IconFile /> <span>{r}</span>{r === rota && <span className="lang-ok"><IconCheck /></span>}
             </button>
           ))}
+          {soRaiz && <div className="rotas-aviso">{t("Só achei a tela inicial. Se o projeto tem outras telas, conecte o GitHub para eu ler as rotas.")}</div>}
         </div>
       </>)}
     </div>

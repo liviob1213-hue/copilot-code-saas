@@ -1169,3 +1169,4 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
 .rotas-pop button.on { color: #fecdd3; background: rgba(239, 68, 68, .12); }
 .rotas-pop button svg:first-child { opacity: .6; flex: none; }
 .rotas-pop button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rotas-aviso { padding: 9px 11px 4px; font-size: 11.5px; line-height: 1.5; color: var(--ink-faint); font-family: var(--font); }

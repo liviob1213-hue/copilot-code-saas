@@ -189,24 +189,35 @@ function buildRequest(provider, cfg, apiKey, { system, messages, tools, model })
       max_tokens: tools.length ? 8000 : (provider.maxOutput || 16000),
       messages: msgs
     };
-    // System VAZIO faz a Anthropic responder 400 ("text content blocks must be
-    // non-empty") — acontecia no health check, que manda system vazio. So inclui
-    // quando ha texto. O prompt de sistema e igual nos ~24 passos do agente, por
-    // isso vai marcado como cacheavel (a Anthropic cobra 10% dele no reuso).
+    // CACHE SO QUANDO VALE: a Anthropic RECUSA (400) um cache_control em
+    // conteudo curto demais (o minimo fica na casa de ~1024 tokens). Era isso
+    // que derrubava o health check ("ping") e qualquer pedido curto. Por isso
+    // so marcamos quando ha texto suficiente — a economia real acontece nos
+    // prompts grandes do agente, que continuam sendo cacheados.
+    const CHARS_MIN_CACHE = 6000;   // ~1500 tokens, com folga sobre o minimo
+    const systemLongo = Boolean(system && system.trim().length > CHARS_MIN_CACHE);
+    // System VAZIO tambem responde 400 ("text content blocks must be non-empty")
+    // — acontecia no health check, que manda system vazio.
     if (system && system.trim()) {
-      body.system = [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+      body.system = [{
+        type: "text",
+        text: system,
+        ...(systemLongo ? { cache_control: { type: "ephemeral" } } : {})
+      }];
     }
     if (tools.length) {
       body.tools = tools.map(t => ({
         name: t.name, description: t.description, input_schema: t.parameters
       }));
-      // Fecha o bloco estatico system+ferramentas no cache.
-      body.tools[body.tools.length - 1].cache_control = { type: "ephemeral" };
+      // Fecha o bloco estatico system+ferramentas no cache (so se ja for grande).
+      if (systemLongo) body.tools[body.tools.length - 1].cache_control = { type: "ephemeral" };
     }
     // Cacheia tambem o historico ate aqui: a cada passo o prefixo cresce e se
     // repete, entao marcamos o ultimo bloco para o proximo passo reaproveitar.
+    // So faz sentido (e so e aceito) quando a conversa ja esta grande.
+    const conversaGrande = JSON.stringify(msgs).length > CHARS_MIN_CACHE;
     const lastMsg = msgs[msgs.length - 1];
-    if (lastMsg && Array.isArray(lastMsg.content) && lastMsg.content.length) {
+    if (conversaGrande && lastMsg && Array.isArray(lastMsg.content) && lastMsg.content.length) {
       const lastBlock = lastMsg.content[lastMsg.content.length - 1];
       if (lastBlock && typeof lastBlock === "object") {
         lastBlock.cache_control = { type: "ephemeral" };
@@ -488,6 +499,11 @@ export async function listModels(providerId) {
   const secrets = await store.get("secrets");
   const apiKey = (secrets[provider.secretKey] || "").trim();
   if (!apiKey) throw new Error("Cole a chave deste servico antes de buscar os modelos.");
+
+  // A Anthropic so libera acesso direto do navegador no /v1/messages; o
+  // /v1/models recusa a chamada da pagina (aparecia como 400 no console). Como
+  // mantemos a lista certa no catalogo, devolvemos ela em vez de ir na rede.
+  if (provider.kind === "anthropic") return [...provider.models];
 
   let url = provider.listEndpoint;
   const headers = { accept: "application/json" };
