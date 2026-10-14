@@ -98,6 +98,10 @@ export default function App({ oauthResult, oauthError }) {
   const [toast, setToast] = useState(null);
   const sessionRef = useRef(null);
   const msgRef = useRef(null);
+  // "Grudar" no fim da conversa: só rola sozinho pro fim quando a pessoa já
+  // está perto do fim. Assim, durante a geração (passos entrando a cada seg.),
+  // se ela rolar pra cima pra ler, a tela NÃO é puxada de volta.
+  const stickRef = useRef(true);
   const inputRef = useRef(null);
   const homeFileRef = useRef(null);
   const flowRef = useRef("ia");   // "ia" = geração/edição por IA · "sistema" = deploy/reconexão sem IA
@@ -125,7 +129,9 @@ export default function App({ oauthResult, oauthError }) {
     if (oauthError) showToast(oauthError, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { if (msgRef.current) msgRef.current.scrollTop = msgRef.current.scrollHeight; }, [messages]);
+  useEffect(() => { const el = msgRef.current; if (el && stickRef.current) el.scrollTop = el.scrollHeight; }, [messages]);
+  // Atualiza o "grudar" conforme a pessoa rola: perto do fim = volta a grudar.
+  function onChatScroll(e) { const el = e.currentTarget; stickRef.current = (el.scrollHeight - el.scrollTop - el.clientHeight) < 90; }
 
   // Tick do cronômetro global de execução (só corre enquanto busy).
   useEffect(() => {
@@ -173,7 +179,7 @@ export default function App({ oauthResult, oauthError }) {
   }, [busy]);
 
   function pushMsg(role, text, images) { setMessages(m => [...m, { role, text, images }]); }
-  function startRun() { setStatusText(t("Preparando…")); setRunStartedAt(Date.now()); setMessages(m => [...m, { role: "run", steps: [], done: false, startedAt: Date.now() }]); }
+  function startRun() { stickRef.current = true; setStatusText(t("Preparando…")); setRunStartedAt(Date.now()); setMessages(m => [...m, { role: "run", steps: [], done: false, startedAt: Date.now() }]); }
   function addStep(text) {
     setMessages(m => {
       const c = [...m];
@@ -377,7 +383,7 @@ export default function App({ oauthResult, oauthError }) {
   async function openSession(id) {
     const s = await history.getSession(id);
     if (!s) return;
-    setHistOpen(false); sessionRef.current = id;
+    setHistOpen(false); sessionRef.current = id; stickRef.current = true;
     setRepo(s.repo || null); setPreviewUrl(s.repo?.url || null);
     setMessages((s.messages || []).map(m => ({ role: m.role, text: m.text })));
     setView("workspace");
@@ -600,7 +606,7 @@ export default function App({ oauthResult, oauthError }) {
                 </div>
               </div>
 
-              <div className="chat-messages" ref={msgRef}>
+              <div className="chat-messages" ref={msgRef} onScroll={onChatScroll}>
                 {messages.length === 0 && (
                   <div className="chat-empty">
                     <span className="orb"><IconSpark /></span>
@@ -1102,7 +1108,8 @@ function fmtDur(ms) {
   return m > 0 ? `${m}m ${String(r).padStart(2, "0")}s` : `${r}s`;
 }
 
-function RunCard({ steps, done, startedAt, endedAt }) {
+function RunCard({ steps = [], done, startedAt, endedAt }) {
+  steps = Array.isArray(steps) ? steps : [];
   const [open, setOpen] = useState(true);   // aberto enquanto trabalha (ensina), recolhe ao terminar
   const [agora, setAgora] = useState(Date.now());
   useEffect(() => { if (done) setOpen(false); }, [done]);

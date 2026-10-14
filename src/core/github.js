@@ -26,11 +26,14 @@ export async function renovarTokenSePreciso(gh, forcar = false) {
   // Renova de antemao quando falta menos de 5 min (ou quando forcar, apos 401).
   if (!forcar && faltam > 5 * 60 * 1000) return gh;
   try {
-    const res = await fetch("https://github.com/login/oauth/access_token", {
+    // A renovacao vai pelo WORKER (nao direto no github.com): o endpoint do
+    // GitHub nao libera CORS para o navegador e exige o client_secret, que so
+    // existe no Worker. Chamar github.com daqui falhava sempre (CORS) e o
+    // usuario tinha que reconectar o tempo todo.
+    const res = await fetch(GITHUB_OAUTH.workerUrl, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify({
-        client_id: GITHUB_OAUTH.clientId,
         grant_type: "refresh_token",
         refresh_token: gh.refreshToken
       })
