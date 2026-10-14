@@ -78,7 +78,10 @@ function toAnthropic(messages) {
         const [, mediaType, data] = img.match(/^data:(.+?);base64,(.+)$/) || [];
         if (data) content.push({ type: "image", source: { type: "base64", media_type: mediaType, data } });
       }
-      content.push({ type: "text", text: m.text });
+      // Bloco de texto VAZIO faz a Anthropic responder 400 ("text content blocks
+      // must be non-empty") — acontecia ao mandar SO a imagem, sem escrever nada.
+      if (m.text && String(m.text).trim()) content.push({ type: "text", text: m.text });
+      if (!content.length) content.push({ type: "text", text: "." });
       out.push({ role: "user", content });
     } else if (m.role === "assistant") {
       const content = [];
@@ -91,7 +94,8 @@ function toAnthropic(messages) {
       const block = {
         type: "tool_result",
         tool_use_id: m.toolCallId,
-        content: String(m.result)
+        // Resultado vazio tambem derruba com 400: manda um marcador no lugar.
+        content: String(m.result ?? "").trim() || "(sem retorno)"
       };
       const last = out[out.length - 1];
       if (last && last.role === "user" && last.content[0]?.type === "tool_result") {
@@ -650,14 +654,17 @@ export async function complete({ system, messages, tools, preferredProviderId = 
   // Se a conversa tem imagem, so provedores que enxergam imagem servem.
   const temImagem = messages.some(m => m.images?.length);
   if (temImagem) {
-    let comVisao = usable.filter(q => q.provider.vision);
+    // Visao "nativa" (Gemini/Claude) antes da lenta (DeepSeek, que usa um modelo
+    // separado e ja travou): com um print, tentamos primeiro quem responde bem.
+    const porVisao = (a, b) => (a.provider.visaoLenta ? 1 : 0) - (b.provider.visaoLenta ? 1 : 0);
+    let comVisao = usable.filter(q => q.provider.vision).sort(porVisao);
     // O escolhido nao enxerga imagem (ex.: DeepSeek, que e so texto)? Em vez de
     // falhar, usamos QUALQUER provedor com visao que esteja ligado e avisamos.
     // Antes isso virava erro e a pessoa achava que o anexo tinha parado de ir.
     if (!comVisao.length) {
       const alternativos = queue
         .filter(q => q.cfg.enabled && q.hasKey && q.provider.vision)
-        .sort((a, b) => tierRank(a.provider) - tierRank(b.provider) || a.cfg.priority - b.cfg.priority);
+        .sort((a, b) => porVisao(a, b) || tierRank(a.provider) - tierRank(b.provider) || a.cfg.priority - b.cfg.priority);
       if (alternativos.length) {
         comVisao = alternativos;
         onEvent({ type: "vision_fallback", provedores: alternativos.map(q => q.provider.label) });

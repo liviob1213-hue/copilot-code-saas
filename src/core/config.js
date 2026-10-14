@@ -36,7 +36,10 @@ export const SUPABASE_OAUTH = {
   scope: ""
 };
 
-export const CATALOG_VERSION = 13;
+// Suba este numero SEMPRE que mudar modelo/provedor no catalogo: a migracao em
+// storage.js so roda quando ele muda, e e ela que troca um modelo salvo que nao
+// existe mais (ex.: "claude-sonnet-5" antigo, que fazia a Anthropic dar 400).
+export const CATALOG_VERSION = 14;
 
 // tier: "free" entra no rodizio automatico primeiro; "paid" so e usado no
 // automatico depois que TODAS as gratis se esgotarem (protege o saldo do cliente).
@@ -132,7 +135,14 @@ export const PROVIDER_CATALOG = [
     id: "deepseek",
     tier: "paid",
     contextBudget: 120000,
-    vision: false,
+    // O DeepSeek SO enxerga imagem no modelo separado abaixo, e ele e lento
+    // (ja travou/deu timeout aqui). Por isso fica marcado como visao de ULTIMO
+    // RECURSO (visaoLenta): com um print, o rodizio tenta Gemini/Claude antes,
+    // e so usa o DeepSeek se nao houver outro. Assim anexar imagem funciona
+    // mesmo para quem so tem a chave do DeepSeek, sem atrasar os demais.
+    vision: true,
+    visaoLenta: true,
+    visionModel: "deepseek-v4-flash-vision-exp",
     label: "DeepSeek",
     kind: "openai",
     endpoint: "https://api.deepseek.com/v1/chat/completions",
@@ -140,8 +150,8 @@ export const PROVIDER_CATALOG = [
     secretKey: "DEEPSEEK_API_KEY",
     keyUrl: "https://platform.deepseek.com",
     defaultModel: "deepseek-v4-pro",
-    models: ["deepseek-v4-pro"],
-    note: "Paga. Forte em codigo. Para imagem, use Gemini ou Claude."
+    models: ["deepseek-v4-pro", "deepseek-v4-flash-vision-exp"],
+    note: "Paga. Forte em codigo. Enxerga imagem no modelo de visao (mais lento)."
   },
   {
     id: "xai",
