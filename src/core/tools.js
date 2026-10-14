@@ -2,7 +2,7 @@
 import * as gh from "./github.js";
 import * as sb from "./supabase-mgmt.js";
 import { AGENT_LIMITS } from "./config.js";
-import { corrigirEstiloImports, garantirIconesEComponentes, blindarImportsNpm, corrigirSintaxe } from "./site-generator.js";
+import { corrigirEstiloImports, garantirIconesEComponentes, blindarImportsNpm, corrigirSintaxe, dedupImports } from "./site-generator.js";
 import { STARTER_FILES } from "./starter-template.js";
 
 // Rede de seguranca do build aplicada tambem nas EDICOES (antes so a criacao
@@ -38,6 +38,7 @@ export async function blindarEdicao(ws, files) {
     for (const p of Object.keys(textos)) mapa[p] = corrigidos[p];
     mapa = garantirIconesEComponentes(mapa);
     mapa = blindarImportsNpm(mapa, extras);
+    mapa = dedupImports(mapa);
     mapa = corrigirSintaxe(mapa);
     for (const f of files) if (mapa[f.path] !== undefined) f.content = mapa[f.path];
   } catch { /* a rede de seguranca nunca pode impedir o commit */ }

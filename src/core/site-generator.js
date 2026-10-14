@@ -1086,6 +1086,63 @@ export function garantirImportsLocais(files) {
   return out;
 }
 
+// Remove imports DUPLICADOS no mesmo arquivo. A IA (ou a juncao de arquivos) as
+// vezes declara o mesmo simbolo duas vezes (ex.: dois "import PublicPage from
+// ...") e o esbuild da Vercel aborta com "symbol X has already been declared".
+// Aqui, varrendo de cima pra baixo, mantemos a 1a ocorrencia de cada binding e
+// removemos os specifiers repetidos (e a linha inteira quando nada sobra).
+export function dedupImports(files) {
+  const out = { ...files };
+  const localDe = (spec) => spec.split(/\s+as\s+/i).pop().trim(); // "a as b" -> "b"
+  for (const [path, content] of Object.entries(out)) {
+    if (!/\.(jsx?|tsx?)$/i.test(path)) continue;
+    const seen = new Set();      // bindings locais ja declarados
+    const seenSide = new Set();  // imports só-de-efeito ja vistos (import "x")
+    let changed = false;
+    let src = String(content);
+
+    // 1) imports com clausula: import <clausula> from "spec"
+    src = src.replace(/^([ \t]*)import\s+([\w$,\s{}*]+?)\s+from\s*(["'])([^"']+)\3\s*;?[ \t]*$/gm,
+      (full, indent, clause, q, spec) => {
+        clause = clause.trim();
+        const namedM = clause.match(/\{([^}]*)\}/);
+        const named = namedM ? namedM[1].split(",").map(s => s.trim()).filter(Boolean) : [];
+        const rest = clause.replace(/\{[^}]*\}/, "").replace(/,/g, " ").trim();
+        const nsM = rest.match(/\*\s*as\s+([A-Za-z0-9_$]+)/);
+        const nsName = nsM ? nsM[1] : null;
+        const defaultName = (!nsName && rest) ? rest.split(/\s+/)[0] : null;
+
+        const keepDefault = defaultName && !seen.has(defaultName) ? defaultName : null;
+        const keepNs = nsName && !seen.has(nsName) ? nsName : null;
+        const keepNamed = named.filter(n => !seen.has(localDe(n)));
+        const dropped = (defaultName && !keepDefault) || (nsName && !keepNs) || (keepNamed.length !== named.length);
+
+        if (defaultName) seen.add(defaultName);
+        if (nsName) seen.add(nsName);
+        for (const n of named) seen.add(localDe(n));
+
+        if (!dropped) return full;
+        changed = true;
+        if (!keepDefault && !keepNs && keepNamed.length === 0) return indent + "/* import duplicado removido */";
+        const head = [keepDefault, keepNs ? "* as " + keepNs : null].filter(Boolean).join(", ");
+        const namedStr = keepNamed.length ? `{ ${keepNamed.join(", ")} }` : "";
+        const clauseNew = [head, namedStr].filter(Boolean).join(", ");
+        return `${indent}import ${clauseNew} from ${q}${spec}${q};`;
+      });
+
+    // 2) imports só-de-efeito: import "spec"  (ex.: import "./theme.css")
+    src = src.replace(/^([ \t]*)import\s*(["'])([^"']+)\2\s*;?[ \t]*$/gm,
+      (full, indent, q, spec) => {
+        if (seenSide.has(spec)) { changed = true; return indent + "/* import duplicado removido */"; }
+        seenSide.add(spec);
+        return full;
+      });
+
+    if (changed) out[path] = src;
+  }
+  return out;
+}
+
 /** Gera o projeto micro-SaaS completo. */
 // Regras somadas a TODO prompt de criacao. Reduzem a causa #1 de build quebrado
 // (sintaxe) e deixam o resultado mais profissional.
@@ -1286,6 +1343,7 @@ Mudanca pedida: "${userMessage}"`;
   files = garantirImportsLocais(files);   // cria stubs para imports LOCAIS que faltarem
   files = garantirIconesEComponentes(files); // icone/componente usado sem import -> importa ou stub (evita tela branca)
   files = blindarImportsNpm(files);       // neutraliza imports de pacotes npm nao instalados
+  files = dedupImports(files);            // remove imports duplicados (symbol X already declared)
   files = corrigirSintaxe(files);         // aspas curvas -> retas (evita build quebrado)
   files = injetarCredenciais(files, supabase);
   files = injetarImagens(files, embedImages);
