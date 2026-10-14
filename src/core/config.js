@@ -121,8 +121,11 @@ export const PROVIDER_CATALOG = [
     listEndpoint: "https://api.anthropic.com/v1/models",
     secretKey: "ANTHROPIC_API_KEY",
     keyUrl: "https://console.anthropic.com",
-    defaultModel: "claude-sonnet-5",
-    models: ["claude-sonnet-5"],
+    // Os IDs da Anthropic sao exatos: "claude-sonnet-5" NAO existe e a API
+    // responde 400. Os validos da familia Claude 5 sao os de baixo.
+    defaultModel: "claude-sonnet-5-5",
+    models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"],
+    maxOutput: 16000,
     note: "Paga. Melhor qualidade de codigo e enxerga imagem."
   },
   {

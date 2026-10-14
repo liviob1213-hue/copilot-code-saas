@@ -8,6 +8,7 @@ import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, githubConfigurado, supabaseConfigurado } from "./core/oauth-web.js";
 import * as github from "./core/github.js";
+import { extrairRotas } from "./core/site-generator.js";
 import * as vercel from "./core/vercel.js";
 import * as sbmgmt from "./core/supabase-mgmt.js";
 import { t, useIdioma, setIdioma, IDIOMAS, infoIdioma, locale } from "./i18n.js";
@@ -82,6 +83,9 @@ export default function App({ oauthResult, oauthError }) {
   const [mobileView, setMobileView] = useState("chat");   // mobile: "chat" | "preview"
   const [repo, setRepo] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+  // Rotas do projeto (lidas do App.jsx) para o seletor em cima do preview.
+  const [rotas, setRotas] = useState(["/"]);
+  const [rota, setRota] = useState("/");
   const [viewport, setViewport] = useState("desktop");
   const [conn, setConn] = useState({ github: null, supabase: false, vercel: false, ia: true });
   const [categoria, setCategoria] = useState("todos");
@@ -319,6 +323,10 @@ export default function App({ oauthResult, oauthError }) {
       endRun();
       setRepo(r.repo);
       if (r.url) setPreviewUrl(r.url);
+      // Atualiza o seletor de rotas: na criação já temos os arquivos; na
+      // edição relemos o App.jsx (a alteração pode ter criado rotas novas).
+      if (r.files?.["src/App.jsx"]) aplicarRotas(r.files["src/App.jsx"]);
+      else carregarRotas(r.repo);
       pushMsg("assistant", r.resumo || `${repo ? t("Pronto — alteração salva.") : t("Projeto criado: {repo}", { repo: `${r.repo.owner}/${r.repo.name}` })}${r.url ? `\n${t("No ar:")} ${r.url}` : ""}`);
       refreshHistory(); loadVercelProjects();
     } catch (e) {
@@ -373,7 +381,22 @@ export default function App({ oauthResult, oauthError }) {
     } catch (e) { endRun(); pushMsg("error", e.message); showToast(e.message, true); }
     finally { setBusy(false); }
   }
-  function novoProjeto() { setModo(""); sessionRef.current = null; setRepo(null); setPreviewUrl(null); setMessages([]); setView("home"); }
+  // Rotas: do arquivo gerado (criação) ou lendo o App.jsx do repositório.
+  function aplicarRotas(appJsx) { const rs = extrairRotas(appJsx); setRotas(rs); setRota(r => rs.includes(r) ? r : "/"); }
+  async function carregarRotas(r) {
+    if (!r?.owner) return;
+    // readFile devolve { path, sha, size, content } — o texto está em .content.
+    try { aplicarRotas((await github.readFile(r.owner, r.name, r.branch || "main", "src/App.jsx")).content); }
+    catch { setRotas(["/"]); setRota("/"); }
+  }
+  // Troca a rota mostrada no preview (igual ao Lovable: clicou, o preview vai).
+  function irParaRota(nova) {
+    setRota(nova);
+    const base = (() => { try { return new URL(repo?.url || previewUrl).origin; } catch { return null; } })();
+    if (base) setPreviewUrl(base + (nova === "/" ? "/" : nova) + "?r=" + Date.now());
+  }
+
+  function novoProjeto() { setModo(""); setRotas(["/"]); setRota("/"); sessionRef.current = null; setRepo(null); setPreviewUrl(null); setMessages([]); setView("home"); }
   // Só preenche o campo (comportamento igual ao de digitar): não envia nada.
   function sugerir(texto) {
     setInput(texto);
@@ -385,6 +408,7 @@ export default function App({ oauthResult, oauthError }) {
     if (!s) return;
     setHistOpen(false); sessionRef.current = id; stickRef.current = true;
     setRepo(s.repo || null); setPreviewUrl(s.repo?.url || null);
+    setRota("/"); carregarRotas(s.repo);
     setMessages((s.messages || []).map(m => ({ role: m.role, text: m.text })));
     setView("workspace");
   }
@@ -398,6 +422,7 @@ export default function App({ oauthResult, oauthError }) {
     sessionRef.current = null;
     const repoInfo = { owner: p.owner, name: p.name, branch: p.branch || "main", url: p.url || null, brief: "" };
     setRepo(repoInfo);
+    setRota("/"); carregarRotas(repoInfo);
     setMessages([{ role: "assistant", text: t("Projeto aberto: {repo}. Peça as alterações aqui que eu edito.", { repo: `${p.owner}/${p.name}` }) }]);
     setView("workspace");
     let url = p.url || null;
@@ -634,10 +659,7 @@ export default function App({ oauthResult, oauthError }) {
             <div className={"preview-col" + (mobileView === "chat" ? " m-off" : "")}>
               <div className="preview-bar">
                 <div className="browser-dots"><i /><i /><i /></div>
-                <div className="url-bar" title={previewUrl || t("sem preview ainda")}>
-                  <span className="lock"><IconLock /></span>
-                  <span className="url">{previewUrl ? previewUrl.replace(/^https?:\/\//, "") : t("sem preview ainda")}</span>
-                </div>
+                <RotaPicker rotas={rotas} rota={rota} onPick={irParaRota} previewUrl={previewUrl} />
                 <div className="vp-toggle">
                   <button className={"vp" + (viewport === "desktop" ? " on" : "")} onClick={() => setViewport("desktop")} title={t("Computador")}><IconDesktop /></button>
                   <button className={"vp" + (viewport === "mobile" ? " on" : "")} onClick={() => setViewport("mobile")} title={t("Celular")}><IconMobile /></button>
@@ -1051,6 +1073,40 @@ function ProjectPicker({ projects, onLoad, onOpen, onNew }) {
                 </button>
               ))}
           </div>
+        </div>
+      </>)}
+    </div>
+  );
+}
+
+// Barra de endereço do preview que também LISTA as rotas do projeto: clicou,
+// o preview abre aquela tela (/admin, /clientes…), como no Lovable.
+function RotaPicker({ rotas, rota, onPick, previewUrl }) {
+  const [open, setOpen] = useState(false);
+  const host = (() => { try { return new URL(previewUrl).host; } catch { return null; } })();
+  const temRotas = rotas.length > 1;
+  return (
+    <div className="url-bar-wrap">
+      <button
+        className={"url-bar" + (temRotas ? " clicavel" : "")}
+        onClick={() => temRotas && setOpen(v => !v)}
+        title={previewUrl || t("sem preview ainda")}
+        disabled={!temRotas}
+      >
+        <span className="lock"><IconLock /></span>
+        <span className="url">{host ? host : t("sem preview ainda")}<b className="url-rota">{host && rota !== "/" ? rota : ""}</b></span>
+        {temRotas && <span className="url-count">{rotas.length} {t("telas")}</span>}
+        {temRotas && <IconChevronDown />}
+      </button>
+      {open && (<>
+        <div className="pop-back" onClick={() => setOpen(false)} />
+        <div className="pop menu rotas-pop">
+          <div className="pop-group">{t("Telas do projeto")}</div>
+          {rotas.map(r => (
+            <button key={r} className={r === rota ? "on" : ""} onClick={() => { setOpen(false); onPick(r); }}>
+              <IconFile /> <span>{r}</span>{r === rota && <span className="lang-ok"><IconCheck /></span>}
+            </button>
+          ))}
         </div>
       </>)}
     </div>
@@ -1518,6 +1574,7 @@ const IconChevronLeft = () => <svg viewBox="0 0 24 24" width="15" height="15" {.
 const IconMenu = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S} strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>;
 const IconAlert = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></svg>;
 const IconInfo = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><circle cx="12" cy="12" r="9.5" /><path d="M12 16v-4.5M12 8h.01" /></svg>;
+const IconFile = () => <svg viewBox="0 0 24 24" width="14" height="14" {...S}><path d="M14 2.5H7a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7.5z" /><path d="M14 2.5v5h5" /></svg>;
 const IconPanel = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><rect x="3" y="3.5" width="18" height="17" rx="3" /><path d="M9 3.5v17" /></svg>;
 const IconGlobe = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><circle cx="12" cy="12" r="9.5" /><path d="M2.5 12h19M12 2.5a14.5 14.5 0 0 1 0 19M12 2.5a14.5 14.5 0 0 0 0 19" /></svg>;
 const IconKey = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14.5 8.5l2 2" /></svg>;

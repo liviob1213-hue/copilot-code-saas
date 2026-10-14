@@ -1151,3 +1151,21 @@ input.text.mini { width: 118px; padding: 7px 9px; font-size: 12px; font-family: 
 .m-opt.on { border-color: rgba(239, 68, 68, .65); background: rgba(239, 68, 68, .16) !important; }
 .tpl-body { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px 14px; }
 .home .tpl-ic { width: 30px; height: 30px; border-radius: 9px; }
+
+/* ---- seletor de rotas do preview (lista as telas do projeto) ---- */
+.url-bar-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.url-bar { width: 100%; text-align: left; font: inherit; }
+button.url-bar { cursor: default; }
+button.url-bar.clicavel { cursor: pointer; }
+button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--glass-2); color: var(--ink-dim); }
+.url-rota { color: var(--ink); font-weight: 600; }
+.url-count {
+  margin-left: auto; flex: none; font-size: 10.5px; letter-spacing: .03em;
+  padding: 1px 7px; border-radius: 999px; border: 1px solid var(--edge);
+  color: var(--ink-faint); background: var(--glass-2); font-family: var(--font);
+}
+.rotas-pop { position: absolute; top: calc(100% + 8px); bottom: auto; left: 0; width: 260px; max-height: 320px; overflow-y: auto; transform-origin: top left; }
+.rotas-pop button { font-family: var(--mono); font-size: 12.5px; }
+.rotas-pop button.on { color: #fecdd3; background: rgba(239, 68, 68, .12); }
+.rotas-pop button svg:first-child { opacity: .6; flex: none; }
+.rotas-pop button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

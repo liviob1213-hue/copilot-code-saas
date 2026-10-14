@@ -182,12 +182,16 @@ function buildRequest(provider, cfg, apiKey, { system, messages, tools, model })
     const msgs = toAnthropic(messages);
     const body = {
       model,
-      max_tokens: tools.length ? 8000 : (provider.maxOutput || 32000),
-      // O prompt de sistema e igual em todos os ~24 passos do agente. Marcado
-      // como cacheavel, a Anthropic cobra 10% dele no reuso (cache de 5 min).
-      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      max_tokens: tools.length ? 8000 : (provider.maxOutput || 16000),
       messages: msgs
     };
+    // System VAZIO faz a Anthropic responder 400 ("text content blocks must be
+    // non-empty") — acontecia no health check, que manda system vazio. So inclui
+    // quando ha texto. O prompt de sistema e igual nos ~24 passos do agente, por
+    // isso vai marcado como cacheavel (a Anthropic cobra 10% dele no reuso).
+    if (system && system.trim()) {
+      body.system = [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+    }
     if (tools.length) {
       body.tools = tools.map(t => ({
         name: t.name, description: t.description, input_schema: t.parameters
@@ -646,7 +650,19 @@ export async function complete({ system, messages, tools, preferredProviderId = 
   // Se a conversa tem imagem, so provedores que enxergam imagem servem.
   const temImagem = messages.some(m => m.images?.length);
   if (temImagem) {
-    const comVisao = usable.filter(q => q.provider.vision);
+    let comVisao = usable.filter(q => q.provider.vision);
+    // O escolhido nao enxerga imagem (ex.: DeepSeek, que e so texto)? Em vez de
+    // falhar, usamos QUALQUER provedor com visao que esteja ligado e avisamos.
+    // Antes isso virava erro e a pessoa achava que o anexo tinha parado de ir.
+    if (!comVisao.length) {
+      const alternativos = queue
+        .filter(q => q.cfg.enabled && q.hasKey && q.provider.vision)
+        .sort((a, b) => tierRank(a.provider) - tierRank(b.provider) || a.cfg.priority - b.cfg.priority);
+      if (alternativos.length) {
+        comVisao = alternativos;
+        onEvent({ type: "vision_fallback", provedores: alternativos.map(q => q.provider.label) });
+      }
+    }
     if (!comVisao.length) {
       throw new Error(
         "Voce anexou uma imagem, mas nenhum provedor com visao esta ativo. Ligue e coloque a chave do Gemini ou do Claude (os que enxergam imagem)."

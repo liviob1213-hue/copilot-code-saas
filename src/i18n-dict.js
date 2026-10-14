@@ -321,6 +321,8 @@ const en = {
   "imobiliária": "real estate",
   "academia": "gym",
   "quiz/funil": "quiz/funnel",
+  "telas": "screens",
+  "Telas do projeto": "Project screens",
   "eventos": "events"
 };
 
@@ -644,6 +646,8 @@ const es = {
   "imobiliária": "inmobiliaria",
   "academia": "gimnasio",
   "quiz/funil": "quiz/embudo",
+  "telas": "pantallas",
+  "Telas do projeto": "Pantallas del proyecto",
   "eventos": "eventos"
 };
 

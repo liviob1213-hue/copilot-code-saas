@@ -442,6 +442,22 @@ export function detectarKit(texto) {
   return null;
 }
 
+// Le as rotas declaradas no App.jsx (<Route path="/admin" .../>), para o
+// seletor de rotas do preview. Ignora a curinga "*" e ordena com "/" primeiro.
+export function extrairRotas(appJsx) {
+  const txt = String(appJsx || "");
+  const achadas = new Set();
+  for (const m of txt.matchAll(/<Route\s[^>]*?path\s*=\s*["'`]([^"'`]+)["'`]/g)) {
+    let p = m[1].trim();
+    if (!p || p === "*") continue;
+    if (!p.startsWith("/")) p = "/" + p;
+    if (p.includes(":")) continue;          // rota com parametro (ex.: /imovel/:id) nao da pra abrir sozinha
+    achadas.add(p.replace(/\/+$/, "") || "/");
+  }
+  achadas.add("/");
+  return [...achadas].sort((a, b) => (a === "/" ? -1 : b === "/" ? 1 : a.localeCompare(b)));
+}
+
 // Pedido de CLONE de pagina? Devolve a URL a clonar (ou null).
 export function urlParaClonar(texto) {
   const t = String(texto || "");
