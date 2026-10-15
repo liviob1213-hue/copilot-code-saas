@@ -1268,6 +1268,19 @@ PADRAO DE PRODUTO PRONTO PRA VENDER (o que separa um app de verdade de um rascun
 - MOVIMENTO com proposito: transicoes de 150-300ms em hover/abrir modal; entrada suave dos cards; respeite prefers-reduced-motion.
 - Em apps com produtos/servicos/imoveis/pratos, use FOTOS do tema geradas por IA: https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=800&height=600&nologo=true&seed=N com onError trocando para https://picsum.photos/seed/N/800/600.`;
 
+// "Cortada" = algum arquivo ficou ABERTO (mais ===FILE: do que ===END===).
+// Antes exigiamos que o texto TERMINASSE em ===END===; num teste real a IA
+// fechou todos os arquivos e depois escreveu 1.900 caracteres de observacoes
+// ("Telefone: (00) 00000-0000…") — o app achou que estava cortada e pediu uma
+// continuacao inteira a toa (mais tempo, mais custo, e o risco de a
+// continuacao reescrever arquivos que ja estavam bons).
+export function respostaFechada(t) {
+  const s = String(t);
+  const abertos = (s.match(/===\s*FILE:/g) || []).length;
+  const fechados = (s.match(/===\s*END\s*===/g) || []).length;
+  return abertos > 0 ? fechados >= abertos : /===END===\s*$/.test(s.trimEnd());
+}
+
 // --- garantia do App.jsx (ver generateProject) --------------------------------
 
 const temApp = f => Boolean(f["src/App.jsx"] || f["src/App.tsx"]);
@@ -1459,7 +1472,7 @@ Mudanca pedida: "${userMessage}"`;
   // parou — SEM recomecar. Como o complete() faz rodizio, a continuacao pode
   // cair em OUTRO provedor: ele recebe tudo que ja foi escrito e completa o
   // projeto a partir dali. Assim um provedor complementa o outro ate terminar.
-  const fechouBloco = t => /===END===\s*$/.test(String(t).trimEnd());
+  const fechouBloco = respostaFechada;
   let fullText = reply.text || "";
   let files = normalizarCaminhos(parseFiles(fullText));
   let voltas = 0;
