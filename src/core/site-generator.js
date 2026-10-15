@@ -1085,6 +1085,48 @@ export function corrigirEstiloImports(files) {
   return out;
 }
 
+/**
+ * Remove o <BrowserRouter>/<HashRouter> que a IA coloca no App.jsx quando o
+ * main.jsx JA tem um. Router dentro de router faz o React Router lancar erro na
+ * renderizacao e o React desmonta a pagina inteira: tela vazia, sem nada.
+ *
+ * Caso real (site da barbearia): o App mostrava a tela de carregamento por
+ * 2,5s e depois renderizava <BrowserRouter><Routes>…</Routes></BrowserRouter>.
+ * Como o main.jsx do kit ja envolve o App num <BrowserRouter>, aos 2,5s vinha o
+ * erro e o site sumia. O prompt pede TRES vezes para nao fazer isso e o modelo
+ * fez mesmo assim — entao a correcao tem que ser no codigo, nao no pedido.
+ *
+ * So age quando o main.jsx tem router: em projetos de fora (Lovable etc.), o
+ * router pode morar legitimamente no App.jsx. Troca as tags por fragmento
+ * (<>…</>) e tira o nome do import. Entende alias ("BrowserRouter as Router").
+ */
+export function removerRouterDuplicado(files, mainJsx = files["src/main.jsx"]) {
+  if (!/<(BrowserRouter|HashRouter)\b|RouterProvider/.test(String(mainJsx || ""))) return files;
+  const out = { ...files };
+  for (const [path, content] of Object.entries(out)) {
+    if (!/^src\/.+\.(jsx|tsx|js|ts)$/i.test(path) || /^src\/main\.(jsx|tsx|js|ts)$/i.test(path)) continue;
+    let c = String(content);
+    const imp = c.match(/import\s*\{([^}]*)\}\s*from\s*["']react-router-dom["'];?/);
+    if (!imp) continue;
+    const nomes = [], restantes = [];
+    for (const bruto of imp[1].split(",")) {
+      const s = bruto.trim();
+      if (!s) continue;
+      const m = s.match(/^(BrowserRouter|HashRouter)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+      if (m) nomes.push(m[2] || m[1]); else restantes.push(s);
+    }
+    if (!nomes.length) continue;
+    for (const n of nomes) {
+      c = c.replace(new RegExp(`<${n}\\s*/>`, "g"), "")                       // <Router /> solto
+           .replace(new RegExp(`<${n}(\\s[^>]*)?>`, "g"), "<>")                // abertura (com ou sem props)
+           .replace(new RegExp(`</${n}\\s*>`, "g"), "</>");                    // fechamento
+    }
+    c = c.replace(imp[0], restantes.length ? `import { ${restantes.join(", ")} } from "react-router-dom";` : "");
+    out[path] = c;
+  }
+  return out;
+}
+
 export function garantirImportsLocais(files) {
   const out = { ...files };
   const norm = (p) => {
@@ -1514,6 +1556,7 @@ Mudanca pedida: "${userMessage}"`;
 
   files = mergeStarter(files);
   files = corrigirEstiloImports(files);   // corrige default<->nomeado conforme o export real
+  files = removerRouterDuplicado(files);  // <BrowserRouter> no App + no main.jsx = pagina em branco
   files = garantirImportsLocais(files);   // cria stubs para imports LOCAIS que faltarem
   files = garantirIconesEComponentes(files); // icone/componente usado sem import -> importa ou stub (evita tela branca)
   files = blindarImportsNpm(files);       // neutraliza imports de pacotes npm nao instalados
