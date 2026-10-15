@@ -163,7 +163,7 @@ VOCE ESCREVE SOMENTE ESTES ARQUIVOS:
 - src/theme.css — a PALETA unica deste projeto (obrigatorio; veja abaixo).
 - src/lib/supabase.js — SO se o pedido precisar de banco de dados.
 
-DEPENDENCIAS: use SOMENTE react, react-router-dom, lucide-react, @supabase/supabase-js e os componentes de src/components/ui/. NAO importe nenhuma outra biblioteca npm (nada de recharts, framer-motion, chart.js, mui, styled-components, etc.) — elas NAO estao instaladas e quebram o build. Graficos e visualizacoes: faca com CSS/SVG/divs.
+DEPENDENCIAS: use SOMENTE react, react-router-dom, lucide-react, @supabase/supabase-js, gsap (so se a pessoa pedir GSAP/animacao avancada) e os componentes de src/components/ui/. NAO importe nenhuma outra biblioteca npm (nada de recharts, framer-motion, chart.js, mui, styled-components, etc.) — elas NAO estao instaladas e quebram o build. Graficos e visualizacoes: faca com CSS/SVG/divs.
 
 ESTILO (Tailwind + tokens do kit): estilize tudo com classes do Tailwind. Para as cores, USE OS TOKENS do kit, para o app ficar coeso: bg-background, text-foreground, bg-card, text-card-foreground, bg-muted, text-muted-foreground, border-border, bg-primary, text-primary-foreground, ring-ring. Cantos: rounded-lg / rounded-xl. Sombra: shadow-sm.
 
@@ -255,7 +255,7 @@ COMPONENTES PRONTOS em src/components/ui/ (IMPORTE deles, nao recrie): Button (f
 
 VOCE ESCREVE: src/App.jsx (rotas; a landing e a rota "/"), src/components/*.jsx (as SECOES como componentes: Header, Hero, Beneficios, ComoFunciona, Depoimentos, Planos, FAQ, CTAFinal, Footer), e src/theme.css (paleta unica; obrigatorio). Se houver mais de uma pagina, adicione rotas.
 
-DEPENDENCIAS: SOMENTE react, react-router-dom, lucide-react e os componentes ui/ e fx/. NAO importe outra biblioteca npm (quebra o build). Animacoes: com CSS/Tailwind, os efeitos fx/ abaixo e IntersectionObserver inline — nada de framer-motion/AOS.
+DEPENDENCIAS: SOMENTE react, react-router-dom, lucide-react, gsap e os componentes ui/ e fx/. NAO importe outra biblioteca npm (quebra o build). Animacoes: com CSS/Tailwind, os efeitos fx/ abaixo e IntersectionObserver inline — nada de framer-motion/AOS. GSAP esta instalado: se a pessoa pedir GSAP (ou efeito que siga o mouse, parallax, timeline, scroll animado), USE gsap de verdade: import { gsap } from "gsap"; para scroll, import { ScrollTrigger } from "gsap/ScrollTrigger" e gsap.registerPlugin(ScrollTrigger). Rode as animacoes dentro de useEffect/useLayoutEffect com gsap.context(() => {...}, ref) e devolva ctx.revert() na limpeza.
 
 EFEITOS PRONTOS em src/components/fx/ (autorais, sem dependencia; importe com caminho relativo, ex.: "../components/fx/aurora-background"). USE 2 a 4 deles para dar acabamento premium (com equilibrio, sem exagerar):
 - AuroraBackground (export default) — <AuroraBackground className="min-h-screen relative">...conteudo...</AuroraBackground>: fundo com luzes/gradientes animados usando a paleta. Otimo envolvendo o Hero.
@@ -1249,7 +1249,7 @@ const REGRAS_QUALIDADE = `
 REGRAS QUE EVITAM BUILD QUEBRADO (siga a risca):
 - ASPAS RETAS SEMPRE: use SO ' e " comuns. NUNCA use aspas curvas/"inteligentes" (‘ ’ “ ”) em lugar nenhum do codigo — elas quebram o build. Em palavras com apostrofo escreva reto.
 - ARQUIVO COMPLETO: cada arquivo do primeiro ao ultimo caractere, sem "..." nem "resto igual ao anterior". Feche TODAS as tags e, no formato multi-arquivo, o ultimo ===END===.
-- SO IMPORTE O QUE EXISTE: react, react-router-dom, lucide-react, @supabase/supabase-js, framer-motion, date-fns e os componentes de src/components/ui/ e src/components/fx/. Todo nome em CamelCase usado no JSX PRECISA ter import no topo do MESMO arquivo (icone sem import = tela branca).
+- SO IMPORTE O QUE EXISTE: react, react-router-dom, lucide-react, @supabase/supabase-js, framer-motion, date-fns, gsap e os componentes de src/components/ui/ e src/components/fx/. Todo nome em CamelCase usado no JSX PRECISA ter import no topo do MESMO arquivo (icone sem import = tela branca).
 - NAO recrie arquivos de config (package.json, vite.config.js, tailwind.config.js, etc.) — ja existem.
 
 ESTILO (deixa com cara profissional, nao de template):
