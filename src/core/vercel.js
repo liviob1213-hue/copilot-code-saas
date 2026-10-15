@@ -227,10 +227,22 @@ async function ensureProject(owner, name) {
     return { id: proj.id, name: proj.name || slug };
   } catch (e) {
     if (/github|repositor|not\s*found|permission|install|access/i.test(e.message)) {
+      // ATENCAO ao texto: a versao antiga dizia "so precisa fazer isso uma vez"
+      // e mandava autorizar O REPOSITORIO. Isso e falso e fazia a pessoa repetir
+      // o deploy indefinidamente: cada projeto nasce num repositorio NOVO e
+      // PRIVADO, entao autorizar um repositorio nao cobre o proximo. A unica
+      // correcao duravel e dar acesso a TODOS os repositorios na integracao.
       throw new Error(
-        "A Vercel ainda nao tem acesso a este repositorio do GitHub. Entre em vercel.com, clique em " +
-        "'Add New… > Project', conecte sua conta do GitHub e autorize o repositorio (so precisa fazer isso uma vez). " +
-        `Depois volte e publique de novo. (detalhe: ${e.message})`
+        "A Vercel nao consegue enxergar este repositorio do GitHub.\n\n" +
+        "Como resolver de vez (1 minuto):\n" +
+        "1) Abra https://github.com/apps/vercel/installations/select_target\n" +
+        "2) Escolha sua conta e marque \"All repositories\".\n" +
+        "3) Salve e clique em publicar de novo aqui.\n\n" +
+        "Por que repetir o deploy nao resolve: cada projeto criado aqui nasce num " +
+        "repositorio NOVO e PRIVADO. Se a integracao da Vercel estiver limitada a " +
+        "\"Only select repositories\", cada projeto novo nasce invisivel para ela — " +
+        "autorizar um repositorio nao cobre os seguintes.\n\n" +
+        `(detalhe tecnico: ${e.message})`
       );
     }
     throw e;

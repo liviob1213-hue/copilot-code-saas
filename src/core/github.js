@@ -578,7 +578,10 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
 
   return {
     owner,
-    name: nomeLimpo,
+    // O nome vem da RESPOSTA do GitHub, nao do nomeLimpo que pedimos: se o
+    // GitHub normalizar algo a mais, quem deploia precisa do nome real — um
+    // nome divergente faz a Vercel procurar um repositorio que nao existe.
+    name: repo.name || nomeLimpo,
     branch,
     htmlUrl: repo.html_url,
     commit
