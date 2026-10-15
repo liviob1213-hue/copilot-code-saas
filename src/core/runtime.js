@@ -284,6 +284,9 @@ export async function criarProjeto({ userMessage, kind = "app", providerId = "",
         const urls = await store.get("previewUrls");
         urls[full] = url; await store.set("previewUrls", urls);
       }
+      // Publicado, mas a Vercel pede login para abrir: visto de fora e
+      // indistinguivel de um site quebrado, entao e preciso dizer em voz alta.
+      if (dep?.avisoProtecao) onEvent({ type: "notice", text: dep.avisoProtecao });
     } catch (e) {
       onEvent({ type: "notice", text: t("Projeto criado no GitHub, mas o deploy da Vercel falhou: ") + e.message });
     }

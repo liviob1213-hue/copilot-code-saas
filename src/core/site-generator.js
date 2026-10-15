@@ -1358,6 +1358,17 @@ Mudanca pedida: "${userMessage}"`;
 
   // Encaixa os arquivos da IA no kit estiloso (Tailwind + componentes prontos).
   files = normalizarParaKit(files);
+
+  // A tela principal (src/App.jsx) e o unico arquivo que o kit NAO tem: o
+  // main.jsx importa ela e ela tem que vir da IA. Quando nao vem, o
+  // garantirImportsLocais logo abaixo cria um stub vazio — o build passa, a
+  // publicacao da certo e a pessoa abre um site EM BRANCO, sem nada explicando
+  // o que houve. Entao avisamos aqui, antes de empacotar.
+  const temTelaPrincipal = Object.keys(files).some(p => /^src\/App\.(jsx?|tsx?)$/i.test(p));
+  if (!temTelaPrincipal) {
+    onEvent({ type: "notice", text: t("A IA não gerou a tela principal do site (src/App.jsx) — provavelmente a resposta foi cortada no meio. O projeto vai subir praticamente vazio. Peça de novo, ou troque de modelo (o Gemini costuma dar conta de projetos maiores sem cortar).") });
+  }
+
   files = mergeStarter(files);
   files = corrigirEstiloImports(files);   // corrige default<->nomeado conforme o export real
   files = garantirImportsLocais(files);   // cria stubs para imports LOCAIS que faltarem

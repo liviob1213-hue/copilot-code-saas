@@ -224,12 +224,34 @@ function projectSlug(name) {
 // no iframe da extensao (e o link compartilhado) redireciona para a tela de
 // login. Best-effort: se falhar, nao derruba o deploy.
 export async function setPublic(projectId) {
+  // Sem isto a Vercel exige login para abrir o site — foi o que deixou o
+  // preview dentro do app como uma tela de login da Vercel. A falha NAO pode
+  // continuar sendo engolida em silencio: devolvemos se deu certo, para quem
+  // chama poder avisar a pessoa em vez de mostrar um quadro em branco.
   try {
     await vapi(`/v9/projects/${encodeURIComponent(projectId)}`, {
       method: "PATCH",
       body: JSON.stringify({ ssoProtection: null, passwordProtection: null })
     });
-  } catch { /* nao bloqueia */ }
+    return { ok: true };
+  } catch (e) {
+    console.warn(`[vercel] nao consegui tirar a protecao do projeto: ${e.message}`);
+    return { ok: false, motivo: e.message };
+  }
+}
+
+/**
+ * Confere se o projeto ficou mesmo aberto ao publico. Fazemos a pergunta a
+ * Vercel (e nao ao site) porque o navegador nao consegue ler o status de outro
+ * dominio: uma tentativa de fetch no proprio endereco publicado volta opaca e
+ * nao diria nada. Melhor esforco — na duvida, assume que esta aberto e nao
+ * assusta ninguem a toa.
+ */
+async function protecaoLigada(projectId) {
+  try {
+    const p = await vapi(`/v9/projects/${encodeURIComponent(projectId)}`);
+    return Boolean(p?.ssoProtection || p?.passwordProtection);
+  } catch { return false; }
 }
 
 // ============================================================================
@@ -628,14 +650,47 @@ export async function deploy(owner, name, branch, onProgress = () => {}, supabas
     throw new Error("O build demorou demais. Ele pode terminar sozinho — confira em vercel.com.");
   }
 
-  // O link de producao REAL vem dos aliases que a Vercel atribuiu (o palpite
-  // "<projeto>.vercel.app" as vezes esta errado porque o subdominio ja existe e
-  // a Vercel muda o nome). Se nao houver alias, cai para a URL imutavel do
-  // deploy, que sempre funciona.
-  const prodAlias = pickProdAlias(aliases, project.name);
-  const prodUrl = prodAlias ? `https://${prodAlias}` : (url || `https://${project.name}.vercel.app`);
+  // De onde sai o link que a pessoa vai abrir.
+  //
+  // Ja mandamos gente para uma pagina 404 por adivinhar aqui. Duas armadilhas:
+  // 1) "<projeto>.vercel.app" e PALPITE. Se esse subdominio nao for deste
+  //    projeto, o link abre o 404 da Vercel — e parece que o site quebrou,
+  //    quando na verdade o build foi bem e o endereco e que estava errado.
+  // 2) O alias mais curto nem sempre e o de producao.
+  // Entao perguntamos a Vercel qual e o alias de producao DELA; o palpite
+  // sumiu, e a ultima parada e a URL imutavel do proprio deploy, que sempre
+  // responde.
+  let prodAlias = null;
+  try {
+    const proj = await vapi(`/v9/projects/${encodeURIComponent(project.id)}`);
+    const doProjeto = proj?.targets?.production?.alias;
+    if (Array.isArray(doProjeto) && doProjeto.length) prodAlias = pickProdAlias(doProjeto, project.name);
+  } catch { /* sem isso ainda temos os aliases do proprio deploy */ }
+  if (!prodAlias) prodAlias = pickProdAlias(aliases, project.name);
+  const prodUrl = prodAlias ? `https://${prodAlias}` : url;
+  if (!prodUrl) throw new Error("A Vercel publicou, mas nao devolveu nenhum endereco. Abra o projeto em vercel.com.");
 
-  const info = { url: url || prodUrl, prodUrl, projectName: project.name, deploymentId: id };
+  // A protecao as vezes volta a valer depois do deploy. Se continuar ligada, o
+  // endereco abre uma tela de login da Vercel — e, de fora, isso parece um site
+  // quebrado. Tentamos de novo e, se nao der, dizemos o que fazer.
+  let protegido = false;
+  if (await protecaoLigada(project.id)) {
+    await setPublic(project.id);
+    protegido = await protecaoLigada(project.id);
+    if (protegido) {
+      onProgress("atencao: o site esta publicado, mas a Vercel esta pedindo login para abrir");
+    }
+  }
+
+  const info = {
+    url: url || prodUrl, prodUrl, projectName: project.name, deploymentId: id,
+    protegido,
+    avisoProtecao: protegido
+      ? "O site foi publicado, mas a Vercel esta exigindo login para abrir. " +
+        `Em vercel.com, abra o projeto "${project.name}" > Settings > Deployment Protection ` +
+        "e desligue a 'Vercel Authentication'."
+      : null
+  };
   await store.patch("vercel", { projectName: project.name, url: prodUrl });
   return info;
 }
