@@ -241,16 +241,21 @@ export async function setPublic(projectId) {
 }
 
 /**
- * Confere se o projeto ficou mesmo aberto ao publico. Fazemos a pergunta a
- * Vercel (e nao ao site) porque o navegador nao consegue ler o status de outro
- * dominio: uma tentativa de fetch no proprio endereco publicado volta opaca e
- * nao diria nada. Melhor esforco — na duvida, assume que esta aberto e nao
- * assusta ninguem a toa.
+ * A protecao do projeto alcanca o DOMINIO DE PRODUCAO? So no escopo "all"
+ * (All Deployments). Os demais — "all_except_custom_domains" (o padrao, que a
+ * Vercel chama de Standard Protection), "prod_deployment_urls_and_all_previews"
+ * e "preview" — deixam "<projeto>.vercel.app" publico. Confirmado num teste
+ * real: com "all_except_custom_domains", o dominio de producao respondeu sem
+ * pedir login, e so a URL tecnica do deploy redirecionou para o login.
+ *
+ * Perguntamos a Vercel (e nao ao site) porque o navegador nao consegue ler o
+ * status de outro dominio. Na duvida, assume publico e nao assusta ninguem.
  */
-async function protecaoLigada(projectId) {
+async function protegeProducao(projectId) {
   try {
     const p = await vapi(`/v9/projects/${encodeURIComponent(projectId)}`);
-    return Boolean(p?.ssoProtection || p?.passwordProtection);
+    return [p?.ssoProtection, p?.passwordProtection]
+      .some(prot => prot && prot.deploymentType === "all");
   } catch { return false; }
 }
 
@@ -502,26 +507,44 @@ async function ensureProject(owner, name) {
  * repositorio dele. O segundo dependia da integracao da Vercel no GitHub, que e
  * uma configuracao a parte e que o cliente final nao deveria precisar conhecer.
  */
-async function arquivosParaDeploy(owner, name, branch, onProgress) {
-  const tree = await gh.getTree(owner, name, branch);
+async function arquivosParaDeploy(owner, name, branch, onProgress, commitSha = null) {
+  // Com o sha do commit recem-gravado, lemos EXATAMENTE aquele commit. Sem ele
+  // (republicar um projeto antigo), pergunta a branch — sem cache, ver api().
+  const tree = await gh.getTree(owner, name, branch, commitSha);
   const alvos = (tree.files || []).filter(f => !f.path.startsWith(".git/"));
   if (!alvos.length) throw new Error("O repositorio esta vazio — nao ha o que publicar.");
 
+  // Cada arquivo e lido pelo sha do blob (imutavel), seis de cada vez: em
+  // sequencia, um projeto de 40 arquivos levava 40 idas e voltas.
   const arquivos = [];
-  let lidos = 0;
-  for (const f of alvos) {
-    try {
-      const { content } = await gh.readFile(owner, name, branch, f.path);
-      arquivos.push({ file: f.path, data: content, encoding: "utf-8" });
-    } catch (e) {
-      // Um binario (imagem solta no repo) nao decodifica como texto. Pular um
-      // arquivo e melhor do que derrubar a publicacao inteira — e os projetos
-      // gerados aqui sao texto; imagem costuma vir embutida como data URI.
-      console.warn(`[vercel] pulei "${f.path}" no deploy: ${e.message}`);
+  let proximo = 0, lidos = 0;
+  const trabalhador = async () => {
+    while (proximo < alvos.length) {
+      const f = alvos[proximo++];
+      try {
+        const data = await gh.readBlob(owner, name, f.sha);
+        arquivos.push({ file: f.path, data, encoding: "utf-8" });
+      } catch (e) {
+        // Um binario (imagem solta no repo) nao decodifica como texto. Pular um
+        // arquivo e melhor do que derrubar a publicacao inteira — e os projetos
+        // gerados aqui sao texto; imagem costuma vir embutida como data URI.
+        console.warn(`[vercel] pulei "${f.path}" no deploy: ${e.message}`);
+      }
+      if (++lidos % 5 === 0) onProgress(`lendo arquivos (${lidos}/${alvos.length})`);
     }
-    if (++lidos % 5 === 0) onProgress(`lendo arquivos (${lidos}/${alvos.length})`);
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, alvos.length) }, trabalhador));
   if (!arquivos.length) throw new Error("Nao consegui ler nenhum arquivo do repositorio.");
+
+  // Trava de seguranca: sem index.html na raiz, a Vercel publica "com sucesso"
+  // um site que abre em 404 (foi exatamente o que aconteceu: so o README subiu).
+  // Melhor parar aqui com uma mensagem clara do que entregar um link quebrado.
+  if (!arquivos.some(a => a.file === "index.html")) {
+    throw new Error(
+      `O projeto nao tem a pagina inicial (index.html) — publicar agora daria um site em branco/404. ` +
+      `Arquivos encontrados: ${arquivos.map(a => a.file).slice(0, 8).join(", ")}${arquivos.length > 8 ? "…" : ""}.`
+    );
+  }
   return arquivos;
 }
 
@@ -587,12 +610,14 @@ async function fetchBuildLog(deploymentId) {
  * supabase = { url, anonKey } (opcional): grava as variaveis na Vercel antes do build.
  * Retorna { url, prodUrl, projectName, deploymentId }.
  */
-export async function deploy(owner, name, branch, onProgress = () => {}, supabase = null) {
+// opcoes.commitSha: o commit que acabou de ser gravado. Quem cria ou edita um
+// projeto deve passar — e o que garante que a Vercel recebe a versao NOVA.
+export async function deploy(owner, name, branch, onProgress = () => {}, supabase = null, opcoes = {}) {
   onProgress("preparando o projeto na Vercel");
   const project = await ensureProject(owner, name);
 
   onProgress("lendo os arquivos do projeto");
-  const arquivos = await arquivosParaDeploy(owner, name, branch || "main", onProgress);
+  const arquivos = await arquivosParaDeploy(owner, name, branch || "main", onProgress, opcoes.commitSha || null);
 
   // Se ha Supabase ligado, garante as variaveis no projeto ANTES do build.
   if (supabase?.url || supabase?.anonKey) {
@@ -670,25 +695,30 @@ export async function deploy(owner, name, branch, onProgress = () => {}, supabas
   const prodUrl = prodAlias ? `https://${prodAlias}` : url;
   if (!prodUrl) throw new Error("A Vercel publicou, mas nao devolveu nenhum endereco. Abra o projeto em vercel.com.");
 
-  // A protecao as vezes volta a valer depois do deploy. Se continuar ligada, o
-  // endereco abre uma tela de login da Vercel — e, de fora, isso parece um site
-  // quebrado. Tentamos de novo e, se nao der, dizemos o que fazer.
-  let protegido = false;
-  if (await protecaoLigada(project.id)) {
-    await setPublic(project.id);
-    protegido = await protecaoLigada(project.id);
-    if (protegido) {
-      onProgress("atencao: o site esta publicado, mas a Vercel esta pedindo login para abrir");
-    }
-  }
+  // A PROTECAO SO IMPORTA SE PEGAR O DOMINIO DE PRODUCAO.
+  //
+  // Na "Standard Protection" (o padrao da Vercel), o dominio de producao
+  // "<projeto>.vercel.app" fica PUBLICO; so as URLs tecnicas de cada deploy
+  // pedem login. Antes tratavamos qualquer protecao como "o site pede login" e
+  // assustavamos a pessoa a toa. Agora so avisamos quando o escopo e "all"
+  // (All Deployments), que trava ate o dominio de producao.
+  //
+  // E nao adianta tentar desligar: com a conexao pelo botao "Conectar" (uma
+  // integracao), a Vercel responde 403 "Integrations cannot modify Vercel
+  // Authentication settings". Isso so a pessoa muda, no painel.
+  const protegido = await protegeProducao(project.id);
+  if (protegido) onProgress("atencao: a Vercel esta pedindo login ate no endereco principal");
 
   const info = {
-    url: url || prodUrl, prodUrl, projectName: project.name, deploymentId: id,
+    // O link que a pessoa abre (e o preview dentro do app) e SEMPRE o de
+    // producao: a URL tecnica do deploy cai na tela de login da Vercel.
+    url: prodUrl, deployUrl: url, prodUrl, projectName: project.name, deploymentId: id,
     protegido,
     avisoProtecao: protegido
-      ? "O site foi publicado, mas a Vercel esta exigindo login para abrir. " +
-        `Em vercel.com, abra o projeto "${project.name}" > Settings > Deployment Protection ` +
-        "e desligue a 'Vercel Authentication'."
+      ? "O site foi publicado, mas a sua conta da Vercel esta configurada para pedir login ate no endereco principal. " +
+        `Para liberar: em vercel.com, abra o projeto "${project.name}" > Settings > Deployment Protection ` +
+        "e troque \"All Deployments\" por \"Standard Protection\". Para valer em todos os projetos novos, " +
+        "faca o mesmo em Team Settings > Deployment Protection."
       : null
   };
   await store.patch("vercel", { projectName: project.name, url: prodUrl });

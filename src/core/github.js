@@ -83,6 +83,13 @@ async function api(path, options = {}) {
   try {
     ({ res, text } = await fetchComCorpo(path.startsWith("http") ? path : API + path, {
       ...init,
+      // SEM CACHE DO NAVEGADOR. O GitHub responde GET com "max-age=60" e o
+      // navegador obedece: logo depois de gravar um commit, perguntar "qual e o
+      // commit atual da main?" devolvia a resposta guardada de segundos antes —
+      // a do repositorio recem-criado, so com o README. A publicacao entao
+      // mandava SO o README para a Vercel e o site abria em 404. Gravado num
+      // teste real: mesma URL, mesmos 411 bytes, commit antigo.
+      cache: "no-store",
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${t}`,
@@ -450,8 +457,13 @@ export async function logout() {
 
 // --- leitura do repositorio ---------------------------------------------------
 
-export async function getTree(owner, repo, branch) {
-  const ref = await api(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`);
+// commitSha (opcional): le a arvore DESTE commit em vez de perguntar qual e o
+// commit atual da branch. Quem acabou de gravar ja sabe o sha — usar ele evita
+// qualquer resposta atrasada sobre "qual e o atual".
+export async function getTree(owner, repo, branch, commitSha = null) {
+  const headSha = commitSha ||
+    (await api(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`)).object.sha;
+  const ref = { object: { sha: headSha } };
   const commit = await api(`/repos/${owner}/${repo}/git/commits/${ref.object.sha}`);
   const tree = await api(`/repos/${owner}/${repo}/git/trees/${commit.tree.sha}?recursive=1`);
   return {
@@ -462,6 +474,15 @@ export async function getTree(owner, repo, branch) {
       .filter(n => n.type === "blob")
       .map(n => ({ path: n.path, size: n.size, sha: n.sha }))
   };
+}
+
+// Le um arquivo pelo sha do blob. O blob e imutavel (o sha E o conteudo), entao
+// nao existe "versao velha" possivel — ao contrario de ler "o arquivo X da
+// branch main", que depende de qual commit o GitHub acha que e o atual.
+export async function readBlob(owner, repo, sha) {
+  const data = await api(`/repos/${owner}/${repo}/git/blobs/${sha}`);
+  if (data.encoding !== "base64") throw new Error(`Formato inesperado no blob ${sha}.`);
+  return b64decodeUtf8(data.content);
 }
 
 export async function readFile(owner, repo, branch, path) {

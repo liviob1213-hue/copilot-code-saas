@@ -460,11 +460,43 @@ export function extrairRotas(appJsx) {
 }
 
 // Pedido de CLONE de pagina? Devolve a URL a clonar (ou null).
+// Links de PERFIL (Google Meu Negocio, Maps, Instagram...) nao sao sites para
+// recriar: sao fichas de um negocio, e esses servicos bloqueiam leitura
+// automatica. Num teste real, o link share.google de uma barbearia voltou a
+// pagina de CAPTCHA do Google — e o app mandou a IA "recriar" essa pagina.
+const LINK_DE_PERFIL = /^https?:\/\/(share\.google|g\.page|g\.co|maps\.app\.goo\.gl|goo\.gl\/maps|(www\.)?google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|(www\.)?instagram\.com|(www\.)?facebook\.com|(www\.)?tiktok\.com|wa\.me|(www\.)?linktr\.ee)\b/i;
+
+export function linkDePerfil(texto) {
+  const m = String(texto || "").match(/https?:\/\/[^\s"'<>)]+/gi) || [];
+  return m.find(u => LINK_DE_PERFIL.test(u)) || null;
+}
+
 export function urlParaClonar(texto) {
   const t = String(texto || "");
   const m = t.match(/https?:\/\/[^\s"'<>)]+/i);
   if (!m) return null;
-  return /\b(clon|copi|copy|igual|replic|recri|recrea|rebuild|inspir|baseado|based\s*on|parecido|similar|like\s*this|mesmo\s*(estilo|layout|design)|mismo\s*(estilo|dise)|same\s*(style|layout|design))/i.test(t) ? m[0] : null;
+  if (LINK_DE_PERFIL.test(m[0])) return null;
+  // "copy" SOZINHO nao conta: em marketing "copy agressiva/persuasiva" e o TEXTO
+  // de vendas, nao "copie esta pagina". Foi esse falso positivo que fez um
+  // pedido de site virar uma "clonagem". So vale "copy this/that/it".
+  return /\b(clon|c[oó]pi|copy\s+(this|that|it|the\s+(site|page|layout|design))|igual|replic|recri|recrea|rebuild|inspir|baseado|based\s*on|parecido|similar|like\s*this|mesmo\s*(estilo|layout|design)|mismo\s*(estilo|dise)|same\s*(style|layout|design))/i.test(t) ? m[0] : null;
+}
+
+// A "pagina de referencia" e na verdade um bloqueio (CAPTCHA, verificacao de
+// robo, consentimento, login)? Entao nao serve de referencia — e pior: mandar
+// isso a IA com "recrie esta pagina" desvia o projeto inteiro.
+function ehPaginaDeBloqueio(txt) {
+  const t = String(txt || "");
+  // Sinais fortes: so aparecem em paginas de bloqueio.
+  if (/unusual traffic|captcha|are you a robot|not a robot|verify (that )?you are (a )?human|just a moment\.\.\.|attention required|enable javascript and cookies|before you continue|antes de continuar/i.test(t)) return true;
+  const util = t.split("\n")
+    .filter(l => l.trim() && !/^(Title|URL Source|Markdown Content|Published Time|Images):/i.test(l))
+    .join(" ").replace(/\s+/g, " ");
+  // Quase sem conteudo depois de tirar as linhas de cabecalho do leitor.
+  if (util.length < 300) return true;
+  // Sinais de login/acesso negado so contam em pagina curta: num site normal,
+  // "faca login" pode ser so um link do menu.
+  return util.length < 1500 && /access denied|acesso negado|log ?in to continue|sign in to continue|fa[cç]a login|entre na sua conta/i.test(util);
 }
 
 // Le a pagina-alvo como markdown (estrutura, textos, menus, imagens) por um
@@ -480,6 +512,7 @@ export async function lerPaginaReferencia(url) {
       20_000
     );
     if (!r.ok) return null;
+    if (ehPaginaDeBloqueio(txt)) return null;
     return txt.slice(0, 14000);
   } catch { return null; }
 }
@@ -820,6 +853,9 @@ const NPM_PERMITIDOS = new Set([
   "react", "react-dom", "react-router-dom", "lucide-react",
   "@supabase/supabase-js", "clsx", "tailwind-merge", "class-variance-authority",
   "date-fns", "framer-motion", "react-day-picker",
+  // gsap: pedido comum ("efeito GSAP na hero"). Sem estar aqui E no package.json
+  // do kit, o import virava stub e o efeito sumia em silencio.
+  "gsap",
   // ferramentas de build (aparecem nos configs) — NUNCA podem virar stub
   "vite", "@vitejs/plugin-react", "tailwindcss", "autoprefixer", "postcss"
 ]);
@@ -1190,6 +1226,81 @@ PADRAO DE PRODUTO PRONTO PRA VENDER (o que separa um app de verdade de um rascun
 - MOVIMENTO com proposito: transicoes de 150-300ms em hover/abrir modal; entrada suave dos cards; respeite prefers-reduced-motion.
 - Em apps com produtos/servicos/imoveis/pratos, use FOTOS do tema geradas por IA: https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=800&height=600&nologo=true&seed=N com onError trocando para https://picsum.photos/seed/N/800/600.`;
 
+// --- garantia do App.jsx (ver generateProject) --------------------------------
+
+const temApp = f => Boolean(f["src/App.jsx"] || f["src/App.tsx"]);
+const paginasDe = f => Object.keys(f).filter(p => /^src\/pages\/[^/]+\.(jsx|tsx|js)$/i.test(p)).sort();
+const nomeDoArquivo = p => p.split("/").pop().replace(/\.(jsx|tsx|js)$/i, "");
+const ehPaginaInicial = n => /^(home|index|inicio|início|landing|principal|homepage|vendas)$/i.test(n);
+
+// Identificador JS valido a partir do nome do arquivo ("agenda-online" -> AgendaOnline).
+function identificador(nome) {
+  const id = nome.split(/[^A-Za-z0-9]+/).filter(Boolean)
+    .map(s => s[0].toUpperCase() + s.slice(1)).join("") || "Pagina";
+  return /^[0-9]/.test(id) ? `Pagina${id}` : id;
+}
+
+// Rota a partir do nome do arquivo: Booking -> /booking, AgendaOnline -> /agenda-online.
+function rotaDe(nome) {
+  return "/" + nome.replace(/([a-z0-9])([A-Z])/g, "$1-$2").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+}
+
+// Pedido enxuto para a IA escrever SO o App.jsx, sabendo o que ja existe.
+function pedidoDoApp(userMessage, files) {
+  const paginas = paginasDe(files).map(p => `- ${p}`).join("\n");
+  const componentes = Object.keys(files).filter(p => /^src\/components\/(?!ui\/|fx\/)[^/]+\.(jsx|tsx)$/i.test(p))
+    .map(p => `- ${p}`).join("\n") || "(nenhum)";
+  return `O projeto ja tem estes arquivos, mas FALTA o src/App.jsx que liga tudo.
+
+Paginas existentes:
+${paginas}
+
+Componentes existentes:
+${componentes}
+
+Pedido original da pessoa (use para decidir o que o App.jsx precisa montar):
+"""${String(userMessage || "").slice(0, 1500)}"""
+
+Escreva SOMENTE o arquivo src/App.jsx:
+- O main.jsx ja envolve o App em <BrowserRouter>. Use <Routes> e <Route> de "react-router-dom" (NAO crie outro BrowserRouter).
+- Importe as paginas existentes pelos caminhos acima e de uma rota para cada uma; a pagina principal fica em "/". Inclua <Route path="*"> apontando para a principal.
+- Se existir um componente de carregamento (Loader, Preloader, LoadingBar etc.) e a pessoa pediu barra de carregamento, mostre-o antes do conteudo.
+- Nao invente arquivos que nao existem.
+
+Formato obrigatorio:
+===FILE: src/App.jsx===
+(codigo)
+===END===`;
+}
+
+// Ultimo recurso, sem IA: um App.jsx com uma rota por pagina. Import default
+// por padrao — o corrigirEstiloImports, que roda depois, troca para import
+// nomeado se a pagina exportar assim.
+export function montarAppJsx(files) {
+  const paginas = paginasDe(files);
+  const principal = paginas.find(p => ehPaginaInicial(nomeDoArquivo(p))) || paginas[0];
+  const usados = new Set();
+  const itens = paginas.map(p => {
+    let id = identificador(nomeDoArquivo(p));
+    while (usados.has(id)) id += "X";
+    usados.add(id);
+    return { p, id, rota: p === principal ? "/" : rotaDe(nomeDoArquivo(p)) };
+  });
+  const home = itens.find(i => i.p === principal);
+  return `import { Routes, Route } from "react-router-dom";
+${itens.map(i => `import ${i.id} from "./${i.p.replace(/^src\//, "")}";`).join("\n")}
+
+export default function App() {
+  return (
+    <Routes>
+${itens.map(i => `      <Route path="${i.rota}" element={<${i.id} />} />`).join("\n")}
+      <Route path="*" element={<${home.id} />} />
+    </Routes>
+  );
+}
+`;
+}
+
 export async function generateProject({ history, userMessage, images, embedImages = [], providerId = "", mode = "create", currentFiles = null, supabase = {}, kind = "app", brief = "", idiomaIA = "" }, onEvent = () => {}) {
   const baseHistory = [...(history || [])];
   // "site" = pagina de vendas/landing; "app" = sistema/micro-SaaS. Muda so o prompt.
@@ -1261,6 +1372,15 @@ Mudanca pedida: "${userMessage}"`;
       } else {
         onEvent({ type: "notice", text: "Não consegui ler essa página (pode estar bloqueada). Vou criar inspirado no que você descreveu. Dica: anexe um print da página que eu recrio pelo visual." });
       }
+    }
+    // Link de perfil (Google, Instagram...): a pessoa espera que "puxemos os
+    // dados", mas esses servicos bloqueiam a leitura. Melhor dizer isso na hora
+    // do que entregar um site com endereco e telefone inventados como se fossem
+    // os dela.
+    const perfil = linkDePerfil(userMessage);
+    if (perfil) {
+      onEvent({ type: "notice", text: t("Não consigo puxar os dados de um perfil do Google, Instagram ou Facebook — esses sites bloqueiam a leitura automática. Vou criar com o que você escreveu. Para aparecerem nome, endereço, telefone, horários e preços reais, escreva essas informações no pedido.") });
+      contexto += `\n\nA pessoa colou um link de perfil do negocio, mas o conteudo dele NAO pode ser lido. NAO invente endereco, telefone, precos ou avaliacoes como se fossem reais: onde faltar dado, use textos claramente editaveis (ex.: "Seu endereco aqui", "(00) 00000-0000").`;
     }
   }
 
@@ -1338,6 +1458,29 @@ Mudanca pedida: "${userMessage}"`;
       files = f2;
       reply.text = retry.text;
     } else if (!Object.keys(files).length) reply.text = retry.text;
+  }
+
+  // GARANTIA DO App.jsx. Caso real: a IA escreveu src/pages/Home.jsx,
+  // src/pages/Booking.jsx e sete componentes — e parou sem o src/App.jsx, o
+  // arquivo que liga as paginas ao site. Como "ter paginas" bastava para as
+  // checagens acima, ninguem pediu o que faltava; o stub vazio entrou no lugar
+  // e o site publicado abriu numa tela preta, com todo o conteudo la dentro.
+  // Primeiro pedimos SO o App.jsx (barato e certeiro); se nem assim vier,
+  // montamos ele a partir das paginas que existem.
+  if (!temApp(files) && paginasDe(files).length) {
+    onEvent({ type: "status", text: t("A IA escreveu as páginas, mas faltou o arquivo que liga tudo (App.jsx). Pedindo só ele…") });
+    try {
+      const pedido = await complete(
+        { system: systemBase + contexto, messages: [{ role: "user", text: pedidoDoApp(userMessage, files) }], tools: [], preferredProviderId: providerId },
+        onEvent
+      );
+      const app = (normalizarCaminhos(parseFiles(pedido.text || "")))["src/App.jsx"];
+      if (app && /export\s+default/.test(app)) files["src/App.jsx"] = app;
+    } catch { /* cai na montagem automatica logo abaixo */ }
+    if (!temApp(files)) {
+      files["src/App.jsx"] = montarAppJsx(files);
+      onEvent({ type: "notice", text: t("Liguei as páginas do site automaticamente (a IA não escreveu essa parte).") });
+    }
   }
 
   // A IA gerou o essencial? (App.jsx de verdade OU alguma pagina). Se nao, o

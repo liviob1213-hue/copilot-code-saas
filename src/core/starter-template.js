@@ -29,6 +29,7 @@ export const STARTER_FILES = {
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "framer-motion": "^11.5.4",
+    "gsap": "^3.13.0",
     "lucide-react": "^0.454.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",

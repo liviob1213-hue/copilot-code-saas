@@ -278,7 +278,11 @@ export async function criarProjeto({ userMessage, kind = "app", providerId = "",
   if (deploy) {
     try {
       onEvent({ type: "status", text: "Publicando na Vercel pra colocar no ar…" });
-      const dep = await vercel.deploy(repo.owner, repo.name, repo.branch, p => onEvent({ type: "deploy", ...p }));
+      // commitSha: publica EXATAMENTE o commit que acabamos de gravar. Sem isso a
+      // Vercel chegou a receber a versao do repositorio recem-criado (so o
+      // README) e o site abria em 404.
+      const dep = await vercel.deploy(repo.owner, repo.name, repo.branch, p => onEvent({ type: "deploy", ...p }), null,
+        { commitSha: repo.commit?.sha || null });
       url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || null);
       if (url) {
         const urls = await store.get("previewUrls");
@@ -365,8 +369,11 @@ export async function editarProjeto({ repo, userMessage, providerId = "", deploy
     supabase: sb.projectRef ? { connected: true, projectRef: sb.projectRef, projectName: sb.projectName } : null
   };
 
-  let houveCommit = false;
-  const wrap = (ev) => { if (ev && ev.type === "commit") houveCommit = true; onEvent(ev); };
+  let houveCommit = false, ultimoCommit = null;
+  const wrap = (ev) => {
+    if (ev && ev.type === "commit") { houveCommit = true; ultimoCommit = ev.sha || ultimoCommit; }
+    onEvent(ev);
+  };
 
   const result = await runAgent(
     { ws, history: convHistory, userMessage, images: embedImages, ctx, deveParar: () => false, preferredProviderId: providerId },
@@ -381,7 +388,8 @@ export async function editarProjeto({ repo, userMessage, providerId = "", deploy
   if (deploy && houveCommit) {
     try {
       onEvent({ type: "status", text: "Republicando na Vercel pra atualizar o site no ar…" });
-      const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }), ws.supabase);
+      const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }), ws.supabase,
+        { commitSha: ultimoCommit });
       url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
     } catch (e) {
       onEvent({ type: "notice", text: t("Alteração salva, mas o redeploy da Vercel falhou: ") + e.message });
@@ -418,12 +426,13 @@ export async function reconectarSupabase(repo, onEvent = () => {}) {
   if (!mudados.length) { onEvent({ type: "notice", text: "As credenciais do Supabase já estavam aplicadas." }); return { url: repo.url || null }; }
 
   onEvent({ type: "status", text: "Aplicando suas credenciais do Supabase no app…" });
-  await github.commitFiles({ owner, repo: name, branch, message: "copilot: conectar Supabase", files: mudados });
+  const commitSb = await github.commitFiles({ owner, repo: name, branch, message: "copilot: conectar Supabase", files: mudados });
 
   let url = repo.url || null;
   try {
     onEvent({ type: "status", text: "Republicando na Vercel…" });
-    const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }));
+    const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }), null,
+      { commitSha: commitSb?.sha || null });
     url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
   } catch (e) { onEvent({ type: "notice", text: t("Credenciais aplicadas, mas o redeploy falhou: ") + e.message }); }
 
@@ -468,12 +477,13 @@ export async function configurarChaveMapa({ repo, apiKey, envFront = "VITE_GOOGL
   }
 
   onEvent({ type: "status", text: "Salvando a chave no app…" });
-  await github.commitFiles({ owner, repo: name, branch, message: `copilot: configurar ${label}`, files: mudados });
+  const commitChave = await github.commitFiles({ owner, repo: name, branch, message: `copilot: configurar ${label}`, files: mudados });
 
   let url = repo.url || null;
   try {
     onEvent({ type: "status", text: "Republicando na Vercel…" });
-    const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }));
+    const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }), null,
+      { commitSha: commitChave?.sha || null });
     url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
   } catch (e) { onEvent({ type: "notice", text: t("Chave aplicada, mas o redeploy falhou: ") + e.message }); }
 
@@ -488,11 +498,12 @@ export const configurarGoogleMaps = (args) => configurarChaveMapa({ ...args, env
 export async function desfazerUltimo(repo, onEvent = () => {}) {
   const owner = repo.owner, name = repo.name, branch = repo.branch || "main";
   onEvent({ type: "status", text: "Voltando pra versão anterior…" });
-  await github.revertLast(owner, name, branch);
+  const revertido = await github.revertLast(owner, name, branch);
   let url = repo.url || null;
   try {
     onEvent({ type: "status", text: "Republicando na Vercel…" });
-    const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }));
+    const dep = await vercel.deploy(owner, name, branch, p => onEvent({ type: "deploy", ...p }), null,
+      { commitSha: revertido?.sha || null });
     url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
   } catch (e) { onEvent({ type: "notice", text: t("Revertido no GitHub, mas o redeploy falhou: ") + e.message }); }
   onEvent({ type: "notice", text: t("Voltei pra versão anterior.") });

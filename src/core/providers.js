@@ -280,6 +280,15 @@ function buildRequest(provider, cfg, apiKey, { system, messages, tools, model })
     ? { max_completion_tokens: limiteSaida }
     : { max_tokens: limiteSaida };
 
+  // DeepSeek V4: o modo "pensamento" vem LIGADO por padrao (esforco "high") e
+  // o pensamento gasta o MESMO limite de saida do codigo. Medido num teste
+  // real com o pedido do site da barbearia: a 1a resposta esgotou os 32 mil
+  // tokens pensando e entregou ZERO linhas de codigo; a continuacao gastou
+  // 46 mil caracteres pensando e 40 mil escrevendo — e parou sem o App.jsx.
+  // Para escrever codigo nao precisamos do pensamento: desligado, o limite
+  // inteiro vai para o projeto, e fica mais rapido e mais barato.
+  const semPensamento = provider.id === "deepseek" ? { thinking: { type: "disabled" } } : {};
+
   return {
     url: provider.endpoint,
     headers,
@@ -287,6 +296,7 @@ function buildRequest(provider, cfg, apiKey, { system, messages, tools, model })
       model,
       ...tempObj,
       ...tokenLimit,
+      ...semPensamento,
       messages: toOpenAI(messages, system),
       ...(tools.length ? {
         tools: tools.map(t => ({
