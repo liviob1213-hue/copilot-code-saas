@@ -54,16 +54,63 @@ afeta o funcionamento.
 | **Contact email** | seu e-mail (não fica público) |
 | **Support contact email** | seu e-mail (fica público) |
 | **Short Description** | `Cria e publica projetos com IA` (máx. 40 caracteres) |
-| **Logo** | PNG quadrado, sem transparência, mínimo 256px — dá pra usar `public/brand/logo.png` |
+| **Logo** | ⚠️ use **`public/brand/vercel-logo-512.png`** — veja a nota abaixo |
 | **Category** | **Dev Tools** |
 | **Website / Documentation / Support URL** | pode repetir a mesma URL (o GitHub do projeto serve) |
-| **EULA URL / Privacy Policy URL** | só obrigatórios pra listar no Marketplace. Se o formulário exigir, aponte pro README do repositório por enquanto |
+| **EULA URL / Privacy Policy URL** | aponte pro README do repositório por enquanto |
 | **Overview** | duas linhas dizendo o que o app faz |
-| **Feature media** | 1 imagem 1920x1080. Só obrigatório pra listar — se puder pular agora, pule |
+| **Featured Images** | ⚠️ **obrigatório** — use **`public/brand/vercel-featured-1920x1080.png`** |
+| **Terms of Service** | ⚠️ **obrigatório** — é um aceite, não um texto. Veja abaixo |
+
+> ⚠️ **O `logo.png` original não serve nos dois campos de imagem.** Ele é
+> 512x512 **com transparência**, e a Vercel exige PNG **sem** transparência.
+> Por isso existem dois arquivos prontos em `public/brand/`, gerados a partir
+> dele sobre o fundo escuro da marca:
+>
+> | Arquivo | Onde usar | Formato |
+> | --- | --- | --- |
+> | `vercel-logo-512.png` | campo **Logo** | 512x512, 1:1, sem transparência |
+> | `vercel-featured-1920x1080.png` | campo **Featured Images** | 1920x1080, 16:9, sem transparência |
+>
+> Os dois passam na validação. Quando (e se) você for listar no Marketplace de
+> verdade, troque a Featured Image por **prints do app funcionando** — é o que
+> vende a integração; uma logo centralizada só preenche o requisito.
 
 > ⭐ O **URL Slug** vira o endereço de instalação:
 > `https://vercel.com/integrations/copilot-code/new`
 > É pra lá que o app vai mandar a pessoa quando ela clicar em "Conectar".
+
+### Terms of Service — o aceite do acordo
+
+Este campo **não é um texto nem uma URL que você escreve**: é o aceite do acordo
+de parceria da Vercel. Como você está criando uma integração comum (não native),
+o acordo que vale é o **Vercel Integrations Marketplace Agreement**.
+
+Procure na página uma seção **Terms of Service** / **Integrations Agreement** com
+uma **caixa de marcar** ("I agree…" / "Accept"). Marque e salve.
+
+Se em vez da caixa aparecer um **campo de URL** pedindo os seus termos, aponte
+pro README do repositório — é o mesmo endereço que você usou em EULA e Privacy
+Policy.
+
+---
+
+## Se aparecer: "Invalid values provided for Featured Images, Terms of Service"
+
+É o console reclamando de campo obrigatório vazio ou de imagem fora do formato.
+Checagem rápida:
+
+1. **Featured Images** — subiu uma imagem? Ela é **1920x1080** e **sem
+   transparência**? Use `public/brand/vercel-featured-1920x1080.png`.
+2. **Terms of Service** — a caixa de aceite está marcada? É o erro mais comum,
+   porque ela costuma ficar no fim da página e passa despercebida.
+3. Se continuar reclamando do **Logo**, é a transparência: troque pelo
+   `public/brand/vercel-logo-512.png`.
+
+A mensagem lista **todos** os campos inválidos de uma vez — então, se depois de
+corrigir sobrar só um nome na mensagem, você está quase lá.
+
+---
 
 ### External Integration Settings — **a parte que importa de verdade**
 
