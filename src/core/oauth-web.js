@@ -18,6 +18,10 @@
 import * as store from "./storage.js";
 import { GITHUB_OAUTH, SUPABASE_OAUTH } from "./config.js";
 import { validateToken } from "./github.js";
+// Relogio unico cobrindo requisicao + leitura do corpo (ver net.js): este e o
+// caminho de login REAL da versao web, e sem prazo um Worker lento deixava a
+// pessoa olhando uma tela de "conectando" que nunca terminava.
+import { fetchComCorpo, ehTimeout, PRAZO } from "./net.js";
 
 const PENDING_KEY = "copilot:oauth_pending";
 const redirectUri = () => window.location.origin + "/";
@@ -104,12 +108,19 @@ export async function handleOAuthRedirect() {
   if (retState !== pending.state) throw new Error("State invalido — tente de novo.");
 
   if (pending.provider === "github") {
-    const res = await fetch(GITHUB_OAUTH.workerUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ code, redirect_uri: pending.redirectUri })
-    });
-    const data = await res.json().catch(() => ({}));
+    let data = {};
+    try {
+      const { text } = await fetchComCorpo(GITHUB_OAUTH.workerUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code, redirect_uri: pending.redirectUri })
+      }, PRAZO.oauth);
+      try { data = JSON.parse(text); } catch {}
+    } catch (e) {
+      throw new Error(ehTimeout(e)
+        ? "O servidor de login nao respondeu em " + Math.round(PRAZO.oauth / 1000) + "s. Tente conectar de novo."
+        : "Nao consegui falar com o servidor de login (" + (e.message || e) + ").");
+    }
     if (!data.access_token) throw new Error("Falha ao obter token do GitHub: " + (data.error_description || data.error || "sem token"));
     const perfil = await validateToken(data.access_token);
     // GitHub App devolve refresh_token + expires_in (~8h): guardar pra o app
@@ -126,17 +137,24 @@ export async function handleOAuthRedirect() {
   }
 
   if (pending.provider === "supabase") {
-    const res = await fetch(SUPABASE_OAUTH.workerUrl, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        provider: "supabase",
-        code,
-        redirect_uri: pending.redirectUri,
-        code_verifier: pending.verifier
-      })
-    });
-    const data = await res.json().catch(() => ({}));
+    let data = {};
+    try {
+      const { text } = await fetchComCorpo(SUPABASE_OAUTH.workerUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          provider: "supabase",
+          code,
+          redirect_uri: pending.redirectUri,
+          code_verifier: pending.verifier
+        })
+      }, PRAZO.oauth);
+      try { data = JSON.parse(text); } catch {}
+    } catch (e) {
+      throw new Error(ehTimeout(e)
+        ? "O servidor de login nao respondeu em " + Math.round(PRAZO.oauth / 1000) + "s. Tente conectar de novo."
+        : "Nao consegui falar com o servidor de login (" + (e.message || e) + ").");
+    }
     if (!data.access_token) throw new Error("Falha ao obter token do Supabase: " + (data.error_description || data.error || "sem token"));
     await store.patch("supabase", {
       oauth: true,

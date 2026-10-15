@@ -3,6 +3,7 @@
 import { complete, streamComplete } from "./providers.js";
 import { t } from "../i18n.js";
 import { mergeStarter, STARTER_FILES } from "./starter-template.js";
+import { fetchComCorpo } from "./net.js";
 
 /**
  * Infere o SQL das tabelas que o projeto GERADO usa (lendo os supabase.from(...)
@@ -470,12 +471,15 @@ export function urlParaClonar(texto) {
 // leitor publico com CORS liberado. Sem servidor proprio. Falha -> null.
 export async function lerPaginaReferencia(url) {
   try {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 20000);
-    const r = await fetch("https://r.jina.ai/" + url, { headers: { "X-Return-Format": "markdown", "X-With-Images-Summary": "true" }, signal: ctrl.signal });
-    clearTimeout(to);
+    // Tinha o MESMO defeito do providers.js: o clearTimeout vinha antes do
+    // r.text(), entao a leitura do corpo ficava sem relogio. Uma pagina grande
+    // servida devagar prendia a geracao do site aqui, sem erro nenhum.
+    const { res: r, text: txt } = await fetchComCorpo(
+      "https://r.jina.ai/" + url,
+      { headers: { "X-Return-Format": "markdown", "X-With-Images-Summary": "true" } },
+      20_000
+    );
     if (!r.ok) return null;
-    const txt = await r.text();
     return txt.slice(0, 14000);
   } catch { return null; }
 }

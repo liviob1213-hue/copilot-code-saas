@@ -2,6 +2,9 @@
 // Nao rode `npm run sync-core` sem revisar — ele sobrescreve com a versao da extensao.
 import * as store from "./storage.js";
 import { SUPABASE_OAUTH } from "./config.js";
+// Relogio unico cobrindo requisicao + leitura do corpo (ver net.js). Tambem
+// passa pelo Worker-proxy, entao vale o mesmo cuidado da Vercel.
+import { fetchComCorpo, ehTimeout, PRAZO } from "./net.js";
 
 // ===========================================================================
 //  Cliente da Management API do Supabase.
@@ -37,12 +40,25 @@ async function pkceChallenge(verifier) {
 async function refreshAccessToken() {
   const sb = await store.get("supabase");
   if (!sb.refreshToken) { const e = new Error("Sessao do Supabase expirou. Conecte de novo."); e.supabaseAuth = true; throw e; }
-  const res = await fetch(SUPABASE_OAUTH.workerUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ provider: "supabase", refresh_token: sb.refreshToken })
-  });
-  const data = await res.json().catch(() => ({}));
+  let data = {};
+  try {
+    const { text } = await fetchComCorpo(SUPABASE_OAUTH.workerUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ provider: "supabase", refresh_token: sb.refreshToken })
+    }, PRAZO.oauth);
+    try { data = JSON.parse(text); } catch {}
+  } catch (e) {
+    // Sem resposta do Worker nao ha como renovar. Erro claro em vez de ficar
+    // pendurado: a mensagem com supabaseAuth leva a pessoa a reconectar.
+    const err = new Error(
+      ehTimeout(e)
+        ? "O servidor de login do Supabase nao respondeu ao renovar a sessao. Tente de novo."
+        : `Nao consegui renovar a sessao do Supabase (${e.message || e}).`
+    );
+    err.supabaseAuth = true;
+    throw err;
+  }
   if (!data.access_token) { const e = new Error("Nao consegui renovar a sessao do Supabase. Conecte de novo."); e.supabaseAuth = true; throw e; }
   const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
   await store.patch("supabase", { token: data.access_token, refreshToken: data.refresh_token || sb.refreshToken, expiresAt });
@@ -60,15 +76,29 @@ async function token() {
 }
 
 async function mgmt(path, options = {}, _retried = false) {
-  const res = await fetch(path.startsWith("http") ? path : MGMT + path, {
-    ...options,
-    headers: {
-      authorization: `Bearer ${await token()}`,
-      ...(options.body ? { "content-type": "application/json" } : {}),
-      ...(options.headers || {})
+  // Leitura (listar projetos/tabelas/funcoes, pegar chaves) e rapida; escrita
+  // (rodar SQL, publicar Edge Function, gravar secrets) ganha folga — um SQL de
+  // migracao ou o upload do codigo de uma funcao pode demorar de verdade.
+  const { timeoutMs, ...init } = options;
+  const prazo = timeoutMs ?? (init.method && init.method !== "GET" ? PRAZO.escrita : PRAZO.leitura);
+  let res, text;
+  try {
+    ({ res, text } = await fetchComCorpo(path.startsWith("http") ? path : MGMT + path, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${await token()}`,
+        ...(init.body ? { "content-type": "application/json" } : {}),
+        ...(init.headers || {})
+      }
+    }, prazo));
+  } catch (e) {
+    if (ehTimeout(e)) {
+      throw new Error(
+        `O Supabase nao respondeu em ${Math.round(prazo / 1000)}s (${init.method || "GET"} ${path}). Tente de novo.`
+      );
     }
-  });
-  const text = await res.text();
+    throw new Error(`Nao consegui falar com o Supabase (${e.message || e}).`);
+  }
   if (!res.ok) {
     let detail = text.slice(0, 400);
     try { detail = JSON.parse(text).message || detail; } catch {}
@@ -142,13 +172,16 @@ export async function startOAuthLogin() {
 
   let data;
   try {
-    const res = await fetch(workerUrl, {
+    const { text } = await fetchComCorpo(workerUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ provider: "supabase", code, redirect_uri: redirectUri, code_verifier: verifier })
-    });
-    data = await res.json();
+    }, PRAZO.oauth);
+    data = JSON.parse(text);
   } catch (e) {
+    if (ehTimeout(e)) {
+      throw new Error("O servidor de login nao respondeu em " + Math.round(PRAZO.oauth / 1000) + "s. Tente entrar de novo.");
+    }
     throw new Error("Nao consegui falar com o servidor de login. Confira a URL do Worker. (" + (e.message || e) + ")");
   }
   if (!data || !data.access_token) {
@@ -169,10 +202,21 @@ export async function startOAuthLogin() {
 
 /** Confere se o token vale, antes de depender dele. */
 export async function validateToken(candidate) {
-  const res = await fetch(`${MGMT}/profile`, { headers: { authorization: `Bearer ${candidate}` } });
+  let res, text;
+  try {
+    // Consulta curta com a pessoa olhando a tela de conexao: teto curto.
+    ({ res, text } = await fetchComCorpo(
+      `${MGMT}/profile`,
+      { headers: { authorization: `Bearer ${candidate}` } },
+      PRAZO.consulta
+    ));
+  } catch (e) {
+    if (ehTimeout(e)) throw new Error("O Supabase nao respondeu ao validar o token. Tente de novo.");
+    throw new Error(`Nao consegui falar com o Supabase para validar o token (${e.message || e}).`);
+  }
   if (res.status === 401) throw new Error("Token recusado. Confira se copiou inteiro (comeca com sbp_).");
   if (!res.ok) throw new Error(`Supabase ${res.status} ao validar o token.`);
-  return res.json();
+  return JSON.parse(text);
 }
 
 /** Lista os projetos da conta, para a pessoa escolher qual usar. */

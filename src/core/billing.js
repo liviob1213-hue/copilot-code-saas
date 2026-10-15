@@ -9,14 +9,18 @@
 // ============================================================================
 
 import * as store from "./storage.js";
+// Relogio unico cobrindo requisicao + leitura do corpo (ver net.js). Saldo e a
+// consulta mais curta que existe aqui, mas sem prazo ela travava o painel do
+// mesmo jeito — e e um numero decorativo: nao vale esperar por ele.
+import { fetchComCorpo, ehTimeout, PRAZO } from "./net.js";
 
 // DeepSeek: saldo disponivel na conta.
 async function deepseekBalance(key) {
-  const res = await fetch("https://api.deepseek.com/user/balance", {
+  const { res, text } = await fetchComCorpo("https://api.deepseek.com/user/balance", {
     headers: { authorization: `Bearer ${key}`, accept: "application/json" }
-  });
+  }, PRAZO.consulta);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
+  const data = JSON.parse(text);
   const info = (data.balance_infos || [])[0] || {};
   const remaining = Number(info.total_balance || 0);
   return {
@@ -31,21 +35,21 @@ async function deepseekBalance(key) {
 async function openrouterBalance(key) {
   // Endpoint novo de creditos.
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/credits", {
+    const { res, text } = await fetchComCorpo("https://openrouter.ai/api/v1/credits", {
       headers: { authorization: `Bearer ${key}` }
-    });
+    }, PRAZO.consulta);
     if (res.ok) {
-      const d = (await res.json()).data || {};
+      const d = JSON.parse(text).data || {};
       const remaining = Number(d.total_credits || 0) - Number(d.total_usage || 0);
       return { ok: true, currency: "USD", remaining, label: `$${remaining.toFixed(2)} restante` };
     }
-  } catch { /* tenta o antigo */ }
+  } catch { /* timeout ou endpoint novo indisponivel: tenta o antigo */ }
   // Fallback: /auth/key (limite e uso da chave).
-  const res = await fetch("https://openrouter.ai/api/v1/auth/key", {
+  const { res, text } = await fetchComCorpo("https://openrouter.ai/api/v1/auth/key", {
     headers: { authorization: `Bearer ${key}` }
-  });
+  }, PRAZO.consulta);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const d = (await res.json()).data || {};
+  const d = JSON.parse(text).data || {};
   if (d.limit == null) {
     return { ok: true, currency: "USD", remaining: null, label: `$${Number(d.usage || 0).toFixed(2)} usados (sem limite)` };
   }
@@ -76,6 +80,9 @@ export async function fetchBalance(providerId) {
   try {
     return await f.fn(key);
   } catch (e) {
+    // AbortError tem mensagem de navegador ("The operation was aborted") que
+    // nao diz nada no painel; trocamos pelo motivo que a pessoa entende.
+    if (ehTimeout(e)) return { error: "timeout ao consultar o saldo" };
     return { error: e.message || "falha ao consultar saldo" };
   }
 }

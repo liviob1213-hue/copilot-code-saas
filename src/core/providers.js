@@ -2,6 +2,9 @@
 // Nao rode `npm run sync-core` sem revisar — ele sobrescreve com a versao da extensao.
 import { PROVIDER_CATALOG, COOLDOWN_MS } from "./config.js";
 import * as store from "./storage.js";
+// fetchComCorpo mora em net.js: o mesmo relogio unico que nasceu aqui agora
+// protege tambem github.js, vercel.js, supabase-mgmt.js e billing.js.
+import { fetchComCorpo } from "./net.js";
 
 /**
  * Formato neutro de conversa usado internamente. E ele que permite trocar de
@@ -398,29 +401,6 @@ function errorDetail(bodyText) {
     if (m) return String(m).replace(/\s+/g, " ").slice(0, 220);
   } catch {}
   return (bodyText || "").replace(/\s+/g, " ").slice(0, 220);
-}
-
-/**
- * fetch + leitura do corpo sob UM UNICO relogio de timeout.
- *
- * O detalhe e sutil e ja custou uma hora de tela travada: o fetch resolve assim
- * que os CABECALHOS chegam, mas o corpo ainda vem depois. Se o relogio for
- * desarmado nesse meio, um corpo que para de fluir (ponte lenta, conexao meio
- * aberta, provedor que abre a resposta e nao termina) deixa o res.text()
- * esperando PARA SEMPRE — sem erro, sem timeout, e a interface fica "pensando"
- * indefinidamente. Por isso o clearTimeout so acontece no finally: o abort
- * cobre a requisicao E a leitura do corpo.
- */
-async function fetchComCorpo(url, init, timeoutMs) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...init, signal: ctrl.signal });
-    const text = await res.text();
-    return { res, text };
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 const REASON_LABEL = {

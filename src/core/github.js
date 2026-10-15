@@ -2,6 +2,10 @@
 // Nao rode `npm run sync-core` sem revisar — ele sobrescreve com a versao da extensao.
 import * as store from "./storage.js";
 import { GITHUB_OAUTH } from "./config.js";
+// Toda chamada daqui passa por fetchComCorpo: o relogio cobre a requisicao E a
+// leitura do corpo, senao uma conexao meio aberta trava a interface no
+// "pensando" para sempre (o bug que custou uma hora de tela parada).
+import { fetchComCorpo, ehTimeout, PRAZO } from "./net.js";
 
 const API = "https://api.github.com";
 
@@ -30,15 +34,16 @@ export async function renovarTokenSePreciso(gh, forcar = false) {
     // GitHub nao libera CORS para o navegador e exige o client_secret, que so
     // existe no Worker. Chamar github.com daqui falhava sempre (CORS) e o
     // usuario tinha que reconectar o tempo todo.
-    const res = await fetch(GITHUB_OAUTH.workerUrl, {
+    const { text } = await fetchComCorpo(GITHUB_OAUTH.workerUrl, {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify({
         grant_type: "refresh_token",
         refresh_token: gh.refreshToken
       })
-    });
-    const data = await res.json().catch(() => ({}));
+    }, PRAZO.oauth);
+    let data = {};
+    try { data = JSON.parse(text); } catch {}
     if (!data.access_token) {
       // Refresh token invalido/revogado: limpa pra UI mostrar "desconectado"
       // em vez de guardar um token morto que so gera 401 depois.
@@ -54,7 +59,7 @@ export async function renovarTokenSePreciso(gh, forcar = false) {
     };
     await store.patch("github", atualizado);
     return { ...gh, ...atualizado };
-  } catch { /* offline etc: segue com o token atual */ return gh; }
+  } catch { /* offline, timeout etc: segue com o token atual */ return gh; }
 }
 
 async function token() {
@@ -69,17 +74,34 @@ async function token() {
 
 async function api(path, options = {}) {
   const t = await token();
-  const res = await fetch(path.startsWith("http") ? path : API + path, {
-    ...options,
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${t}`,
-      "x-github-api-version": "2022-11-28",
-      ...(options.body ? { "content-type": "application/json" } : {}),
-      ...(options.headers || {})
+  // Prazo por tipo de chamada: leitura (GET de repo, ref, arquivo) e rapida;
+  // escrita (criar repo, subir blob, criar tree/commit) carrega conteudo e
+  // merece folga. Quem precisar de outro teto passa timeoutMs nas options.
+  const { timeoutMs, ...init } = options;
+  const prazo = timeoutMs ?? (init.method && init.method !== "GET" ? PRAZO.escrita : PRAZO.leitura);
+  let res, text;
+  try {
+    ({ res, text } = await fetchComCorpo(path.startsWith("http") ? path : API + path, {
+      ...init,
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${t}`,
+        "x-github-api-version": "2022-11-28",
+        ...(init.body ? { "content-type": "application/json" } : {}),
+        ...(init.headers || {})
+      }
+    }, prazo));
+  } catch (e) {
+    // O timeout tem que chegar legivel na tela: "GitHub nao respondeu" diz o
+    // que aconteceu, enquanto o AbortError cru nao diz nada a ninguem.
+    if (ehTimeout(e)) {
+      throw new Error(
+        `O GitHub nao respondeu em ${Math.round(prazo / 1000)}s (${init.method || "GET"} ${path}). ` +
+        "Pode ser a sua conexao ou instabilidade do GitHub — tente de novo."
+      );
     }
-  });
-  const text = await res.text();
+    throw new Error(`Nao consegui falar com o GitHub (${e.message || e}).`);
+  }
   if (!res.ok) {
     // O MOTIVO REAL costuma estar no array "errors", nao no "message" generico.
     let detail = text.slice(0, 400);
@@ -132,16 +154,23 @@ async function api(path, options = {}) {
 
 /** Confere se o token responde antes de voce depender dele num commit. */
 export async function validateToken(candidate) {
-  const res = await fetch(`${API}/user`, {
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${candidate}`,
-      "x-github-api-version": "2022-11-28"
-    }
-  });
+  let res, text;
+  try {
+    // Consulta curta, e a pessoa esta olhando a tela de conexao: teto curto.
+    ({ res, text } = await fetchComCorpo(`${API}/user`, {
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${candidate}`,
+        "x-github-api-version": "2022-11-28"
+      }
+    }, PRAZO.consulta));
+  } catch (e) {
+    if (ehTimeout(e)) throw new Error("O GitHub nao respondeu ao validar o token. Tente de novo.");
+    throw new Error(`Nao consegui falar com o GitHub para validar o token (${e.message || e}).`);
+  }
   if (res.status === 401) throw new Error("Token recusado pelo GitHub. Confira se voce copiou ele inteiro.");
   if (!res.ok) throw new Error(`GitHub ${res.status} ao validar o token.`);
-  const user = await res.json();
+  const user = JSON.parse(text);
 
   // Um token so serve aqui se puder escrever em repositorio. Checamos o escopo
   // quando o GitHub informa (tokens classicos e OAuth trazem esse cabecalho).
@@ -165,13 +194,14 @@ export async function listRepos() {
 
   // Descobrimos o alcance real do token: e ele que explica lista curta.
   try {
-    const res = await fetch(`${API}/user`, {
+    // Diagnostico e OPCIONAL: se demorar, nao vale segurar a lista de repos.
+    const { res } = await fetchComCorpo(`${API}/user`, {
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${await token()}`,
         "x-github-api-version": "2022-11-28"
       }
-    });
+    }, PRAZO.consulta);
     diag.escopos = res.headers.get("x-oauth-scopes");
     // Token de GitHub App devolve o cabecalho vazio; token de OAuth App traz os
     // escopos concedidos. A distincao importa: o de App so alcanca repositorios
@@ -268,14 +298,28 @@ export async function getRepo(owner, name) {
 
 // --- login sem backend (GitHub Device Flow) -----------------------------------
 
+// ATENCAO ao prazo nestas duas funcoes: o device flow FICA em polling, mas o
+// polling e do CHAMADOR — ele chama pollDeviceLogin() de novo a cada ~5s. Cada
+// chamada aqui e UMA requisicao que o GitHub responde na hora (com
+// "authorization_pending" enquanto a pessoa nao autorizou), nao uma espera
+// longa. Entao um teto por requisicao nao quebra o login: ele so impede que
+// uma requisicao pendurada mate o ciclo de polling inteiro, que e justamente o
+// que acontecia antes (sem signal, uma chamada travada nunca voltava e o login
+// ficava eternamente "aguardando autorizacao"). O teto e folgado de proposito.
 export async function startDeviceLogin(clientId) {
-  const res = await fetch("https://github.com/login/device/code", {
-    method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify({ client_id: clientId, scope: "repo read:user" })
-  });
+  let res, text;
+  try {
+    ({ res, text } = await fetchComCorpo("https://github.com/login/device/code", {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({ client_id: clientId, scope: "repo read:user" })
+    }, PRAZO.oauth));
+  } catch (e) {
+    if (ehTimeout(e)) throw new Error("O GitHub nao respondeu ao iniciar o login. Tente de novo.");
+    throw new Error(`Nao consegui iniciar o login no GitHub (${e.message || e}).`);
+  }
   let data = {};
-  try { data = await res.json(); } catch {}
+  try { data = JSON.parse(text); } catch {}
   if (data.error || !res.ok) {
     const raw = data.error_description || data.error || `HTTP ${res.status}`;
     // Traduz os erros mais comuns em algo que diga o que fazer.
@@ -304,16 +348,25 @@ export async function startDeviceLogin(clientId) {
 }
 
 export async function pollDeviceLogin(clientId, deviceCode) {
-  const res = await fetch("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json" },
-    body: JSON.stringify({
-      client_id: clientId,
-      device_code: deviceCode,
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code"
-    })
-  });
-  const data = await res.json();
+  let text;
+  try {
+    ({ text } = await fetchComCorpo("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: JSON.stringify({
+        client_id: clientId,
+        device_code: deviceCode,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code"
+      })
+    }, PRAZO.oauth));
+  } catch (e) {
+    // Uma tentativa que nao voltou NAO e falha de login: devolvemos "pending"
+    // para o chamador tentar de novo no proximo ciclo, como ele ja faz com
+    // authorization_pending. Lancar aqui cancelaria um login que ainda e valido.
+    if (ehTimeout(e)) return { status: "pending" };
+    throw new Error(`Nao consegui falar com o GitHub (${e.message || e}).`);
+  }
+  const data = JSON.parse(text);
   if (data.access_token) {
     await store.patch("github", {
       token: data.access_token,
@@ -363,13 +416,16 @@ export async function startOAuthLogin() {
   // Troca code -> token no Worker (o client_secret so existe la).
   let data;
   try {
-    const res = await fetch(workerUrl, {
+    const { text } = await fetchComCorpo(workerUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ code })
-    });
-    data = await res.json();
+    }, PRAZO.oauth);
+    data = JSON.parse(text);
   } catch (e) {
+    if (ehTimeout(e)) {
+      throw new Error("O servidor de login nao respondeu em " + Math.round(PRAZO.oauth / 1000) + "s. Tente entrar de novo.");
+    }
     throw new Error("Nao consegui falar com o servidor de login. Confira a URL do Worker. (" + (e.message || e) + ")");
   }
   if (!data || !data.access_token) {
@@ -500,7 +556,10 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
   let pronto = false;
   for (let i = 0; i < 10 && !pronto; i++) {
     try {
-      await api(`/repos/${owner}/${nomeLimpo}/git/ref/heads/${encodeURIComponent(branch)}`);
+      // Teto curto de proposito: aqui so perguntamos "a branch ja existe?" dez
+      // vezes seguidas. Com o prazo de leitura normal (30s), dez tentativas
+      // penduradas somariam 5 minutos de tela parada.
+      await api(`/repos/${owner}/${nomeLimpo}/git/ref/heads/${encodeURIComponent(branch)}`, { timeoutMs: 10_000 });
       pronto = true;
     } catch {
       await new Promise(r => setTimeout(r, 1200));

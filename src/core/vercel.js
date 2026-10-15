@@ -10,6 +10,10 @@
 
 import * as store from "./storage.js";
 import * as gh from "./github.js";
+// Relogio unico cobrindo requisicao + leitura do corpo (ver net.js). Importa
+// ainda mais aqui: as chamadas da Vercel passam pelo Worker-proxy, e uma ponte
+// que abre a resposta e para de enviar prendia a publicacao para sempre.
+import { fetchComCorpo, ehTimeout, PRAZO } from "./net.js";
 
 const API = "https://api.vercel.com";
 
@@ -25,15 +29,34 @@ async function token() {
 
 async function vapi(path, options = {}) {
   const t = await token();
-  const res = await fetch(path.startsWith("http") ? path : API + path, {
-    ...options,
-    headers: {
-      authorization: `Bearer ${t}`,
-      ...(options.body ? { "content-type": "application/json" } : {}),
-      ...(options.headers || {})
-    }
-  });
-  const text = await res.text();
+  // Leitura (achar projeto, status do deploy, logs do build) e rapida; escrita
+  // (criar projeto, gravar variavel, disparar deploy) ganha folga. Note que o
+  // POST /v13/deployments apenas CRIA o deploy e volta na hora — a espera do
+  // build e feita em vapi() separados, num laco com teto proprio de 5 min.
+  const { timeoutMs, ...init } = options;
+  const prazo = timeoutMs ?? (init.method && init.method !== "GET" ? PRAZO.escrita : PRAZO.leitura);
+  let res, text;
+  try {
+    ({ res, text } = await fetchComCorpo(path.startsWith("http") ? path : API + path, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${t}`,
+        ...(init.body ? { "content-type": "application/json" } : {}),
+        ...(init.headers || {})
+      }
+    }, prazo));
+  } catch (e) {
+    const err = new Error(
+      ehTimeout(e)
+        ? `A Vercel nao respondeu em ${Math.round(prazo / 1000)}s (${init.method || "GET"} ${path}). Tente publicar de novo.`
+        : `Nao consegui falar com a Vercel (${e.message || e}).`
+    );
+    // Mantemos o formato de erro do vapi() (status/vercelCode) para quem
+    // inspeciona: varios chamadores fazem try/catch e olham err.status.
+    err.status = 0;
+    err.timeout = ehTimeout(e);
+    throw err;
+  }
   let data = null;
   try { data = text ? JSON.parse(text) : null; } catch {}
   if (!res.ok) {
