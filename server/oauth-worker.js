@@ -1,301 +1,231 @@
-// ============================================================================
-// oauth-worker.js — o Worker da Cloudflare que o SaaS usa
-// ----------------------------------------------------------------------------
-// Ele existe por dois motivos, e so por esses:
-//
-//  1) GUARDAR OS SEGREDOS. A troca de "code" por token exige o client_secret.
-//     Se ele estivesse no site, qualquer pessoa abriria o navegador e o leria.
-//     Entao o site manda so o code pra ca, e o segredo nunca sai daqui.
-//
-//  2) RESOLVER O CORS. O navegador bloqueia chamadas diretas a api.vercel.com,
-//     api.supabase.com e a varias IAs — elas nao mandam os cabecalhos de CORS.
-//     A rota /proxy refaz a chamada do lado do servidor e devolve com CORS *.
-//
-// Cole este arquivo inteiro em dash.cloudflare.com -> Workers & Pages ->
-// copilot-oauth -> Edit code -> Deploy.
-//
-// ----------------------------------------------------------------------------
-// ROTAS
-//   GET  /status            quais segredos estao configurados (so true/false)
-//   ANY  /proxy?url=<url>   repassa a chamada (e o CORS) pro destino
-//   POST /                  troca/renova token de OAuth, conforme o corpo:
-//       { code }                                           -> GitHub (login)
-//       { grant_type:"refresh_token", refresh_token }      -> GitHub (renova)
-//       { provider:"supabase", code, redirect_uri, code_verifier }
-//       { provider:"supabase", refresh_token }
-//       { provider:"vercel",   code, redirect_uri }        -> Vercel (login)
-//
-// ----------------------------------------------------------------------------
-// VARIAVEIS (Settings -> Variables and Secrets -> tipo "Secret")
-//   GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET
-//   SUPABASE_CLIENT_ID / SUPABASE_CLIENT_SECRET
-//   VERCEL_CLIENT_ID / VERCEL_CLIENT_SECRET      <- as novas
-//
-// Se no seu Worker elas tiverem outro nome, o codigo abaixo tambem aceita os
-// apelidos mais comuns (GH_CLIENT_ID, CLIENT_SECRET...). Abra /status depois do
-// deploy: ele diz exatamente quais ele conseguiu achar.
-// ============================================================================
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// Hosts que a rota /proxy aceita. E a MESMA lista de PROXIED_HOSTS em
-// src/core/net.js — se adicionar um provedor de IA la, adicione aqui tambem,
-// senao a chamada volta com "host_nao_permitido".
-//
-// Por que a lista existe: sem ela, este endereco vira um proxy aberto, e proxy
-// aberto na internet e achado e usado por terceiros — gastando a sua cota da
-// Cloudflare e colocando o seu dominio no meio de trafego que nao e seu.
-const HOSTS_PERMITIDOS = [
+// github-oauth-worker.js
+var CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+  // "*" libera qualquer header custom no preflight (sem precisar listar um a um
+  // a cada provedor novo). Authorization precisa vir explicito — o curinga "*"
+  // nao cobre ele pela spec de CORS.
+  "Access-Control-Allow-Headers": "*, Authorization",
+  "Access-Control-Max-Age": "86400"
+};
+var PROXY_ALLOW = [
   /(^|\.)api\.vercel\.com$/i,
   /(^|\.)api\.supabase\.com$/i,
+  // Provedores de IA que bloqueiam CORS no navegador (usados pelo SaaS web).
   /(^|\.)api\.deepseek\.com$/i,
   /(^|\.)api\.mistral\.ai$/i,
   /(^|\.)api\.groq\.com$/i,
   /(^|\.)openrouter\.ai$/i,
   /(^|\.)api\.x\.ai$/i
 ];
-
-const CORS = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-  "access-control-allow-headers": "*",
-  "access-control-max-age": "86400"
-};
-
-function json(dados, status = 200) {
-  return new Response(JSON.stringify(dados), {
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8", ...CORS }
+    headers: { "content-type": "application/json", ...CORS }
   });
 }
-
-// Aceita o nome oficial da variavel ou apelidos, pra este arquivo cair no seu
-// Worker sem voce ter que renomear nada.
-function segredo(env, ...nomes) {
-  for (const n of nomes) if (env[n]) return env[n];
-  return "";
+__name(json, "json");
+async function trocaGithub(body, env) {
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) return json({ error: "github_nao_configurado" }, 500);
+  const ehRefresh = Boolean(body.refresh_token) && !body.code;
+  if (!ehRefresh && !body.code) return json({ error: "missing_code" }, 400);
+  const payload = ehRefresh ? {
+    client_id: env.GITHUB_CLIENT_ID,
+    client_secret: env.GITHUB_CLIENT_SECRET,
+    grant_type: "refresh_token",
+    refresh_token: body.refresh_token
+  } : {
+    client_id: env.GITHUB_CLIENT_ID,
+    client_secret: env.GITHUB_CLIENT_SECRET,
+    code: body.code,
+    // O fluxo web (SaaS) envia redirect_uri no authorize; o GitHub exige o
+    // MESMO valor aqui na troca. A extensao nao envia (fica undefined -> omitido).
+    ...body.redirect_uri ? { redirect_uri: body.redirect_uri } : {}
+  };
+  let data;
+  try {
+    const res = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { "content-type": "application/json", "accept": "application/json", "user-agent": "copilot-code-oauth" },
+      body: JSON.stringify(payload)
+    });
+    data = await res.json();
+  } catch (e) {
+    return json({ error: "falha_ao_trocar", detail: String(e && e.message || e) }, 502);
+  }
+  return json({
+    access_token: data.access_token || null,
+    refresh_token: data.refresh_token || null,
+    expires_in: data.expires_in || null,
+    refresh_token_expires_in: data.refresh_token_expires_in || null,
+    token_type: data.token_type || null,
+    scope: data.scope || null,
+    error: data.error || null,
+    error_description: data.error_description || null
+  });
 }
-const credenciais = env => ({
-  github: {
-    id: segredo(env, "GITHUB_CLIENT_ID", "GH_CLIENT_ID", "CLIENT_ID"),
-    secret: segredo(env, "GITHUB_CLIENT_SECRET", "GH_CLIENT_SECRET", "CLIENT_SECRET")
-  },
-  supabase: {
-    id: segredo(env, "SUPABASE_CLIENT_ID", "SB_CLIENT_ID"),
-    secret: segredo(env, "SUPABASE_CLIENT_SECRET", "SB_CLIENT_SECRET")
-  },
-  vercel: {
-    id: segredo(env, "VERCEL_CLIENT_ID", "VC_CLIENT_ID"),
-    secret: segredo(env, "VERCEL_CLIENT_SECRET", "VC_CLIENT_SECRET")
+__name(trocaGithub, "trocaGithub");
+async function trocaSupabase(body, env) {
+  if (!env.SUPABASE_OAUTH_CLIENT_ID || !env.SUPABASE_OAUTH_CLIENT_SECRET) return json({ error: "supabase_nao_configurado" }, 500);
+  const form = new URLSearchParams();
+  if (body.refresh_token) {
+    form.set("grant_type", "refresh_token");
+    form.set("refresh_token", body.refresh_token);
+  } else if (body.code) {
+    form.set("grant_type", "authorization_code");
+    form.set("code", body.code);
+    form.set("redirect_uri", body.redirect_uri || "");
+    if (body.code_verifier) form.set("code_verifier", body.code_verifier);
+  } else {
+    return json({ error: "missing_code_or_refresh" }, 400);
   }
-});
-
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-
-    // Preflight do navegador (o content-type: application/json o dispara).
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-
-    if (url.pathname === "/status") return rotaStatus(env);
-    if (url.pathname === "/proxy") return rotaProxy(request, url);
-    if (url.pathname === "/" || url.pathname === "") {
-      if (request.method !== "POST") {
-        return json({ error: "method_not_allowed", dica: "Use POST com o code, ou abra /status." }, 405);
-      }
-      return rotaOAuth(request, env);
-    }
-    return json({ error: "not_found", rota: url.pathname }, 404);
+  const basic = btoa(env.SUPABASE_OAUTH_CLIENT_ID + ":" + env.SUPABASE_OAUTH_CLIENT_SECRET);
+  let data;
+  try {
+    const res = await fetch("https://api.supabase.com/v1/oauth/token", {
+      method: "POST",
+      headers: { "authorization": "Basic " + basic, "content-type": "application/x-www-form-urlencoded", "accept": "application/json" },
+      body: form.toString()
+    });
+    data = await res.json();
+  } catch (e) {
+    return json({ error: "falha_ao_trocar", detail: String(e && e.message || e) }, 502);
   }
-};
+  return json({
+    access_token: data.access_token || null,
+    refresh_token: data.refresh_token || null,
+    expires_in: data.expires_in || null,
+    token_type: data.token_type || null,
+    error: data.error || null,
+    error_description: data.error_description || data.msg || data.message || null
+  });
+}
+__name(trocaSupabase, "trocaSupabase");
+// =============================== NOVO ========================================
+// Troca o code da Vercel por um token de integracao.
+//
+// Dois detalhes que derrubam quem copia do fluxo do GitHub acima:
+//   1) o endereco tem /v2/  ->  https://api.vercel.com/v2/oauth/access_token
+//   2) o corpo e form-urlencoded, NAO JSON (o do GitHub aqui e JSON)
+//
+// A resposta da Vercel vem assim:
+//   { token_type, access_token, installation_id, user_id, team_id }
+//
+// team_id e o campo que importa alem do token: quando NAO e null, a integracao
+// foi instalada num TIME, e dai pra frente toda chamada a API da Vercel precisa
+// levar ?teamId=... O app guarda esse valor e o anexa sozinho.
+//
+// Nao existe refresh_token aqui: o token da Vercel e de vida longa. Quem revoga
+// e o dono da conta, desinstalando a integracao no painel dela.
+//
+// Variaveis aceitas (as duas formas, porque o GitHub usa GITHUB_CLIENT_ID e o
+// Supabase usa SUPABASE_OAUTH_CLIENT_ID — a nomenclatura ja estava misturada):
+//   VERCEL_CLIENT_ID / VERCEL_CLIENT_SECRET
+//   VERCEL_OAUTH_CLIENT_ID / VERCEL_OAUTH_CLIENT_SECRET
+async function trocaVercel(body, env) {
+  const clientId = env.VERCEL_CLIENT_ID || env.VERCEL_OAUTH_CLIENT_ID;
+  const clientSecret = env.VERCEL_CLIENT_SECRET || env.VERCEL_OAUTH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return json({ error: "vercel_nao_configurado" }, 500);
+  if (!body.code) return json({ error: "missing_code" }, 400);
 
-// ---------------------------------------------------------------- /status ---
-// Diagnostico sem vazar nada: so diz se achou cada segredo, nunca o valor.
-function rotaStatus(env) {
-  const c = credenciais(env);
+  const form = new URLSearchParams();
+  form.set("client_id", clientId);
+  form.set("client_secret", clientSecret);
+  form.set("code", body.code);
+  // Precisa ser IGUAL ao Redirect URL cadastrado no console da Vercel — ate a
+  // barra no final conta.
+  form.set("redirect_uri", body.redirect_uri || "");
+
+  let data, status;
+  try {
+    const res = await fetch("https://api.vercel.com/v2/oauth/access_token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "accept": "application/json" },
+      body: form.toString()
+    });
+    status = res.status;
+    data = await res.json();
+  } catch (e) {
+    return json({ error: "falha_ao_trocar", detail: String(e && e.message || e) }, 502);
+  }
+  return json({
+    access_token: data.access_token || null,
+    token_type: data.token_type || null,
+    installation_id: data.installation_id || null,
+    user_id: data.user_id || null,
+    // Cuidado: null aqui significa "conta pessoal", que e diferente de ausente.
+    team_id: data.team_id === void 0 ? null : data.team_id,
+    error: data.error || (data.access_token ? null : "http_" + status) || null,
+    error_description: data.error_description || data.message || null
+  });
+}
+__name(trocaVercel, "trocaVercel");
+// Diagnostico: diz quais segredos o Worker enxerga, sem revelar valor nenhum.
+// Pode apagar esta funcao e a linha que a chama — nada do app depende dela.
+function status(env) {
   return json({
     ok: true,
     segredos: {
-      github: { id: Boolean(c.github.id), secret: Boolean(c.github.secret) },
-      supabase: { id: Boolean(c.supabase.id), secret: Boolean(c.supabase.secret) },
-      vercel: { id: Boolean(c.vercel.id), secret: Boolean(c.vercel.secret) }
-    },
-    hostsPermitidos: HOSTS_PERMITIDOS.map(String)
+      github: Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),
+      supabase: Boolean(env.SUPABASE_OAUTH_CLIENT_ID && env.SUPABASE_OAUTH_CLIENT_SECRET),
+      vercel: Boolean(
+        (env.VERCEL_CLIENT_ID || env.VERCEL_OAUTH_CLIENT_ID) &&
+        (env.VERCEL_CLIENT_SECRET || env.VERCEL_OAUTH_CLIENT_SECRET)
+      )
+    }
   });
 }
-
-// ----------------------------------------------------------------- /proxy ---
-async function rotaProxy(request, url) {
-  const destino = url.searchParams.get("url");
-  // Resposta usada como teste de vida no CONECTAR.md — nao mude este texto.
-  if (!destino) return json({ error: "missing_url" }, 400);
-
-  let alvo;
-  try { alvo = new URL(destino); }
-  catch { return json({ error: "url_invalida", destino }, 400); }
-
-  if (!HOSTS_PERMITIDOS.some(re => re.test(alvo.host))) {
-    return json({
-      error: "host_nao_permitido",
-      host: alvo.host,
-      dica: "Adicione o host em HOSTS_PERMITIDOS neste Worker e em PROXIED_HOSTS (src/core/net.js)."
-    }, 403);
-  }
-
-  // Repassa os cabecalhos do app (authorization, x-api-key, anthropic-version…)
-  // e tira os que pertencem a ESTA conexao — mandar o host/origin original faz
-  // o destino recusar, e o content-length deixa de bater se o corpo mudar.
-  const cab = new Headers();
-  for (const [k, v] of request.headers) {
-    const nome = k.toLowerCase();
-    if (nome === "host" || nome === "origin" || nome === "referer") continue;
-    if (nome === "content-length" || nome === "connection") continue;
-    if (nome.startsWith("cf-") || nome.startsWith("x-forwarded-")) continue;
-    cab.set(k, v);
-  }
-
-  let resposta;
+__name(status, "status");
+// ============================= FIM DO NOVO ===================================
+async function handleProxy(request) {
+  const target = new URL(request.url).searchParams.get("url");
+  if (!target) return json({ error: "missing_url" }, 400);
+  let host;
   try {
-    resposta = await fetch(alvo.toString(), {
-      method: request.method,
-      headers: cab,
-      // GET/HEAD nao tem corpo; o resto vai em stream, sem carregar na memoria.
-      body: (request.method === "GET" || request.method === "HEAD") ? undefined : request.body,
-      redirect: "follow"
-    });
-  } catch (e) {
-    return json({ error: "falha_no_proxy", detalhe: String(e && e.message || e) }, 502);
+    host = new URL(target).host;
+  } catch {
+    return json({ error: "url_invalida" }, 400);
   }
-
-  // ATENCAO: o corpo volta em STREAM, de proposito. O streamComplete() em
-  // src/core/providers.js le a resposta da IA aos poucos (res.body.getReader()).
-  // Se aqui fizesse await resposta.text(), a geracao so apareceria no fim —
-  // e um texto longo estouraria o limite de memoria do Worker.
-  const saida = new Headers(resposta.headers);
-  // O runtime ja entregou o corpo descomprimido e com outro tamanho: manter
-  // estes cabecalhos faria o navegador tentar descomprimir de novo e falhar.
-  saida.delete("content-encoding");
-  saida.delete("content-length");
-  saida.delete("transfer-encoding");
-  // O CORS que vale e o nosso (o destino pode nem mandar, ou mandar restrito).
-  for (const [k, v] of Object.entries(CORS)) saida.set(k, v);
-
-  return new Response(resposta.body, { status: resposta.status, headers: saida });
-}
-
-// ------------------------------------------------------------------- / ------
-async function rotaOAuth(request, env) {
-  let corpo = {};
-  try { corpo = await request.json(); }
-  catch { return json({ error: "corpo_invalido", error_description: "Esperava JSON." }, 400); }
-
-  const c = credenciais(env);
-  const provider = String(corpo.provider || "github").toLowerCase();
-
+  if (!PROXY_ALLOW.some((re) => re.test(host))) return json({ error: "host_nao_permitido", host }, 403);
+  const headers = new Headers(request.headers);
+  ["host", "origin", "referer", "cf-connecting-ip", "cf-ipcountry", "x-forwarded-for"].forEach((h) => headers.delete(h));
+  const init = { method: request.method, headers, redirect: "follow" };
+  if (!["GET", "HEAD"].includes(request.method)) init.body = await request.arrayBuffer();
+  let upstream;
   try {
-    if (provider === "supabase") return await oauthSupabase(corpo, c.supabase);
-    if (provider === "vercel") return await oauthVercel(corpo, c.vercel);
-    return await oauthGithub(corpo, c.github);
+    upstream = await fetch(target, init);
   } catch (e) {
-    return json({ error: "falha_na_troca", error_description: String(e && e.message || e) }, 502);
+    return json({ error: "falha_no_proxy", detail: String(e && e.message || e) }, 502);
   }
+  const out = new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: upstream.headers });
+  for (const [k, v] of Object.entries(CORS)) out.headers.set(k, v);
+  return out;
 }
-
-function faltaCredencial(servico) {
-  return json({
-    error: "sem_credenciais",
-    error_description: `O Worker nao tem o client id/secret ${servico}. Configure em Settings -> Variables and Secrets e confira em /status.`
-  }, 500);
-}
-
-// --- GitHub -----------------------------------------------------------------
-// Mesmo endpoint para login e renovacao; muda so o grant_type. O "accept:
-// application/json" e obrigatorio: sem ele o GitHub responde em querystring.
-async function oauthGithub(corpo, cred) {
-  if (!cred.id || !cred.secret) return faltaCredencial("do GitHub");
-
-  const form = new URLSearchParams({ client_id: cred.id, client_secret: cred.secret });
-  if (corpo.grant_type === "refresh_token") {
-    if (!corpo.refresh_token) return json({ error: "sem_refresh_token" }, 400);
-    form.set("grant_type", "refresh_token");
-    form.set("refresh_token", corpo.refresh_token);
-  } else {
-    if (!corpo.code) return json({ error: "sem_code" }, 400);
-    form.set("code", corpo.code);
-    // O fluxo web manda redirect_uri; o da extensao, nao. So envia se veio.
-    if (corpo.redirect_uri) form.set("redirect_uri", corpo.redirect_uri);
+__name(handleProxy, "handleProxy");
+var github_oauth_worker_default = {
+  async fetch(request, env) {
+    if (request.method === "OPTIONS") return new Response(null, { headers: CORS });
+    const url = new URL(request.url);
+    if (url.pathname.replace(/\/+$/, "").endsWith("/proxy")) return handleProxy(request);
+    if (url.pathname.replace(/\/+$/, "").endsWith("/status")) return status(env);   // NOVO
+    if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "invalid_json" }, 400);
+    }
+    const provider = body && body.provider || "github";
+    if (provider === "github") return trocaGithub(body, env);
+    if (provider === "supabase") return trocaSupabase(body, env);
+    if (provider === "vercel") return trocaVercel(body, env);   // NOVO
+    return json({ error: "provider_desconhecido" }, 400);
   }
-
-  const res = await fetch("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
-    body: form.toString()
-  });
-  // Devolve a resposta do GitHub como veio: o app depende dos codigos de erro
-  // dele (bad_refresh_token / invalid_grant) pra saber quando desconectar.
-  return json(await res.json().catch(() => ({ error: "resposta_ilegivel_do_github" })), 200);
-}
-
-// --- Supabase ---------------------------------------------------------------
-// Aqui o client id/secret vao no cabecalho Basic, nao no corpo (e o que a
-// documentacao do Supabase manda). O corpo e form-urlencoded.
-async function oauthSupabase(corpo, cred) {
-  if (!cred.id || !cred.secret) return faltaCredencial("do Supabase");
-
-  const form = new URLSearchParams();
-  if (corpo.refresh_token && !corpo.code) {
-    form.set("grant_type", "refresh_token");
-    form.set("refresh_token", corpo.refresh_token);
-  } else {
-    if (!corpo.code) return json({ error: "sem_code" }, 400);
-    form.set("grant_type", "authorization_code");
-    form.set("code", corpo.code);
-    if (corpo.redirect_uri) form.set("redirect_uri", corpo.redirect_uri);
-    if (corpo.code_verifier) form.set("code_verifier", corpo.code_verifier);  // PKCE
-  }
-
-  const res = await fetch("https://api.supabase.com/v1/oauth/token", {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      accept: "application/json",
-      authorization: "Basic " + btoa(`${cred.id}:${cred.secret}`)
-    },
-    body: form.toString()
-  });
-  return json(await res.json().catch(() => ({ error: "resposta_ilegivel_do_supabase" })), 200);
-}
-
-// --- Vercel -----------------------------------------------------------------
-// A novidade. Dois detalhes que derrubam quem copia do fluxo do GitHub:
-//   1) o endereco tem /v2/  -> https://api.vercel.com/v2/oauth/access_token
-//   2) o corpo e form-urlencoded, nao JSON
-// A resposta vem assim:
-//   { token_type, access_token, installation_id, user_id, team_id }
-// O team_id importa: quando nao e null, a integracao foi instalada num TIME, e
-// a partir dai toda chamada a API precisa levar ?teamId=... O app guarda esse
-// valor e o vapi() em src/core/vercel.js o anexa sozinho.
-//
-// Nao ha refresh_token: o token da Vercel e de vida longa. Quem revoga e o dono
-// da conta, desinstalando a integracao no painel da Vercel.
-async function oauthVercel(corpo, cred) {
-  if (!cred.id || !cred.secret) return faltaCredencial("da Vercel");
-  if (!corpo.code) return json({ error: "sem_code" }, 400);
-
-  const form = new URLSearchParams({
-    client_id: cred.id,
-    client_secret: cred.secret,
-    code: corpo.code,
-    // A Vercel exige que seja IGUAL ao Redirect URL cadastrado no console —
-    // ate a barra no final conta.
-    redirect_uri: corpo.redirect_uri || ""
-  });
-
-  const res = await fetch("https://api.vercel.com/v2/oauth/access_token", {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
-    body: form.toString()
-  });
-
-  const dados = await res.json().catch(() => ({ error: "resposta_ilegivel_da_vercel" }));
-  if (!res.ok && !dados.error) dados.error = `http_${res.status}`;
-  return json(dados, 200);
-}
+};
+export {
+  github_oauth_worker_default as default
+};
+//# sourceMappingURL=github-oauth-worker.js.map

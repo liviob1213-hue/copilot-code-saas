@@ -2,26 +2,17 @@
 
 O arquivo a colar é **[`oauth-worker.js`](oauth-worker.js)**, nesta mesma pasta.
 
----
+**Ele é o seu Worker atual, com a rota da Vercel acrescentada.** Nada do que já
+funcionava foi tocado: a comparação linha a linha com o código que estava no ar
+dá **zero linhas removidas ou alteradas** — só blocos novos, marcados com
+`// NOVO`.
 
-## ⚠️ Leia isto antes de colar
+O que foi acrescentado:
 
-O Worker que está no ar hoje **não está neste computador** (o `CONECTAR.md`
-aponta pra uma pasta `server/` que vive no repositório da extensão). Então o
-`oauth-worker.js` é uma **reconstrução**: eu escrevi as rotas do GitHub e do
-Supabase a partir do que o app realmente envia pra elas, não a partir do seu
-arquivo atual.
-
-Elas estão testadas (34 verificações automáticas passam, incluindo o streaming
-das IAs), mas **se o seu Worker atual tiver alguma coisa que eu não sei**, ela
-se perde na substituição.
-
-**O caminho sem risco:** antes de apagar, copie o código atual do editor da
-Cloudflare e me mande aqui. Eu acrescento só a rota da Vercel e te devolvo o
-arquivo inteiro, sem tocar no resto.
-
-Se preferir ir direto com o meu, tudo bem — o **passo 5** testa tudo e mostra na
-hora se alguma coisa quebrou.
+| O quê | Pra quê |
+| --- | --- |
+| `trocaVercel()` + `provider === "vercel"` | a troca do `code` por token da Vercel |
+| `GET /status` | diagnóstico: diz quais segredos o Worker achou. **Pode apagar** — nada do app depende dele |
 
 ---
 
@@ -39,8 +30,10 @@ hora se alguma coisa quebrou.
 
 4. **Deploy / Save.**
 
-> Enquanto estiver aí, **anote os nomes dos segredos que já existem** (os do
-> GitHub e do Supabase). O passo 5 confere se o código novo achou todos.
+> Se errar e criar como `VERCEL_OAUTH_CLIENT_ID` / `VERCEL_OAUTH_CLIENT_SECRET`,
+> funciona também — o código aceita as duas formas. Isso existe porque a
+> nomenclatura do seu Worker já vinha misturada: o GitHub usa
+> `GITHUB_CLIENT_ID`, mas o Supabase usa `SUPABASE_OAUTH_CLIENT_ID`.
 
 ---
 
@@ -64,21 +57,17 @@ Abra no navegador:
 https://copilot-oauth.victor-faridoff.workers.dev/status
 ```
 
-Deve aparecer algo assim:
+Deve aparecer:
 
 ```json
-{ "ok": true,
-  "segredos": {
-    "github":   { "id": true, "secret": true },
-    "supabase": { "id": true, "secret": true },
-    "vercel":   { "id": true, "secret": true } } }
+{ "ok": true, "segredos": { "github": true, "supabase": true, "vercel": true } }
 ```
 
 **Só aparece `true`/`false` — nunca o valor do segredo.**
 
-Se algum vier `false`, o nome da variável na Cloudflare é diferente do esperado.
-Duas saídas: renomeie a variável, ou me diga o nome que ela tem que eu acrescento
-na lista de apelidos do código.
+Se `vercel` vier `false`, o segredo não foi salvo ou está com outro nome.
+Se `github` ou `supabase` vierem `false`, **pare**: alguma variável sumiu, e o
+login vai quebrar. Volte o código do passo 2 e me chame.
 
 ---
 
@@ -95,17 +84,22 @@ https://copilot-oauth.victor-faridoff.workers.dev/proxy
 
 ## 5) Conferir que **não quebrou nada**
 
-Esta é a parte importante da substituição. Rode `npm run dev` e, em **Conexões**:
+Rode `npm run dev` e, em **Conexões**:
 
 | Teste | O que esperar |
 | --- | --- |
 | **GitHub** → botão **Entrar** | volta logado, com seu @usuário no card |
 | **Supabase** → **Conectar** | volta conectado e lista seus projetos |
-| **Vercel** → já tem token colado | o card mostra se enxerga seus repositórios |
+| **Vercel** → token já colado | o card mostra se enxerga seus repositórios |
 | Criar um projeto qualquer | a IA responde — isso prova que o `/proxy` e o streaming estão de pé |
 
-Se qualquer um falhar, volte o código que você guardou no passo 2 e me diga o
-que aconteceu.
+> Os mesmos pontos já são verificados automaticamente, sem rede, por
+> `server/oauth-worker.test.mjs` (39 verificações). Pra rodar:
+> ```bash
+> node server/oauth-worker.test.mjs
+> ```
+> Mas o teste usa `fetch` falso: ele prova a **lógica**, não que os seus
+> segredos estão certos na Cloudflare. Por isso o passo 5 continua valendo.
 
 ---
 
@@ -113,7 +107,7 @@ que aconteceu.
 
 - [ ] **Client ID** da integração (`oac_…`)
 - [ ] **slug** (o que está em `vercel.com/integrations/<slug>`)
-- [ ] `/status` mostrou `vercel: id true, secret true`?
+- [ ] `/status` mostrou `vercel: true`?
 - [ ] O teste do passo 5 passou?
 - [ ] Deu certo instalar a integração com **outra conta** da Vercel?
       (abra `https://vercel.com/integrations/<slug>/new` numa aba anônima)
@@ -129,17 +123,18 @@ integração for instalada num time, toda chamada à API precisa levá-lo junto.
 
 | Rota | Pra quê |
 | --- | --- |
-| `GET /status` | diz quais segredos ele achou (só `true`/`false`) |
+| `GET /status` | diz quais segredos ele achou (só `true`/`false`) — **novo** |
 | `ANY /proxy?url=…` | refaz a chamada do lado do servidor e devolve com CORS, porque o navegador bloqueia `api.vercel.com`, `api.supabase.com` e várias IAs |
-| `POST /` | troca o `code` por token. O serviço é escolhido pelo corpo: sem `provider` = GitHub, `provider:"supabase"`, `provider:"vercel"` |
+| `POST /` | troca o `code` por token. O serviço vem do corpo: sem `provider` = GitHub, `provider:"supabase"`, `provider:"vercel"` (**novo**) |
 
-Dois detalhes que o código comenta e vale você saber:
+Três coisas que vale você saber sobre esse código:
 
-- **O `/proxy` repassa o corpo em stream, de propósito.** O `streamComplete()`
-  em `src/core/providers.js` lê a resposta da IA aos poucos. Se o Worker
-  esperasse a resposta inteira, o texto só apareceria no fim — e um texto longo
-  estouraria o limite de memória do Worker.
-- **O `/proxy` só aceita uma lista de hosts.** Sem essa lista o endereço vira um
-  proxy aberto, e proxy aberto é achado e usado por terceiros, gastando a sua
-  cota. A lista é a mesma de `PROXIED_HOSTS` em `src/core/net.js` — se um dia
+- **O `/proxy` repassa o corpo em stream.** O `streamComplete()` em
+  `src/core/providers.js` lê a resposta da IA aos poucos. Se o Worker esperasse
+  a resposta inteira, o texto só apareceria no fim.
+- **O `/proxy` só aceita a lista `PROXY_ALLOW`.** Sem ela o endereço seria um
+  proxy aberto. A lista espelha `PROXIED_HOSTS` em `src/core/net.js` — se um dia
   adicionar um provedor de IA lá, adicione aqui também.
+- **A troca da Vercel não é igual à do GitHub.** O endereço tem `/v2/` e o corpo
+  é form-urlencoded, enquanto o do GitHub aqui é JSON. Copiar um pro outro
+  quebra silenciosamente.
