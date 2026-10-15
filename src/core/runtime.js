@@ -243,22 +243,11 @@ export async function gerarPlano({ userMessage, kind = "app", providerId = "" },
 export async function criarProjeto({ userMessage, kind = "app", providerId = "", deploy = true, sessionId = null, embedImages = [] }, onEvent = () => {}) {
   if (!(await temGithub())) throw new Error(t("Conecte o GitHub antes de criar um projeto (Conexões)."));
 
-  // Pre-voo da Vercel ANTES de gastar uma geração de IA. Sem isto, a falta de
-  // acesso só aparecia no último passo: a IA já tinha rodado e o repositório
-  // privado já estava criado, então cada tentativa queimava uma geração e
-  // deixava mais um repositório órfão na conta.
-  //
-  // Só o caso claro ("conectado e não enxerga repositório nenhum") para o
-  // fluxo; "restrito" sai como aviso e qualquer outro estado — inclusive "não
-  // deu para saber" — segue em frente. Uma checagem instável não pode impedir
-  // ninguém de criar um projeto.
-  if (deploy) {
-    let acesso = null;
-    try { acesso = await vercel.checarAcessoGithub(); }
-    catch { /* a checagem falhou; não é motivo para barrar a criação */ }
-    if (acesso?.estado === "sem_acesso") throw new Error(acesso.mensagem);
-    if (acesso?.estado === "restrito") onEvent({ type: "notice", text: acesso.mensagem });
-  }
+  // Aqui havia um pré-voo que checava se a Vercel enxergava os repositórios do
+  // GitHub. Ele saiu porque a pergunta deixou de existir: o deploy não passa
+  // mais pela integração da Vercel no GitHub — o vercel.js envia os arquivos
+  // direto. Manter a checagem só criaria um bloqueio por um motivo que não
+  // derruba mais nada.
 
   const convHistory = await historicoDaSessao(sessionId);
   const sb = await store.get("supabase");

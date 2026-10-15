@@ -41,7 +41,15 @@ async function token() {
  * nao diz nada sobre time. Com token colado a mao, ou em conta pessoal, nao ha
  * teamId guardado e a URL sai exatamente como antes.
  */
+// Nem todo endereco da Vercel aceita teamId. Mandar o parametro para um que
+// nao conhece NAO e ignorado: a resposta volta 400 ("One of the provided values
+// in the request query is invalid"). Foi exatamente o que derrubou a checagem
+// previa — ela chamava git-namespaces com teamId, tomava 400, concluia "nao sei"
+// e deixava a geracao seguir para quebrar no fim.
+const SEM_TEAM_ID = [/\/v1\/integrations\/git-namespaces/, /\/v2\/user/];
+
 async function comTeamId(url) {
+  if (SEM_TEAM_ID.some(re => re.test(url))) return url;
   let teamId = "";
   try { teamId = (await store.get("vercel"))?.teamId || ""; } catch { /* segue sem */ }
   if (!teamId) return url;
@@ -443,26 +451,74 @@ async function ensureProject(owner, name) {
     if (e.status !== 404) throw e;
   }
 
-  // Nao existe: cria ligado ao repo. Exige a integracao GitHub da Vercel
-  // instalada na conta, com acesso a este repositorio.
-  try {
-    const proj = await vapi("/v9/projects", {
-      method: "POST",
-      body: JSON.stringify({
-        name: slug,
-        gitRepository: { type: "github", repo: `${owner}/${name}` }
-      })
-    });
-    await setPublic(proj.id);
-    return { id: proj.id, name: proj.name || slug };
-  } catch (e) {
-    if (/github|repositor|not\s*found|permission|install|access/i.test(e.message)) {
-      // Mesma redacao do pre-flight (ver mensagemSemAcessoGithub): e o mesmo
-      // problema, so descoberto mais tarde — aqui o repositorio ja existe.
-      throw new Error(mensagemSemAcessoGithub(e.message));
+  // Nao existe: cria SEM vinculo com o GitHub.
+  //
+  // Aqui estava o erro que derrubava todo projeto novo. Antes mandavamos
+  // gitRepository: { type: "github", repo }, o que exige a integracao da Vercel
+  // instalada no GitHub COM acesso aquele repositorio. Como cada projeto nasce
+  // num repositorio NOVO e PRIVADO, e a integracao costuma vir limitada a
+  // "Only select repositories", a Vercel respondia "The repository ... couldn't
+  // be found" — depois de a IA ja ter rodado e o repositorio ja existir.
+  //
+  // Sem o vinculo, a Vercel nao precisa enxergar o GitHub: o deploy() envia os
+  // arquivos direto (ver deploy). O GitHub continua sendo o lugar onde o codigo
+  // mora e de onde o app le para editar — so deixou de ser o caminho por onde a
+  // Vercel recebe o projeto.
+  const proj = await vapi("/v9/projects", {
+    method: "POST",
+    body: JSON.stringify({ name: slug })
+  });
+  await setPublic(proj.id);
+  return { id: proj.id, name: proj.name || slug };
+}
+
+/**
+ * Monta a lista de arquivos do deploy lendo o repositorio do GitHub.
+ *
+ * O caminho e "GitHub -> navegador -> Vercel" em vez de "GitHub -> Vercel"
+ * porque o primeiro usa o token do PROPRIO usuario, que obviamente enxerga o
+ * repositorio dele. O segundo dependia da integracao da Vercel no GitHub, que e
+ * uma configuracao a parte e que o cliente final nao deveria precisar conhecer.
+ */
+async function arquivosParaDeploy(owner, name, branch, onProgress) {
+  const tree = await gh.getTree(owner, name, branch);
+  const alvos = (tree.files || []).filter(f => !f.path.startsWith(".git/"));
+  if (!alvos.length) throw new Error("O repositorio esta vazio — nao ha o que publicar.");
+
+  const arquivos = [];
+  let lidos = 0;
+  for (const f of alvos) {
+    try {
+      const { content } = await gh.readFile(owner, name, branch, f.path);
+      arquivos.push({ file: f.path, data: content, encoding: "utf-8" });
+    } catch (e) {
+      // Um binario (imagem solta no repo) nao decodifica como texto. Pular um
+      // arquivo e melhor do que derrubar a publicacao inteira — e os projetos
+      // gerados aqui sao texto; imagem costuma vir embutida como data URI.
+      console.warn(`[vercel] pulei "${f.path}" no deploy: ${e.message}`);
     }
-    throw e;
+    if (++lidos % 5 === 0) onProgress(`lendo arquivos (${lidos}/${alvos.length})`);
   }
+  if (!arquivos.length) throw new Error("Nao consegui ler nenhum arquivo do repositorio.");
+  return arquivos;
+}
+
+/**
+ * O que a Vercel precisa saber para BUILDAR. Obrigatorio no primeiro deploy de
+ * um projeto (depois ela guarda). Com framework null ela serve os arquivos como
+ * estao, que e o certo para um index.html solto; com "vite" ela roda o install e
+ * o build e publica o dist/.
+ */
+function projectSettings(arquivos) {
+  const tem = p => arquivos.some(a => a.file === p);
+  const pkg = arquivos.find(a => a.file === "package.json");
+  const ehVite = tem("vite.config.js") || tem("vite.config.ts") ||
+    (pkg && /"vite"\s*:/.test(pkg.data));
+  if (ehVite) {
+    // null = "detecta sozinha". A Vercel conhece o vite e acerta o dist/.
+    return { framework: "vite", buildCommand: null, installCommand: null, outputDirectory: null };
+  }
+  return { framework: null, buildCommand: null, installCommand: null, outputDirectory: null };
 }
 
 // Grava uma variavel de ambiente no projeto (upsert: sobrescreve se ja existe).
@@ -512,7 +568,9 @@ async function fetchBuildLog(deploymentId) {
 export async function deploy(owner, name, branch, onProgress = () => {}, supabase = null) {
   onProgress("preparando o projeto na Vercel");
   const project = await ensureProject(owner, name);
-  const rid = await gh.repoId(owner, name);
+
+  onProgress("lendo os arquivos do projeto");
+  const arquivos = await arquivosParaDeploy(owner, name, branch || "main", onProgress);
 
   // Se ha Supabase ligado, garante as variaveis no projeto ANTES do build.
   if (supabase?.url || supabase?.anonKey) {
@@ -522,13 +580,18 @@ export async function deploy(owner, name, branch, onProgress = () => {}, supabas
   }
 
   onProgress("enviando para a Vercel");
+  // files (e NAO gitSource): o conteudo vai no proprio corpo da requisicao. A
+  // especificacao da Vercel e explicita — "Required for non-git deployments.
+  // Cannot be used together with gitSource". A Vercel continua fazendo o build
+  // no servidor dela; o que muda e so de onde ela recebe o codigo.
   const dep = await vapi("/v13/deployments", {
     method: "POST",
     body: JSON.stringify({
       name: project.name,
       project: project.id,
       target: "production",
-      gitSource: { type: "github", repoId: rid, ref: branch || "main" }
+      projectSettings: projectSettings(arquivos),
+      files: arquivos
     })
   });
 
