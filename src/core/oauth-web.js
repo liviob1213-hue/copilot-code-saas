@@ -16,7 +16,7 @@
 // ============================================================================
 
 import * as store from "./storage.js";
-import { GITHUB_OAUTH, SUPABASE_OAUTH } from "./config.js";
+import { GITHUB_OAUTH, SUPABASE_OAUTH, VERCEL_OAUTH } from "./config.js";
 import { validateToken } from "./github.js";
 // Relogio unico cobrindo requisicao + leitura do corpo (ver net.js): este e o
 // caminho de login REAL da versao web, e sem prazo um Worker lento deixava a
@@ -53,6 +53,9 @@ export function githubConfigurado() {
 export function supabaseConfigurado() {
   return Boolean(SUPABASE_OAUTH.clientId && SUPABASE_OAUTH.workerUrl);
 }
+export function vercelConfigurado() {
+  return Boolean(VERCEL_OAUTH.slug && VERCEL_OAUTH.workerUrl);
+}
 
 // --- inicio dos fluxos (redireciona a aba) ----------------------------------
 
@@ -85,6 +88,27 @@ export async function startSupabaseLoginWeb() {
     "&state=" + encodeURIComponent(state) +
     (scope ? "&scope=" + encodeURIComponent(scope) : "");
   window.location.assign(url);
+}
+
+/**
+ * Vercel. Diferente do GitHub e do Supabase: nao existe uma tela generica de
+ * "authorize" com client_id na URL. A Vercel chama isto de "external
+ * installation flow" — manda-se a pessoa para a pagina da integracao, ela
+ * escolhe a conta ou o time, e a Vercel devolve para o Redirect URL cadastrado
+ * no console (NAO para um redirect_uri que a gente mande aqui).
+ *
+ * Por isso so vai o state na URL. E por isso tambem o Redirect URL do console
+ * precisa bater com a origem onde o app roda: se o Vite subir em 5174 porque a
+ * 5173 estava ocupada, a Vercel devolve na 5173 assim mesmo e o login se perde.
+ */
+export function startVercelLoginWeb() {
+  const { slug } = VERCEL_OAUTH;
+  const state = randomToken(16);
+  savePending({ provider: "vercel", state, redirectUri: redirectUri() });
+  window.location.assign(
+    `https://vercel.com/integrations/${encodeURIComponent(slug)}/new` +
+    `?state=${encodeURIComponent(state)}`
+  );
 }
 
 // --- retorno (chamar no boot, antes de renderizar a UI) ---------------------
@@ -163,6 +187,43 @@ export async function handleOAuthRedirect() {
       expiresAt: Date.now() + (Number(data.expires_in || 3600) * 1000)
     });
     return { provider: "supabase" };
+  }
+
+  if (pending.provider === "vercel") {
+    let data = {};
+    try {
+      const { text } = await fetchComCorpo(VERCEL_OAUTH.workerUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "vercel", code, redirect_uri: pending.redirectUri })
+      }, PRAZO.oauth);
+      try { data = JSON.parse(text); } catch {}
+    } catch (e) {
+      throw new Error(ehTimeout(e)
+        ? "O servidor de login nao respondeu em " + Math.round(PRAZO.oauth / 1000) + "s. Tente conectar de novo."
+        : "Nao consegui falar com o servidor de login (" + (e.message || e) + ").");
+    }
+    if (!data.access_token) throw new Error("Falha ao obter o token da Vercel: " + (data.error_description || data.error || "sem token"));
+
+    // O token entra no MESMO lugar onde o campo "colar token" sempre guardou.
+    // E o que faz todo o vercel.js continuar funcionando sem saber se a pessoa
+    // colou um token a mao ou clicou em Conectar.
+    await store.patch("secrets", { VERCEL_TOKEN: data.access_token });
+
+    // teamId: quando a integracao e instalada num TIME, a API da Vercel so
+    // enxerga os recursos se cada chamada levar ?teamId=... Sem ele, as listas
+    // voltam vazias e as escritas dao 403 sem explicar por que. Numa conta
+    // pessoal vem null, e ai nao muda nada.
+    await store.patch("vercel", {
+      oauth: true,
+      teamId: data.team_id || qs.get("teamId") || "",
+      configurationId: data.installation_id || qs.get("configurationId") || ""
+    });
+
+    // A Vercel manda tambem um "next" para fechar o popup da instalacao. Aqui o
+    // fluxo e de aba inteira, entao seguir o next so jogaria a pessoa de volta
+    // para o site da Vercel — o token ja esta trocado, e ficamos no app.
+    return { provider: "vercel" };
   }
 
   throw new Error("Provedor de login desconhecido.");

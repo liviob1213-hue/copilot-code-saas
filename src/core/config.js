@@ -36,6 +36,21 @@ export const SUPABASE_OAUTH = {
   scope: ""
 };
 
+// Integracao da Vercel — substitui o token colado a mao por um botao "Conectar".
+//
+// O "slug" e o que manda aqui: ele monta o endereco por onde a pessoa instala,
+// https://vercel.com/integrations/<slug>/new. O clientId fica guardado por
+// coerencia com os outros provedores e para o app saber que esta configurado —
+// quem de fato o usa e o Worker, na hora de trocar o code pelo token.
+//
+// O client_secret NAO mora aqui: ele vive so no Worker, como VERCEL_CLIENT_SECRET.
+// O que esta neste arquivo vai inteiro para o navegador de quem abre o site.
+export const VERCEL_OAUTH = {
+  clientId: "oac_FIfOIWmmwB5oKSCnRw8QFPlI",
+  workerUrl: "https://copilot-oauth.victor-faridoff.workers.dev",
+  slug: "copilot-code"
+};
+
 // Suba este numero SEMPRE que mudar modelo/provedor no catalogo: a migracao em
 // storage.js so roda quando ele muda, e e ela que troca um modelo salvo que nao
 // existe mais (ex.: "claude-sonnet-5" antigo, que fazia a Anthropic dar 400).

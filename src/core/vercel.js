@@ -32,6 +32,25 @@ async function token() {
   return t;
 }
 
+/**
+ * Anexa ?teamId=... quando a Vercel foi conectada por OAuth e a integracao
+ * ficou instalada num TIME (e nao numa conta pessoal).
+ *
+ * Por que isto existe: sem o teamId, a API responde como se a conta estivesse
+ * vazia — listar projetos volta [], criar projeto da 403 — e a mensagem de erro
+ * nao diz nada sobre time. Com token colado a mao, ou em conta pessoal, nao ha
+ * teamId guardado e a URL sai exatamente como antes.
+ */
+async function comTeamId(url) {
+  let teamId = "";
+  try { teamId = (await store.get("vercel"))?.teamId || ""; } catch { /* segue sem */ }
+  if (!teamId) return url;
+  const u = new URL(url);
+  // Nao sobrescreve um teamId que o proprio chamador ja tenha posto.
+  if (!u.searchParams.has("teamId")) u.searchParams.set("teamId", teamId);
+  return u.toString();
+}
+
 async function vapi(path, options = {}) {
   const t = await token();
   // Leitura (achar projeto, status do deploy, logs do build) e rapida; escrita
@@ -42,7 +61,7 @@ async function vapi(path, options = {}) {
   const prazo = timeoutMs ?? (init.method && init.method !== "GET" ? PRAZO.escrita : PRAZO.leitura);
   let res, text;
   try {
-    ({ res, text } = await fetchComCorpo(path.startsWith("http") ? path : API + path, {
+    ({ res, text } = await fetchComCorpo(await comTeamId(path.startsWith("http") ? path : API + path), {
       ...init,
       headers: {
         authorization: `Bearer ${t}`,

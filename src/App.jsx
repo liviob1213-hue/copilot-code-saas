@@ -6,7 +6,7 @@ import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
-import { startGithubLoginWeb, startSupabaseLoginWeb, githubConfigurado, supabaseConfigurado } from "./core/oauth-web.js";
+import { startGithubLoginWeb, startSupabaseLoginWeb, startVercelLoginWeb, githubConfigurado, supabaseConfigurado, vercelConfigurado } from "./core/oauth-web.js";
 import * as github from "./core/github.js";
 import { extrairRotas } from "./core/site-generator.js";
 import * as vercel from "./core/vercel.js";
@@ -130,6 +130,7 @@ export default function App({ oauthResult, oauthError }) {
     refreshConn(); refreshHistory(); loadModelsCache();
     if (oauthResult?.provider === "github") showToast(t("GitHub conectado: @{login}", { login: oauthResult.login }));
     if (oauthResult?.provider === "supabase") showToast(t("Supabase conectado."));
+    if (oauthResult?.provider === "vercel") showToast(t("Vercel conectada."));
     if (oauthError) showToast(oauthError, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1344,13 +1345,16 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
 
 // Uma linha dizendo se a Vercel enxerga o GitHub. Vale o espaço no card porque
 // é a falha que, sem aviso, só aparece no último passo do primeiro projeto.
+// Serve tanto pra quem clicou em Conectar quanto pra quem colou um token: o
+// que importa pra pessoa e se a Vercel vai conseguir publicar, nao de onde veio
+// o token.
 function subVercel(acesso) {
   switch (acesso?.estado) {
-    case "checando": return t("token salvo · verificando o acesso ao GitHub…");
-    case "ok": return t("token salvo · enxerga seus repositórios");
-    case "restrito": return t("token salvo · acesso ao GitHub limitado");
-    case "sem_acesso": return t("token salvo · sem acesso aos seus repositórios");
-    default: return t("token salvo");
+    case "checando": return t("conectada · verificando o acesso ao GitHub…");
+    case "ok": return t("conectada · enxerga seus repositórios");
+    case "restrito": return t("conectada · acesso ao GitHub limitado");
+    case "sem_acesso": return t("conectada · sem acesso aos seus repositórios");
+    default: return t("conectada");
   }
 }
 // Só estes dois estados pedem ação da pessoa. "desconhecido" não aparece: a
@@ -1412,6 +1416,21 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
     catch (e) { showToast(e.message, true); }
   }
   async function sbLogout() { await sbmgmt.disconnect(); setSb({}); setSbProjects(null); }
+  // Alternativa pra quem nao quer (ou nao consegue) instalar a integracao: o
+  // token colado continua funcionando, e vale pra conta pessoal.
+  async function connectVercelToken() {
+    const tok = window.prompt(t("Cole um token da Vercel (pegue em vercel.com/account/tokens):"));
+    if (!tok) return;
+    // Token colado e sempre de conta pessoal: zera o teamId de uma conexao
+    // anterior por OAuth, senao as chamadas continuariam indo para o time.
+    await store.patch("vercel", { oauth: false, teamId: "", configurationId: "" });
+    await saveSecret("VERCEL_TOKEN", tok.trim());
+  }
+  async function vcLogout() {
+    await store.patch("vercel", { oauth: false, teamId: "", configurationId: "" });
+    await saveSecret("VERCEL_TOKEN", "");
+    setVcAcesso(null);
+  }
   if (!secrets) return null;
   const sbConn = Boolean(sb.oauth || sb.token);
   return (
@@ -1435,10 +1454,15 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
                 : <span className="pill">config</span>}
             </ConnRow>
             <ConnRow icon={<Vc />} name="Vercel"
-              sub={secrets.VERCEL_TOKEN ? subVercel(vcAcesso) : t("sem token")}
+              sub={secrets.VERCEL_TOKEN ? subVercel(vcAcesso) : t("desconectada")}
               subOff={!secrets.VERCEL_TOKEN || precisaLiberarVercel(vcAcesso)}>
-              <input className="text mini" type="password" placeholder={t("token")} defaultValue={secrets.VERCEL_TOKEN} onBlur={e => saveSecret("VERCEL_TOKEN", e.target.value.trim())} />
-              {secrets.VERCEL_TOKEN && <button className="btn sm ghost" onClick={() => checarVercel(true)} disabled={vcAcesso?.estado === "checando"}>{vcAcesso?.estado === "checando" ? "…" : t("checar")}</button>}
+              {secrets.VERCEL_TOKEN
+                ? <><button className="btn sm" onClick={() => checarVercel(true)} disabled={vcAcesso?.estado === "checando"}>{vcAcesso?.estado === "checando" ? "…" : t("checar")}</button>
+                    <button className="btn sm ghost" onClick={vcLogout}>{t("sair")}</button></>
+                : vercelConfigurado()
+                  ? <><button className="btn sm primary" onClick={startVercelLoginWeb}>{t("Conectar")}</button>
+                      <button className="btn sm ghost" onClick={connectVercelToken}>{t("token")}</button></>
+                  : <input className="text mini" type="password" placeholder={t("token")} defaultValue={secrets.VERCEL_TOKEN} onBlur={e => saveSecret("VERCEL_TOKEN", e.target.value.trim())} />}
             </ConnRow>
             <ConnRow icon={<IconRepo />} name={t("Repositório")} sub={repo ? `${repo.owner}/${repo.name}` : t("nenhum")} subOff={!repo} />
           </div>
