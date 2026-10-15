@@ -400,6 +400,29 @@ function errorDetail(bodyText) {
   return (bodyText || "").replace(/\s+/g, " ").slice(0, 220);
 }
 
+/**
+ * fetch + leitura do corpo sob UM UNICO relogio de timeout.
+ *
+ * O detalhe e sutil e ja custou uma hora de tela travada: o fetch resolve assim
+ * que os CABECALHOS chegam, mas o corpo ainda vem depois. Se o relogio for
+ * desarmado nesse meio, um corpo que para de fluir (ponte lenta, conexao meio
+ * aberta, provedor que abre a resposta e nao termina) deixa o res.text()
+ * esperando PARA SEMPRE — sem erro, sem timeout, e a interface fica "pensando"
+ * indefinidamente. Por isso o clearTimeout so acontece no finally: o abort
+ * cobre a requisicao E a leitura do corpo.
+ */
+async function fetchComCorpo(url, init, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    const text = await res.text();
+    return { res, text };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const REASON_LABEL = {
   rate_limit: "limite por minuto atingido",
   quota: "cota acabou",
@@ -518,11 +541,7 @@ export async function listModels(providerId) {
     headers.authorization = `Bearer ${apiKey}`;
   }
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 30_000);
-  const res = await fetch(url, { headers, signal: ctrl.signal });
-  clearTimeout(timer);
-  const text = await res.text();
+  const { res, text } = await fetchComCorpo(url, { headers }, 30_000);
   if (!res.ok) throw new Error(`${res.status}: ${errorDetail(text)}`);
 
   const json = JSON.parse(text);
@@ -595,15 +614,11 @@ export async function pingModel(providerId, model) {
   const req = buildRequest({ ...provider, maxOutput: 5 }, { model }, apiKey, {
     system: "", messages: [{ role: "user", text: "ping" }], tools: [], model
   });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const res = await fetch(req.url, {
-      method: "POST", headers: req.headers, body: JSON.stringify(req.body), signal: controller.signal
-    });
-    clearTimeout(timeout);
+    const { res, text: body } = await fetchComCorpo(req.url, {
+      method: "POST", headers: req.headers, body: JSON.stringify(req.body)
+    }, 12000);
     if (res.ok) return { status: "ok" };
-    const body = await res.text();
     const reason = classify(res.status, body);
     if (reason === "rate_limit" || reason === "quota") return { status: "ok", detail: "chave ok (limitada agora)" };
     if (reason === "auth")  return { status: "fail", detail: "chave invalida ou sem acesso" };
@@ -611,7 +626,6 @@ export async function pingModel(providerId, model) {
     if (reason === "server") return { status: "retry", detail: "instavel agora" };
     return { status: "fail", detail: errorDetail(body) || `erro ${res.status}` };
   } catch (e) {
-    clearTimeout(timeout);
     return { status: "retry", detail: e.name === "AbortError" ? "timeout" : "rede indisponivel" };
   }
 }
@@ -759,23 +773,22 @@ export async function complete({ system, messages, tools, preferredProviderId = 
     // geram devagar; damos ate 6 min. Os demais provedores, 90s.
     const ehRaciocinioOpenAI = provider.id === "openai" && /^o[1-9]|^gpt-5/i.test(model);
     // DeepSeek gera devagar e, no SaaS, ainda passa pela ponte (Worker) — um
-    // projeto inteiro estoura os 90s. Damos mais fôlego a ele.
+    // projeto inteiro estoura os 90s. Damos mais fôlego a ele: os modelos V4
+    // tem modo de "pensamento" e saida longa, e um site com varias paginas
+    // passava dos 180s anteriores e morria de timeout logo antes de entregar.
+    // Esperar mais so e seguro porque fetchComCorpo() agora limita TAMBEM a
+    // leitura do corpo — antes, um corpo travado ignorava este prazo.
     const timeoutMs = provider.id === "openai"
       ? (ehRaciocinioOpenAI ? 360_000 : 240_000)
-      : (provider.id === "deepseek" ? 180_000 : 90_000);
+      : (provider.id === "deepseek" ? 300_000 : 90_000);
     let res, bodyText;
     try {
       const req = buildRequest(provider, cfg, apiKey, { system: systemUsado, messages: msgs, tools, model });
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      res = await fetch(req.url, {
+      ({ res, text: bodyText } = await fetchComCorpo(req.url, {
         method: "POST",
         headers: req.headers,
-        body: JSON.stringify(req.body),
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      bodyText = await res.text();
+        body: JSON.stringify(req.body)
+      }, timeoutMs));
     } catch (networkError) {
       houveTransitorio = true;
       const msg = networkError.name === "AbortError"
@@ -813,16 +826,11 @@ export async function complete({ system, messages, tools, preferredProviderId = 
         model = provider.defaultModel;
         try {
           const retryReq = buildRequest(provider, cfg, apiKey, { system: systemUsado, messages: msgs, tools, model });
-          const retryCtrl = new AbortController();
-          const retryTimeout = setTimeout(() => retryCtrl.abort(), 90_000);
-          const retryRes = await fetch(retryReq.url, {
+          const { res: retryRes, text: retryBody } = await fetchComCorpo(retryReq.url, {
             method: "POST",
             headers: retryReq.headers,
-            body: JSON.stringify(retryReq.body),
-            signal: retryCtrl.signal
-          });
-          clearTimeout(retryTimeout);
-          const retryBody = await retryRes.text();
+            body: JSON.stringify(retryReq.body)
+          }, 90_000);
           if (retryRes.ok) {
             const retryJson = JSON.parse(retryBody);
             const retryParsed = parseResponse(provider, retryJson);
@@ -984,8 +992,10 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
     throw new Error("stream: rede/timeout");
   }
   if (!res.ok || !res.body) {
-    clearTimeout(timeout);
+    // O relogio so e desarmado DEPOIS de ler o corpo: um corpo de erro que trava
+    // prenderia a geracao aqui do mesmo jeito. Ver fetchComCorpo().
     const t = await res.text().catch(() => "");
+    clearTimeout(timeout);
     const err = new Error(`stream ${res.status}: ${errorDetail(t) || t.slice(0, 120)}`);
     err.status = res.status;
     throw err;

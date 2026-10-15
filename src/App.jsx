@@ -333,7 +333,7 @@ export default function App({ oauthResult, oauthError }) {
       endRun();
       let msg = e.message;
       if (/recusaram|timeout|refus/i.test(msg)) {
-        msg += "\n\n" + t("Dica: no seletor de IA escolha um modelo de CÓDIGO (ex.: DeepSeek → deepseek-chat, ou Gemini). Evite modelos de visão/experimentais — eles travam. E deixe mais de um provedor ligado em Conexões pra ter reserva.");
+        msg += "\n\n" + t("Dica: no seletor de IA escolha um modelo de CÓDIGO (ex.: DeepSeek → deepseek-v4-pro, ou Gemini). Evite modelos de visão/experimentais — eles travam. E deixe mais de um provedor ligado em Conexões pra ter reserva.");
       }
       pushMsg("error", msg); showToast(e.message, true);
     }
