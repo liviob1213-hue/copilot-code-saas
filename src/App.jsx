@@ -1341,6 +1341,24 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
 }
 
 /* ---------------- Conexões + IAs ---------------- */
+
+// Uma linha dizendo se a Vercel enxerga o GitHub. Vale o espaço no card porque
+// é a falha que, sem aviso, só aparece no último passo do primeiro projeto.
+function subVercel(acesso) {
+  switch (acesso?.estado) {
+    case "checando": return t("token salvo · verificando o acesso ao GitHub…");
+    case "ok": return t("token salvo · enxerga seus repositórios");
+    case "restrito": return t("token salvo · acesso ao GitHub limitado");
+    case "sem_acesso": return t("token salvo · sem acesso aos seus repositórios");
+    default: return t("token salvo");
+  }
+}
+// Só estes dois estados pedem ação da pessoa. "desconhecido" não aparece: a
+// checagem pode ter falhado por rede, e um alarme falso aqui só assusta.
+function precisaLiberarVercel(acesso) {
+  return acesso?.estado === "sem_acesso" || acesso?.estado === "restrito";
+}
+
 function ConnRow({ icon, name, sub, subOff, children }) {
   return (<div className="conn-row"><div className="conn-ic">{icon}</div><div className="conn-main"><div className="conn-name">{name}</div><div className={"conn-sub" + (subOff ? " off" : "")}>{sub}</div></div><div className="conn-act">{children}</div></div>);
 }
@@ -1351,8 +1369,27 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
   const [showKeys, setShowKeys] = useState(Boolean(startKeys));
   const [sbProjects, setSbProjects] = useState(null);
   const [sbLoading, setSbLoading] = useState(false);
+  const [vcAcesso, setVcAcesso] = useState(null);
   useEffect(() => { (async () => { setSecrets(await store.get("secrets")); setGh(await store.get("github")); setSb(await store.get("supabase")); })(); }, []);
-  async function saveSecret(k, v) { setSecrets(s => ({ ...s, [k]: v })); await store.patch("secrets", { [k]: v }); }
+  // Grava o segredo ANTES de mexer no estado: o efeito que checa o acesso da
+  // Vercel dispara na mudança de estado e precisa ler o token novo, não o velho.
+  async function saveSecret(k, v) {
+    await store.patch("secrets", { [k]: v });
+    if (k === "VERCEL_TOKEN") vercel.esquecerAcessoGithub();
+    setSecrets(s => ({ ...s, [k]: v }));
+  }
+
+  // Estado da ligação Vercel → GitHub. Sem isto, a pessoa só descobre que a
+  // integração está limitada quando o deploy falha no fim do primeiro projeto.
+  async function checarVercel(forcar = false) {
+    setVcAcesso({ estado: "checando" });
+    try { setVcAcesso(await vercel.checarAcessoGithub({ forcar })); }
+    catch { setVcAcesso({ estado: "desconhecido", detalhe: t("Não deu para verificar agora.") }); }
+  }
+  useEffect(() => {
+    if (!secrets) return;
+    if (secrets.VERCEL_TOKEN) checarVercel(); else setVcAcesso(null);
+  }, [secrets?.VERCEL_TOKEN]);
   async function connectGithubToken() {
     const tok = window.prompt(t("Cole um token do GitHub (github_pat_… com Contents: Read/Write):")); if (!tok) return;
     try { const p = await github.validateToken(tok.trim()); await store.patch("github", { token: tok.trim(), login: p.login, avatar: p.avatar }); setGh(await store.get("github")); showToast(t("GitHub conectado: @{login}", { login: p.login })); }
@@ -1397,8 +1434,11 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
                 : supabaseConfigurado() ? <button className="btn sm primary" onClick={startSupabaseLoginWeb}>{t("Conectar")}</button>
                 : <span className="pill">config</span>}
             </ConnRow>
-            <ConnRow icon={<Vc />} name="Vercel" sub={secrets.VERCEL_TOKEN ? t("token salvo") : t("sem token")} subOff={!secrets.VERCEL_TOKEN}>
+            <ConnRow icon={<Vc />} name="Vercel"
+              sub={secrets.VERCEL_TOKEN ? subVercel(vcAcesso) : t("sem token")}
+              subOff={!secrets.VERCEL_TOKEN || precisaLiberarVercel(vcAcesso)}>
               <input className="text mini" type="password" placeholder={t("token")} defaultValue={secrets.VERCEL_TOKEN} onBlur={e => saveSecret("VERCEL_TOKEN", e.target.value.trim())} />
+              {secrets.VERCEL_TOKEN && <button className="btn sm ghost" onClick={() => checarVercel(true)} disabled={vcAcesso?.estado === "checando"}>{vcAcesso?.estado === "checando" ? "…" : t("checar")}</button>}
             </ConnRow>
             <ConnRow icon={<IconRepo />} name={t("Repositório")} sub={repo ? `${repo.owner}/${repo.name}` : t("nenhum")} subOff={!repo} />
           </div>
@@ -1413,6 +1453,15 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
                   </button>
                 ))}
             </div>
+          )}
+
+          {precisaLiberarVercel(vcAcesso) && (
+            <p className="hint" style={{ marginTop: 10 }}>
+              <strong>{t("A Vercel não vai conseguir publicar.")}</strong><br />
+              {vcAcesso.detalhe}<br />
+              {t("Abra")} <a href={vercel.LINK_ACESSO_GITHUB} target="_blank" rel="noreferrer">{t("a integração da Vercel no GitHub")}</a>{" "}
+              {t("e marque \"All repositories\". Cada projeto criado aqui nasce num repositório privado novo, então liberar um repositório por vez não resolve o próximo.")}
+            </p>
           )}
 
           <p className="hint">{t("Token da Vercel:")} <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer">vercel.com/account/tokens</a></p>

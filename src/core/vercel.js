@@ -17,6 +17,11 @@ import { fetchComCorpo, ehTimeout, PRAZO } from "./net.js";
 
 const API = "https://api.vercel.com";
 
+// Link unico para corrigir o acesso da integracao da Vercel no GitHub. Vive numa
+// constante porque o MESMO problema aparece em tres lugares: no card da Vercel
+// em Conexoes, no aviso previo do criarProjeto e no erro do deploy.
+export const LINK_ACESSO_GITHUB = "https://github.com/apps/vercel/installations/select_target";
+
 async function token() {
   const t = await store.getSecret("VERCEL_TOKEN");
   if (!t) {
@@ -200,6 +205,212 @@ export async function setPublic(projectId) {
   } catch { /* nao bloqueia */ }
 }
 
+// ============================================================================
+//  Pre-flight: a integracao da Vercel enxerga os repositorios do GitHub?
+// ----------------------------------------------------------------------------
+//  Por que isto existe: cada projeto criado aqui nasce num repositorio NOVO e
+//  PRIVADO. Se a integracao da Vercel no GitHub estiver em "Only select
+//  repositories", esse repositorio nasce invisivel para ela e o deploy quebra no
+//  ULTIMO passo — depois de gastar uma geracao de IA e deixar um repositorio
+//  orfao na conta. Checar antes custa duas consultas curtas e evita o prejuizo.
+//
+//  Endpoints (conferidos na especificacao OpenAPI oficial da Vercel, nao
+//  adivinhados — https://openapi.vercel.sh):
+//    GET /v1/integrations/git-namespaces?provider=github
+//        -> [{ id, installationId, slug, isAccessRestricted, requireReauth, ... }]
+//        Lista vazia = a integracao nao esta instalada em conta nenhuma.
+//    GET /v1/integrations/search-repo?provider=github&namespaceId=<id>
+//        -> { gitAccount, repos: [...] }  = o que a Vercel realmente enxerga, ou
+//        -> { error: { code: "installation_not_found" } }  com HTTP 200 (!), que
+//           e como ela diz "nao estou instalada aqui".
+//
+//  ATENCAO ao desenho: isto NAO e uma barreira. Qualquer imprevisto (timeout,
+//  403 por escopo do token, formato inesperado) devolve "desconhecido", e quem
+//  chama deixa passar. Impedir alguem de criar um projeto por causa de uma
+//  checagem instavel e pior do que deixar o deploy falhar no fim.
+// ============================================================================
+
+// Cache curto: o painel de Conexoes e o criarProjeto pedem a mesma resposta, e
+// em desenvolvimento o React monta os componentes duas vezes. Dois minutos
+// bastam para nao repetir a consulta sem esconder uma correcao que a pessoa
+// acabou de fazer no GitHub (e o botao "checar" do painel passa forcar: true).
+const CACHE_ACESSO_MS = 120_000;
+let cacheAcesso = null;   // { em: timestamp, resultado }
+
+/** Esquece a resposta guardada (ao trocar o token da Vercel, por exemplo). */
+export function esquecerAcessoGithub() { cacheAcesso = null; }
+
+/**
+ * Diz se a Vercel conectada consegue ver os repositorios do GitHub do usuario.
+ *
+ * Devolve { estado, detalhe, mensagem, namespaces, reposVisiveis }, onde
+ * `detalhe` e uma linha para a interface e `mensagem` e o texto acionavel
+ * completo (so nos estados que pedem acao). Estados:
+ *
+ *   "sem_token"    — Vercel nem conectada. Nao ha o que checar.
+ *   "ok"           — enxerga repositorios e nada indica restricao.
+ *   "restrito"     — enxerga alguns, mas a instalacao esta marcada como restrita
+ *                    ("Only select repositories"). E a causa real do bug, porem
+ *                    o campo isAccessRestricted nao tem semantica documentada —
+ *                    entao vale como AVISO, nunca como barreira.
+ *   "sem_acesso"   — nao enxerga repositorio nenhum (integracao ausente ou sem
+ *                    nada selecionado). Unico caso em que vale falhar cedo: o
+ *                    deploy vai quebrar com certeza.
+ *   "desconhecido" — nao deu para saber. Siga em frente.
+ */
+export async function checarAcessoGithub({ forcar = false } = {}) {
+  if (!forcar && cacheAcesso && Date.now() - cacheAcesso.em < CACHE_ACESSO_MS) {
+    return cacheAcesso.resultado;
+  }
+  const resultado = await apurarAcessoGithub();
+  cacheAcesso = { em: Date.now(), resultado };
+  return resultado;
+}
+
+async function apurarAcessoGithub() {
+  if (!(await store.getSecret("VERCEL_TOKEN"))) {
+    return { estado: "sem_token", detalhe: "Vercel nao conectada.", mensagem: null };
+  }
+
+  // 1) Que contas/organizacoes do GitHub a integracao da Vercel alcanca?
+  let namespaces;
+  try {
+    namespaces = await listarNamespacesGithub();
+  } catch (e) {
+    return {
+      estado: "desconhecido",
+      detalhe: `Nao deu para verificar o acesso ao GitHub (${e.message}).`,
+      mensagem: null
+    };
+  }
+
+  if (!namespaces.length) {
+    return {
+      estado: "sem_acesso",
+      detalhe: "A Vercel nao esta ligada a nenhuma conta do GitHub.",
+      mensagem: mensagemSemAcessoGithub("a integracao da Vercel nao aparece em nenhuma conta do GitHub"),
+      namespaces: [],
+      reposVisiveis: 0
+    };
+  }
+
+  // 2) Dentro dessas contas, quantos repositorios ela de fato enxerga? Teto de
+  // quatro contas para a checagem continuar curta em quem tem muitas orgs.
+  const examinadas = namespaces.slice(0, 4);
+  let reposVisiveis = 0, semInstalacao = 0, falhas = 0;
+  for (const ns of examinadas) {
+    try {
+      const n = await contarReposVisiveis(ns);
+      if (n === null) semInstalacao++; else reposVisiveis += n;
+    } catch {
+      falhas++;
+    }
+  }
+
+  // Um repositorio visivel ja prova que a ligacao funciona.
+  if (reposVisiveis > 0) {
+    const restrita = examinadas.find(ns => ns.isAccessRestricted === true);
+    if (restrita) {
+      return {
+        estado: "restrito",
+        detalhe: `A integracao da Vercel esta limitada a repositorios escolhidos${restrita.slug ? ` em ${restrita.slug}` : ""}. Projetos novos nascem invisiveis para ela.`,
+        mensagem: mensagemSemAcessoGithub('a integracao da Vercel esta marcada como "Only select repositories"'),
+        namespaces, reposVisiveis
+      };
+    }
+    return {
+      estado: "ok",
+      detalhe: `A Vercel enxerga seus repositorios${examinadas[0]?.slug ? ` em ${examinadas[0].slug}` : ""}.`,
+      mensagem: null,
+      namespaces, reposVisiveis
+    };
+  }
+
+  // Zero visiveis, mas alguma consulta falhou: a resposta boa pode estar justo
+  // na que falhou. Nao da para afirmar nada — deixa passar.
+  if (falhas) {
+    return {
+      estado: "desconhecido",
+      detalhe: "Nao deu para verificar quais repositorios a Vercel enxerga.",
+      mensagem: null,
+      namespaces, reposVisiveis: null
+    };
+  }
+
+  // Zero visiveis e todas as consultas responderam: a Vercel realmente nao ve
+  // nada. E o unico caso em que vale barrar antes de gastar uma geracao de IA.
+  return {
+    estado: "sem_acesso",
+    detalhe: "A Vercel esta ligada ao GitHub, mas nao enxerga nenhum repositorio.",
+    mensagem: mensagemSemAcessoGithub(
+      semInstalacao === examinadas.length
+        ? "a integracao da Vercel nao esta instalada nesta conta do GitHub"
+        : "a Vercel nao enxerga nenhum repositorio seu"
+    ),
+    namespaces, reposVisiveis: 0
+  };
+}
+
+// Contas do GitHub ao alcance da integracao. Pergunta com provider=github e, se
+// vier vazio, pergunta de novo sem provider — assim a Vercel deduz o provedor de
+// quem autenticou, o que cobre GitHub Enterprise e o modo "github-limited".
+// Vazio nas duas = integracao ausente.
+async function listarNamespacesGithub() {
+  const primeira = somenteGithub(await vapi("/v1/integrations/git-namespaces?provider=github", { timeoutMs: PRAZO.consulta }));
+  if (primeira.length) return primeira;
+  try {
+    const segunda = somenteGithub(await vapi("/v1/integrations/git-namespaces", { timeoutMs: PRAZO.consulta }));
+    if (segunda.length) return segunda;
+  } catch { /* a primeira resposta ja basta */ }
+  return [];
+}
+
+// So interessam contas do GitHub: este app cria repositorios la. Quem usa so
+// GitLab/Bitbucket na Vercel conta como sem acesso, o que esta correto.
+function somenteGithub(data) {
+  const lista = Array.isArray(data) ? data : (data?.namespaces || []);
+  return lista.filter(ns => ns && (!ns.provider || /github/i.test(String(ns.provider))));
+}
+
+// Quantos repositorios a Vercel enxerga nesta conta. null = a integracao nao
+// esta instalada aqui (a Vercel avisa isso no CORPO, com HTTP 200).
+async function contarReposVisiveis(ns) {
+  const q = new URLSearchParams({ provider: String(ns.provider || "github") });
+  if (ns.id !== undefined && ns.id !== null) q.set("namespaceId", String(ns.id));
+  if (ns.installationId !== undefined && ns.installationId !== null) q.set("installationId", String(ns.installationId));
+  const data = await vapi(`/v1/integrations/search-repo?${q}`, { timeoutMs: PRAZO.consulta });
+  if (data?.error?.code === "installation_not_found") return null;
+  // Formato diferente do documentado: melhor nao saber do que chutar.
+  if (!Array.isArray(data?.repos)) throw new Error("resposta inesperada da Vercel");
+  return data.repos.length;
+}
+
+/**
+ * Texto UNICO do problema de acesso. Uma funcao so para que exista UMA redacao
+ * do mesmo problema, usada nos tres momentos em que ele aparece: o card da
+ * Vercel em Conexoes, o aviso antes de gastar IA e o erro do deploy.
+ *
+ * ATENCAO ao texto: a versao antiga dizia "so precisa fazer isso uma vez" e
+ * mandava autorizar O REPOSITORIO. Isso e falso e fazia a pessoa repetir o
+ * deploy indefinidamente — cada projeto nasce num repositorio NOVO e PRIVADO,
+ * entao autorizar um repositorio nao cobre o proximo. A unica correcao duravel
+ * e dar acesso a TODOS os repositorios na integracao.
+ */
+function mensagemSemAcessoGithub(detalheTecnico) {
+  return (
+    "A Vercel nao consegue enxergar seus repositorios do GitHub.\n\n" +
+    "Como resolver de vez (1 minuto):\n" +
+    `1) Abra ${LINK_ACESSO_GITHUB}\n` +
+    '2) Escolha sua conta e marque "All repositories".\n' +
+    "3) Salve e tente de novo aqui.\n\n" +
+    "Por que repetir nao resolve: cada projeto criado aqui nasce num " +
+    "repositorio NOVO e PRIVADO. Se a integracao da Vercel estiver limitada a " +
+    '"Only select repositories", cada projeto novo nasce invisivel para ela — ' +
+    "autorizar um repositorio nao cobre os seguintes." +
+    (detalheTecnico ? `\n\n(detalhe tecnico: ${detalheTecnico})` : "")
+  );
+}
+
 // Garante que existe um projeto na Vercel ligado ao repo do GitHub.
 async function ensureProject(owner, name) {
   const slug = projectSlug(name);
@@ -227,23 +438,9 @@ async function ensureProject(owner, name) {
     return { id: proj.id, name: proj.name || slug };
   } catch (e) {
     if (/github|repositor|not\s*found|permission|install|access/i.test(e.message)) {
-      // ATENCAO ao texto: a versao antiga dizia "so precisa fazer isso uma vez"
-      // e mandava autorizar O REPOSITORIO. Isso e falso e fazia a pessoa repetir
-      // o deploy indefinidamente: cada projeto nasce num repositorio NOVO e
-      // PRIVADO, entao autorizar um repositorio nao cobre o proximo. A unica
-      // correcao duravel e dar acesso a TODOS os repositorios na integracao.
-      throw new Error(
-        "A Vercel nao consegue enxergar este repositorio do GitHub.\n\n" +
-        "Como resolver de vez (1 minuto):\n" +
-        "1) Abra https://github.com/apps/vercel/installations/select_target\n" +
-        "2) Escolha sua conta e marque \"All repositories\".\n" +
-        "3) Salve e clique em publicar de novo aqui.\n\n" +
-        "Por que repetir o deploy nao resolve: cada projeto criado aqui nasce num " +
-        "repositorio NOVO e PRIVADO. Se a integracao da Vercel estiver limitada a " +
-        "\"Only select repositories\", cada projeto novo nasce invisivel para ela — " +
-        "autorizar um repositorio nao cobre os seguintes.\n\n" +
-        `(detalhe tecnico: ${e.message})`
-      );
+      // Mesma redacao do pre-flight (ver mensagemSemAcessoGithub): e o mesmo
+      // problema, so descoberto mais tarde — aqui o repositorio ja existe.
+      throw new Error(mensagemSemAcessoGithub(e.message));
     }
     throw e;
   }
