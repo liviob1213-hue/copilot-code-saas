@@ -5,6 +5,7 @@ import { t } from "../i18n.js";
 import { mergeStarter, STARTER_FILES } from "./starter-template.js";
 import { fetchComCorpo } from "./net.js";
 import { conferirProjeto, pedidoDeConserto } from "./verificador.js";
+import { testarProjeto, pedidoDeConsertoPorTeste } from "./teste-previa.js";
 
 /**
  * Infere o SQL das tabelas que o projeto GERADO usa (lendo os supabase.from(...)
@@ -942,6 +943,70 @@ function nomesConhecidos(txt) {
 // (icones), do react-router-dom (Link/Routes/etc.) ou, se for desconhecido,
 // cria um stub local — pra NUNCA mais dar "X is not defined" / tela branca.
 /**
+ * RODA O PROJETO DE VERDADE E CONSERTA O QUE QUEBRAR — antes de publicar.
+ *
+ * O verificador acima pega nome que nao existe. Isto pega o que so aparece AO
+ * RODAR: .map em algo indefinido, componente que nao retorna nada, biblioteca
+ * usada errado. O projeto e montado num iframe e cada tela e aberta de fato; o
+ * erro que volta e a frase do navegador, nao um palpite — e e ela que a IA
+ * recebe. Era a peca que faltava: antes o app nunca contava o erro para a IA,
+ * entao ela "corrigia" no escuro e dizia que tinha resolvido.
+ */
+async function rodarEConsertar(files, { systemBase, contexto, providerId }, onEvent) {
+  if (typeof document === "undefined") return files;   // fora do navegador, nao da
+  const doKit = new Set(Object.keys(STARTER_FILES));
+
+  for (let volta = 0; volta < 2; volta++) {
+    onEvent({ type: "status", text: volta === 0
+      ? t("Abrindo cada tela do projeto pra ver se funciona de verdade…")
+      : t("Conferindo de novo depois do conserto…") });
+
+    let r;
+    try { r = await testarProjeto(files, onEvent); }
+    catch { return files; }   // a previa falhou: nao e motivo para travar a entrega
+    if (r.pulado || r.ok) {
+      if (r.ok && !r.pulado) {
+        onEvent({ type: "notice", text: t("Testei {n} tela(s) e todas abriram funcionando.", { n: r.rotas.length }) });
+      }
+      return files;
+    }
+
+    const quais = r.problemas.map(p => p.rota).join(", ");
+    onEvent({ type: "notice", text: t("Achei problema em: {quais}. Mandando a IA corrigir antes de publicar.", { quais }) });
+
+    if (volta === 1) {
+      // Segunda volta ja testou e ainda ha problema: avisamos com a frase real,
+      // em vez de publicar uma tela preta em silencio.
+      const detalhe = r.problemas.map(p => `${p.rota}: ${p.mensagens[0]}`).join(" | ");
+      onEvent({ type: "notice", text: t("Ainda sobrou: {detalhe}. O projeto vai ser publicado assim — me peça o conserto que eu insisto com o erro em mãos.", { detalhe }) });
+      return files;
+    }
+
+    try {
+      const resp = await complete({
+        system: systemBase + contexto,
+        messages: [{ role: "user", text: pedidoDeConsertoPorTeste(r.problemas, files) }],
+        tools: [], preferredProviderId: providerId
+      }, onEvent);
+      const corrigidos = normalizarCaminhos(parseFiles(resp.text || ""));
+      let mudou = false;
+      for (const [caminho, conteudo] of Object.entries(corrigidos)) {
+        if (files[caminho] === undefined || doKit.has(caminho)) continue;
+        files = { ...files, [caminho]: conteudo };
+        mudou = true;
+      }
+      if (!mudou) return files;
+      files = corrigirEstiloImports(files);
+      files = garantirImportsLocais(files);
+      files = blindarImportsNpm(files);
+      files = dedupImports(files);
+      files = corrigirSintaxe(files);
+    } catch { return files; }
+  }
+  return files;
+}
+
+/**
  * CONFERE O PROJETO E MANDA A IA CONSERTAR — antes de publicar.
  *
  * O build so diz se o codigo MONTA. Um nome usado e nunca criado passa por
@@ -1763,6 +1828,7 @@ Mudanca pedida: "${userMessage}"`;
   files = corrigirSintaxe(files);         // aspas curvas -> retas (evita build quebrado)
   files = repararRotasQuebradas(files, onEvent); // rota apontando pro nada -> conserta sozinho
   files = await conferirEConsertar(files, { systemBase, contexto, providerId }, onEvent);
+  files = await rodarEConsertar(files, { systemBase, contexto, providerId }, onEvent);
   files = injetarCredenciais(files, supabase);
   files = injetarImagens(files, embedImages);
 
