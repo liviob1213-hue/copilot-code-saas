@@ -965,7 +965,13 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
   usable = usable.filter(q => !q.cooling);
   const entry = usable[0];
   if (!entry) throw new Error("sem provedor disponivel para stream");
-  if (entry.provider.kind !== "openai") throw new Error("1o provedor nao e openai-compat; usar complete()");
+  // A Anthropic tambem transmite (formato de eventos proprio, tratado abaixo).
+  // Sem isto a Claude so tinha o caminho sem streaming: a tela ficava em
+  // "Pensando com a IA" por minutos, sem dizer o que estava acontecendo, e
+  // respostas longas corriam risco de estourar o tempo da requisicao.
+  if (!["openai", "anthropic"].includes(entry.provider.kind)) {
+    throw new Error("este provedor nao transmite; usar complete()");
+  }
 
   const { provider, cfg, apiKey } = entry;
   const model = cfg.model || provider.defaultModel;
@@ -978,7 +984,10 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
 
   onEvent({ type: "provider_try", provider: provider.label, model });
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), provider.id === "deepseek" ? 240_000 : 120_000);
+  // Mesmo teto do complete(): escrever um projeto inteiro leva minutos. No
+  // stream cada pedaco que chega ja e sinal de vida, entao o prazo so pega
+  // quem realmente parou.
+  const timeout = setTimeout(() => controller.abort(), 300_000);
   let res;
   try {
     res = await fetch(req.url, { method: "POST", headers: req.headers, body: JSON.stringify(req.body), signal: controller.signal });
@@ -998,7 +1007,7 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
 
   const reader = res.body.getReader();
   const dec = new TextDecoder();
-  let buffer = "", full = "";
+  let buffer = "", full = "", motivoParada = null;
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -1013,8 +1022,17 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
         if (!data || data === "[DONE]") continue;
         try {
           const j = JSON.parse(data);
-          const delta = j.choices?.[0]?.delta?.content;
+          // OpenAI-compativel: choices[0].delta.content.
+          // Anthropic: content_block_delta com delta.type "text_delta".
+          // (Blocos de "pensamento" tem outro type e sao ignorados de proposito:
+          // so o texto do codigo interessa.)
+          const delta = provider.kind === "anthropic"
+            ? (j.type === "content_block_delta" && j.delta?.type === "text_delta" ? j.delta.text : "")
+            : j.choices?.[0]?.delta?.content;
           if (delta) { full += delta; onDelta(delta); }
+          // A Anthropic avisa o motivo da parada num evento proprio.
+          if (j.type === "message_delta" && j.delta?.stop_reason) motivoParada = j.delta.stop_reason;
+          if (j.choices?.[0]?.finish_reason) motivoParada = j.choices[0].finish_reason;
         } catch { /* fragmento parcial — ignora */ }
       }
     }
@@ -1025,5 +1043,8 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
   if (!full.trim()) throw new Error("stream vazio");
   await store.markProviderSuccess(provider.id, {});
   onEvent({ type: "provider_ok", provider: provider.label, model });
-  return { text: full, toolCalls: [], providerId: provider.id, providerLabel: provider.label, model };
+  // motivoParada "max_tokens" (Anthropic) / "length" (OpenAI) = resposta
+  // cortada no limite de saida; quem chama usa isso para pedir a continuacao
+  // sem precisar adivinhar pelo texto.
+  return { text: full, toolCalls: [], providerId: provider.id, providerLabel: provider.label, model, motivoParada };
 }

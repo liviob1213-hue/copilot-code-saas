@@ -1357,6 +1357,30 @@ ${itens.map(i => `      <Route path="${i.rota}" element={<${i.id} />} />`).join(
 `;
 }
 
+// Quantos arquivos o texto ja abriu (===FILE: ...===). Serve para a contagem
+// na tela continuar de onde parou quando a resposta e retomada.
+function contarArquivos(texto) {
+  return (String(texto || "").match(/===\s*FILE:/g) || []).length;
+}
+
+// Avisa a interface a cada arquivo NOVO que aparece no texto transmitido.
+// Vive aqui, e nao solto dentro do generateProject, porque a CONTINUACAO usa o
+// mesmo tratador: antes ela nao tinha nenhum, e a tela emudecia justamente na
+// parte mais demorada ("Pensando com a IA" por minutos, sem dizer nada).
+export function criarOnDelta(onEvent, jaVistos = 0) {
+  let acc = "", ultimoArq = null, nArq = jaVistos;
+  return (chunk) => {
+    acc += chunk;
+    const re = /===\s*FILE:\s*([^\n=]+?)\s*===/g;
+    let m, ultimo = null;
+    while ((m = re.exec(acc)) !== null) ultimo = m[1].trim();
+    if (ultimo && ultimo !== ultimoArq) {
+      ultimoArq = ultimo; nArq++;
+      onEvent({ type: "arquivo_stream", path: ultimo, n: nArq });
+    }
+  };
+}
+
 export async function generateProject({ history, userMessage, images, embedImages = [], providerId = "", mode = "create", currentFiles = null, supabase = {}, kind = "app", brief = "", idiomaIA = "" }, onEvent = () => {}) {
   const baseHistory = [...(history || [])];
   // "site" = pagina de vendas/landing; "app" = sistema/micro-SaaS. Muda so o prompt.
@@ -1449,18 +1473,7 @@ Mudanca pedida: "${userMessage}"`;
   const argsGer = { system: systemBase + contexto + instrucaoImagens, messages, tools: [], preferredProviderId: providerId };
   let reply;
   try {
-    let acc = "", ultimoArq = null, nArq = 0;
-    const onDelta = (chunk) => {
-      acc += chunk;
-      const re = /===\s*FILE:\s*([^\n=]+?)\s*===/g;
-      let m, ultimo = null;
-      while ((m = re.exec(acc)) !== null) ultimo = m[1].trim();
-      if (ultimo && ultimo !== ultimoArq) {
-        ultimoArq = ultimo; nArq++;
-        onEvent({ type: "arquivo_stream", path: ultimo, n: nArq });
-      }
-    };
-    reply = await streamComplete(argsGer, onEvent, onDelta);
+    reply = await streamComplete(argsGer, onEvent, criarOnDelta(onEvent));
   } catch {
     reply = await complete(argsGer, onEvent);
   }
@@ -1477,21 +1490,28 @@ Mudanca pedida: "${userMessage}"`;
   let fullText = reply.text || "";
   let files = normalizarCaminhos(parseFiles(fullText));
   let voltas = 0;
-  while (voltas < 3 && (semTelasF(files) || !fechouBloco(fullText))) {
+  // TETO DE TEMPO. Cada volta podia levar ate 5 min e eram 3 voltas: a tela
+  // ficava quase 15 minutos em "Pensando com a IA" sem dizer nada. O teto vale
+  // para o conjunto das continuacoes; o que ja chegou e sempre aproveitado.
+  const limiteContinuacao = Date.now() + 6 * 60_000;
+  while (voltas < 3 && Date.now() < limiteContinuacao && (semTelasF(files) || !fechouBloco(fullText))) {
     voltas++;
     onEvent({ type: "continuacao", parte: voltas });
+    const argsCont = {
+      system: systemBase + contexto +
+            "\n\nCONTINUACAO: voce (ou outra IA) estava gerando um projeto React em blocos ===FILE: caminho=== ... ===END=== e a resposta FOI CORTADA. Continue EXATAMENTE de onde parou, SEM repetir nenhum caractere do que ja foi escrito e SEM comentarios nem introducao. Se parou no meio de um arquivo, termine aquele arquivo primeiro; depois gere os que ainda faltam (src/App.jsx com TODAS as rotas, src/theme.css, e as paginas em src/pages/ — uma por rota, cada uma completa). Feche cada bloco com ===END===. NAO reescreva blocos ja completos.",
+      messages: [...messages, { role: "assistant", text: fullText }, { role: "user", text: "Continue de onde parou, sem repetir, ate fechar o ultimo ===END===." }],
+      tools: [], preferredProviderId: providerId
+    };
     let cont;
     try {
-      cont = await complete(
-        {
-          system: systemBase + contexto +
-            "\n\nCONTINUACAO: voce (ou outra IA) estava gerando um projeto React em blocos ===FILE: caminho=== ... ===END=== e a resposta FOI CORTADA. Continue EXATAMENTE de onde parou, SEM repetir nenhum caractere do que ja foi escrito e SEM comentarios nem introducao. Se parou no meio de um arquivo, termine aquele arquivo primeiro; depois gere os que ainda faltam (src/App.jsx com TODAS as rotas, src/theme.css, e as paginas em src/pages/ — uma por rota, cada uma completa). Feche cada bloco com ===END===. NAO reescreva blocos ja completos.",
-          messages: [...messages, { role: "assistant", text: fullText }, { role: "user", text: "Continue de onde parou, sem repetir, ate fechar o ultimo ===END===." }],
-          tools: [], preferredProviderId: providerId
-        },
-        onEvent
-      );
-    } catch { break; }
+      // Transmitindo tambem na continuacao: era aqui que a interface emudecia,
+      // porque a continuacao sempre usou o caminho SEM streaming. Agora cada
+      // arquivo que chega aparece na tela, como na primeira rodada.
+      cont = await streamComplete(argsCont, onEvent, criarOnDelta(onEvent, contarArquivos(fullText)));
+    } catch {
+      try { cont = await complete(argsCont, onEvent); } catch { break; }
+    }
     const extra = (cont.text || "").trim();
     if (!extra) break;
     fullText += (fullText.endsWith("\n") ? "" : "\n") + extra;

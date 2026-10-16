@@ -144,12 +144,12 @@ export const PROVIDER_CATALOG = [
     defaultModel: "claude-sonnet-5-5",
     models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"],
     // Os modelos Claude 5 aceitam ate 128 mil tokens de saida. Pediamos 16 mil:
-    // um projeto inteiro nao cabia, a resposta vinha cortada e o app gastava
-    // rodadas de "continue de onde parou". 32 mil e o meio-termo seguro aqui —
-    // esta chamada NAO usa streaming (o adaptador da Anthropic nao e
-    // openai-compativel), e pedir muito mais faria uma unica resposta demorar
-    // perto do teto de 5 minutos.
-    maxOutput: 32000,
+    // um projeto inteiro nao cabia, a resposta vinha CORTADA e o app gastava
+    // rodadas de "continue de onde parou" — a parte lenta e que mais travava a
+    // tela. Agora que a Claude transmite ao vivo (streamComplete entende o
+    // formato da Anthropic), pedir uma resposta longa nao arrisca mais estourar
+    // o tempo da requisicao: cada pedaco que chega ja e sinal de vida.
+    maxOutput: 64000,
     note: "Paga. Melhor qualidade de codigo e enxerga imagem."
   },
   {
