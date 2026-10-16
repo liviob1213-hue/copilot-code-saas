@@ -36,7 +36,9 @@ export async function blindarEdicao(ws, files) {
     const corrigidos = corrigirEstiloImports({ ...contexto, ...textos });
     let mapa = {};
     for (const p of Object.keys(textos)) mapa[p] = corrigidos[p];
-    mapa = garantirIconesEComponentes(mapa);
+    // "contexto" leva os arquivos que ja existem no repo: sem eles, um
+    // <Home /> numa edicao nao acharia src/pages/Home.jsx e viraria o icone.
+    mapa = garantirIconesEComponentes(mapa, contexto);
     // Router duplicado (App + main.jsx) apaga a pagina inteira. So consultamos
     // o main.jsx quando algum arquivo editado de fato usa um router.
     if (Object.values(mapa).some(c => /\b(BrowserRouter|HashRouter)\b/.test(String(c)))) {

@@ -940,8 +940,98 @@ function nomesConhecidos(txt) {
 // Garante que todo <CamelCase> usado no JSX exista: adiciona o import do lucide
 // (icones), do react-router-dom (Link/Routes/etc.) ou, se for desconhecido,
 // cria um stub local — pra NUNCA mais dar "X is not defined" / tela branca.
-export function garantirIconesEComponentes(files) {
+/**
+ * AUTO-CONSERTO ANTES DE PUBLICAR.
+ *
+ * Um site pode BUILDAR e PUBLICAR com sucesso e mesmo assim abrir em branco —
+ * o build so verifica que o codigo compila, nao que a pagina mostra algo. Foi o
+ * caso real de uma pagina de link na bio: a rota "/" ficou apontando para o
+ * icone de casinha da lucide em vez da home, o projeto compilou, publicou, e a
+ * pessoa abriu uma tela vazia.
+ *
+ * Esta passagem confere cada <Route> do App.jsx e conserta sozinha quando o
+ * destino nao e uma tela de verdade:
+ *   - aponta para um ICONE importado da lucide-react, ou
+ *   - aponta para um STUB vazio criado pelas redes de seguranca.
+ * Havendo um arquivo de pagina com esse nome, a rota volta a apontar para ele.
+ * Se nao houver, avisamos em vez de publicar uma tela branca em silencio.
+ */
+export function repararRotasQuebradas(files, onEvent = () => {}) {
+  const app = ["src/App.jsx", "src/App.tsx"].find(p => files[p] !== undefined);
+  if (!app) return files;
+  let txt = String(files[app]);
+
+  const deLucide = new Set();
+  for (const m of txt.matchAll(/import\s*\{([^}]*)\}\s*from\s*["']lucide-react["']/g)) {
+    for (const n of m[1].split(",")) {
+      const nome = n.split(/\s+as\s+/).pop().trim();
+      if (nome) deLucide.add(nome);
+    }
+  }
+  const stubs = new Set();
+  for (const m of txt.matchAll(/const\s+([A-Z][\w$]*)\s*=\s*\(p\)\s*=>\s*\(p\s*&&/g)) stubs.add(m[1]);
+  if (!deLucide.size && !stubs.size) return files;
+
+  const consertadas = [];
+  const novosImports = [];
+  txt = txt.replace(/(<Route\b[^>]*?element=\{\s*<)([A-Z][\w$]*)(\s*\/?>)/g, (todo, antes, nome, depois) => {
+    if (!deLucide.has(nome) && !stubs.has(nome)) return todo;
+    const arq = arquivoLocalDe(nome, files);
+    if (!arq) { consertadas.push({ nome, arq: null }); return todo; }
+    const temDefault = /export\s+default/.test(String(files[arq] || ""));
+    const rel = caminhoRelativo(app, arq);
+    const novo = nome + "Pagina";
+    const imp = temDefault ? `import ${novo} from "${rel}";` : `import { ${nome} as ${novo} } from "${rel}";`;
+    // Os imports sao juntados aqui e colados DEPOIS: mexer em txt dentro do
+    // replace nao adianta — a atribuicao do proprio replace sobrescreve tudo.
+    if (!novosImports.includes(imp)) novosImports.push(imp);
+    consertadas.push({ nome, arq });
+    return antes + novo + depois;
+  });
+  if (novosImports.length) txt = novosImports.join("\n") + "\n" + txt;
+
+  const arrumadas = consertadas.filter(c => c.arq);
+  const semSaida = consertadas.filter(c => !c.arq);
+  if (arrumadas.length) {
+    onEvent({ type: "notice", text: t("Achei uma tela que abriria em branco e consertei antes de publicar ({quais}).", { quais: arrumadas.map(c => c.nome).join(", ") }) });
+  }
+  if (semSaida.length) {
+    onEvent({ type: "notice", text: t("Atenção: a rota de {quais} não aponta para nenhuma tela de verdade e vai abrir vazia. Peça para eu criar essa página.", { quais: semSaida.map(c => c.nome).join(", ") }) });
+  }
+  return arrumadas.length ? { ...files, [app]: txt } : files;
+}
+
+// Procura um arquivo do PROJETO que define este componente. Devolve o caminho.
+function arquivoLocalDe(nome, universo) {
+  for (const pasta of ["src/pages/", "src/components/", "src/"]) {
+    for (const ext of [".jsx", ".tsx", ".js", ".ts"]) {
+      const alvo = pasta + nome + ext;
+      if (universo[alvo] !== undefined) return alvo;
+    }
+  }
+  const re = new RegExp("(^|/)" + nome + "\\.(jsx|tsx|js|ts)$");
+  for (const caminho of Object.keys(universo)) {
+    if (caminho.startsWith("src/") && re.test(caminho)) return caminho;
+  }
+  return null;
+}
+
+// "src/App.jsx" + "src/pages/Home.jsx" -> "./pages/Home.jsx"
+function caminhoRelativo(de, para) {
+  const dir = de.split("/").slice(0, -1);
+  const alvo = para.split("/");
+  let i = 0;
+  while (i < dir.length && i < alvo.length - 1 && dir[i] === alvo[i]) i++;
+  const subir = dir.length - i;
+  return (subir ? "../".repeat(subir) : "./") + alvo.slice(i).join("/");
+}
+
+export function garantirIconesEComponentes(files, contexto = null) {
   const out = { ...files };
+  // Universo = os arquivos sendo tratados + os que ja existem no projeto. Numa
+  // EDICAO so chegam os arquivos mexidos, e sem o resto do projeto a busca por
+  // arquivo local nao encontraria nada.
+  const universo = contexto ? { ...contexto, ...out } : out;
   for (const [path, content] of Object.entries(out)) {
     if (!/\.(jsx|tsx)$/i.test(path)) continue;
     let txt = String(content);
@@ -951,9 +1041,27 @@ export function garantirIconesEComponentes(files) {
     const faltando = [...usados].filter(n => !conhecidos.has(n));
     if (!faltando.length) continue;
 
-    const icones = faltando.filter(n => LUCIDE_COMUNS.has(n) && !ROUTER_NOMES.has(n));
-    const router = faltando.filter(n => ROUTER_NOMES.has(n));
-    const desconhecidos = faltando.filter(n => !LUCIDE_COMUNS.has(n) && !ROUTER_NOMES.has(n));
+    // O ARQUIVO LOCAL VEM PRIMEIRO. 22 nomes de pagina comuns tambem sao icones
+    // da lucide (Home, Settings, Search, User, Calendar, Menu...). Sem esta
+    // checagem, um <Home /> sem import virava o ICONE de casinha: o site
+    // publicava, buildava, e a pagina inicial abria em BRANCO — foi exatamente
+    // o que aconteceu com uma pagina de link na bio, onde a rota "/" acabou
+    // renderizando o icone no lugar da home.
+    const locais = [];
+    const resto = [];
+    for (const n of faltando) {
+      const arq = arquivoLocalDe(n, universo);
+      if (arq && arq !== path) locais.push([n, arq]); else resto.push(n);
+    }
+    for (const [n, arq] of locais) {
+      const temDefault = /export\s+default/.test(String(universo[arq] || ""));
+      const rel = caminhoRelativo(path, arq);
+      txt = (temDefault ? `import ${n} from "${rel}";` : `import { ${n} } from "${rel}";`) + "\n" + txt;
+    }
+
+    const icones = resto.filter(n => LUCIDE_COMUNS.has(n) && !ROUTER_NOMES.has(n));
+    const router = resto.filter(n => ROUTER_NOMES.has(n));
+    const desconhecidos = resto.filter(n => !LUCIDE_COMUNS.has(n) && !ROUTER_NOMES.has(n));
 
     // 1) adiciona icones ao import existente de lucide-react, ou cria um
     if (icones.length) {
@@ -1596,6 +1704,7 @@ Mudanca pedida: "${userMessage}"`;
   files = blindarImportsNpm(files);       // neutraliza imports de pacotes npm nao instalados
   files = dedupImports(files);            // remove imports duplicados (symbol X already declared)
   files = corrigirSintaxe(files);         // aspas curvas -> retas (evita build quebrado)
+  files = repararRotasQuebradas(files, onEvent); // rota apontando pro nada -> conserta sozinho
   files = injetarCredenciais(files, supabase);
   files = injetarImagens(files, embedImages);
 
