@@ -50,6 +50,11 @@ const BIBLIOTECAS = {
   "class-variance-authority": "class-variance-authority@0.7.0",
   "date-fns": "date-fns@3.6.0",
   "gsap": "gsap@3.13.0",
+  // O plugin de scroll e um modulo separado. Sem ele mapeado, o import caia
+  // no pacote base, ScrollTrigger vinha undefined e o site avisava "Missing
+  // plugin? gsap.registerPlugin()" — efeito de rolagem simplesmente sumia.
+  "gsap/ScrollTrigger": "gsap@3.13.0/ScrollTrigger",
+  "gsap/dist/ScrollTrigger": "gsap@3.13.0/dist/ScrollTrigger",
   "@supabase/supabase-js": "@supabase/supabase-js@2.45.0"
 };
 
@@ -141,6 +146,25 @@ const contar = (tipo, msg, extra) => {
 };
 addEventListener("error", e => contar("erro", e.message || (e.error && e.error.message)));
 addEventListener("unhandledrejection", e => contar("promessa", (e.reason && e.reason.message) || e.reason));
+
+// A PRÉVIA NÃO PODE SAIR DO SITE GERADO.
+// Este documento é um srcdoc: um href="/" resolve contra o endereço da PÁGINA
+// DE CIMA, então um clique levava o quadro para o próprio Copilot Code — a
+// pessoa via o app dentro do preview e achava que tinha quebrado.
+// O bloqueio roda na fase de bolha e respeita quem já tratou o clique: os
+// <Link> do react-router chamam preventDefault antes, então continuam
+// navegando normalmente entre as telas. Link externo abre em aba nova.
+addEventListener("click", (e) => {
+  if (e.defaultPrevented) return;              // o roteador já cuidou
+  const a = e.target && e.target.closest && e.target.closest("a");
+  if (!a) return;
+  const href = a.getAttribute("href") || "";
+  if (!href || href.startsWith("#")) return;   // âncora na mesma tela: deixa
+  e.preventDefault();
+  if (/^https?:\\/\\//i.test(href)) { try { window.open(href, "_blank", "noopener"); } catch {} }
+}, false);
+// Formulário sem onSubmit recarregaria o quadro pelo mesmo motivo.
+addEventListener("submit", (e) => { if (!e.defaultPrevented) e.preventDefault(); }, false);
 const avisar = (estado, extra = {}) => parent.postMessage({ marca: D.marca, rota: D.rota, estado, achados, ...extra }, "*");
 
 try {

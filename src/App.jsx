@@ -189,8 +189,11 @@ export default function App({ oauthResult, oauthError }) {
       { s: 8,   texto: t("A IA está entendendo o pedido e desenhando as telas…") },
       { s: 20,  texto: t("A IA está escrevendo o código do seu projeto…") },
       { s: 40,  texto: t("A IA ainda está escrevendo o código — projetos maiores levam mais tempo…") },
-      { s: 70,  texto: t("Quase lá — ajustando detalhes e preparando o commit…") },
-      { s: 110, texto: t("Finalizando: salvando no GitHub e preparando a publicação…") }
+      // Nada de "commit" nem "GitHub" aqui: desde que publicar virou um botão, a
+      // geração não encosta em repositório nenhum. Dizer o contrário fazia
+      // parecer que o app estava publicando pelas costas da pessoa.
+      { s: 70,  texto: t("Quase lá — ajustando os detalhes das telas…") },
+      { s: 110, texto: t("Montando a prévia pra você conferir antes de publicar…") }
     ] : [
       { s: 0,   texto: t("Trabalhando no seu pedido…") },
       { s: 15,  texto: t("Aplicando as mudanças no projeto…") },

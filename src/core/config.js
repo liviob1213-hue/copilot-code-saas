@@ -178,11 +178,14 @@ export const PROVIDER_CATALOG = [
   {
     id: "teamsoclo",
     tier: "paid",
-    // A documentacao nao informa janela de contexto nem teto de saida. Usamos
-    // numeros conservadores: o gateway cobra entrada + saida + raciocinio, e
-    // chutar alto so gastaria credito da pessoa a toa.
+    // A documentacao nao informa janela de contexto nem teto de saida. Comecamos
+    // em 32 mil por prudencia (o gateway cobra entrada + saida + raciocinio),
+    // mas na pratica a resposta vinha CORTADA o tempo todo — ate tres pedidos de
+    // "continue de onde parou" num projeto so, cada um recomecando com o texto
+    // inteiro de volta. Cortar e MAIS caro do que pedir uma resposta longa de
+    // uma vez, entao 64 mil, igual a Claude direta.
     contextBudget: 120000,
-    maxOutput: 32000,
+    maxOutput: 64000,
     vision: true,
     label: "TeamSocLo (Claude)",
     // PROTOCOLO DA ANTHROPIC, que e o que a documentacao configura: a pagina
