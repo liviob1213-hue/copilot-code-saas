@@ -709,7 +709,12 @@ export default function App({ oauthResult, oauthError }) {
         onDelete={async id => { await history.deleteSession(id); refreshHistory(); }}
         onClear={async () => { await history.clearAll(); refreshHistory(); }}
         onClose={() => setHistOpen(false)} />}
-      {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase} onClose={() => { setConnOpen(false); refreshConn(); loadModelsCache(); }} showToast={showToast} />}
+      {/* onMudou: a cada chave salva/ligada o seletor precisa saber NA HORA. Antes
+          só o onClose atualizava, então salvar a chave e abrir o seletor sem
+          fechar o painel mostrava "sem chave" num serviço que já tinha chave. */}
+      {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase}
+        onMudou={() => { refreshConn(); loadModelsCache(); }}
+        onClose={() => { setConnOpen(false); refreshConn(); loadModelsCache(); }} showToast={showToast} />}
       {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
     </div>
   );
@@ -1049,8 +1054,15 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelH
             </button>
             {PROVIDER_CATALOG.map(pc => {
               const h = modelHealth[pc.id] || {};
-              // Esconde do seletor só os modelos que o health check reprovou (❌).
-              const todos = [...new Set([...(pc.models || []), ...(modelsCache[pc.id] || [])])].filter(EH_CODIGO).filter(m => h[m]?.status !== "fail");
+              const brutos = [...new Set([...(pc.models || []), ...(modelsCache[pc.id] || [])])].filter(EH_CODIGO);
+              // Esconde os modelos que o health check reprovou (❌) — MAS só
+              // enquanto sobrar algum bom. Se TODOS falharem (chave com erro de
+              // digitação, teste feito offline), o provedor inteiro sumia da
+              // lista: a pessoa não entendia para onde ele foi nem tinha como
+              // voltar. Nesse caso mostramos tudo, marcado.
+              const bons = brutos.filter(m => h[m]?.status !== "fail");
+              const todosFalharam = brutos.length > 0 && bons.length === 0;
+              const todos = bons.length ? bons : brutos;
               const models = todos.filter(m => !q || m.toLowerCase().includes(q.toLowerCase()) || pc.label.toLowerCase().includes(q.toLowerCase()));
               if (!models.length) return null;
               // Sem chave salva, escolher este provedor só produz erro em toda
@@ -1058,16 +1070,23 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelH
               // o clique leva direto pra tela de chaves. (provsProntos null =
               // ainda carregando: não marca nada pra não piscar "sem chave".)
               const semChave = provsProntos !== null && !provsProntos.has(pc.id);
+              // Marcado = escolher aqui só daria erro. O clique leva à tela de
+              // chaves, onde dá pra colar a chave e testar de novo.
+              const marcado = semChave || todosFalharam;
+              const etiqueta = semChave ? t("sem chave") : t("chave recusada");
+              const dicaItem = semChave
+                ? t("Adicione a chave deste serviço para poder usá-lo")
+                : t("A chave deste serviço foi recusada no teste. Clique para conferir ou testar de novo.");
               return (
                 <div key={pc.id}>
-                  <div className="pop-group">{pc.label}{semChave && <span className="tag-sem-chave">{t("sem chave")}</span>}</div>
+                  <div className="pop-group">{pc.label}{marcado && <span className="tag-sem-chave">{etiqueta}</span>}</div>
                   {models.map(m => {
                     const sel = providerId === pc.id && activeModel === m;
-                    return <button key={m} className={"pop-item" + (sel ? " sel" : "") + (semChave ? " sem-chave" : "")}
-                      title={semChave ? t("Adicione a chave deste serviço para poder usá-lo") : ""}
+                    return <button key={m} className={"pop-item" + (sel ? " sel" : "") + (marcado ? " sem-chave" : "")}
+                      title={marcado ? dicaItem : ""}
                       onClick={() => {
                         setOpen(false);
-                        if (semChave) onPlusChaves(); else onPick(pc.id, m);
+                        if (marcado) onPlusChaves(); else onPick(pc.id, m);
                       }}>
                       <span>{m}</span>{sel && <IconCheck />}
                     </button>;
@@ -1376,7 +1395,7 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
 function ConnRow({ icon, name, sub, subOff, children }) {
   return (<div className="conn-row"><div className="conn-ic">{icon}</div><div className="conn-main"><div className="conn-name">{name}</div><div className={"conn-sub" + (subOff ? " off" : "")}>{sub}</div></div><div className="conn-act">{children}</div></div>);
 }
-function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
+function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, onMudou = () => {} }) {
   const [secrets, setSecrets] = useState(null);
   const [gh, setGh] = useState({});
   const [sb, setSb] = useState({});
@@ -1477,7 +1496,7 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast }) {
 
           <div className="drawer-section">{t("Chaves de IA (BYOK)")}</div>
           <button className="btn wide" onClick={() => setShowKeys(v => !v)}>{showKeys ? t("Ocultar chaves de IA") : t("Configurar chaves de IA")}</button>
-          {showKeys && <AiProviders showToast={showToast} />}
+          {showKeys && <AiProviders showToast={showToast} onMudou={onMudou} />}
         </div>
       </div>
     </>
@@ -1495,7 +1514,7 @@ const CORES_IA = {
   xai: "linear-gradient(135deg,#64748b,#0f172a)"
 };
 
-function AiProviders({ showToast }) {
+function AiProviders({ showToast, onMudou = () => {} }) {
   const [secrets, setSecrets] = useState(null);
   const [provs, setProvs] = useState([]);
   const [fetched, setFetched] = useState({});
@@ -1512,6 +1531,7 @@ function AiProviders({ showToast }) {
       setHealth(h => ({ ...h, [pc.id]: mapa }));
       const ok = Object.values(mapa).filter(r => r.status === "ok").length;
       showToast(t("{ia}: {ok} de {total} modelo(s) funcionando.", { ia: pc.label, ok, total: Object.keys(mapa).length }));
+      onMudou();
     } catch (e) { showToast(pc.label + ": " + e.message, true); }
     finally { setTestando(""); }
   }
@@ -1519,6 +1539,7 @@ function AiProviders({ showToast }) {
     const v = (drafts[pc.secretKey] ?? secrets[pc.secretKey] ?? "").trim();
     await store.patch("secrets", { [pc.secretKey]: v }); setSecrets(s => ({ ...s, [pc.secretKey]: v }));
     showToast(v ? t("Chave do {ia} salva.", { ia: pc.label }) : t("Chave do {ia} removida.", { ia: pc.label }));
+    onMudou();   // o seletor de modelos precisa saber agora, nao so ao fechar o painel
     // Ao salvar uma chave, testa os modelos automaticamente (health check).
     if (v) testar(pc);
     else setHealth(h => { const n = { ...h }; delete n[pc.id]; return n; });
@@ -1531,11 +1552,12 @@ function AiProviders({ showToast }) {
       const cache = (await store.get("modelsCache")) || {};
       cache[pc.id] = list; await store.set("modelsCache", cache);   // compartilha com o seletor
       showToast(t("{ia}: {n} modelos.", { ia: pc.label, n: list.length }));
+      onMudou();
     }
     catch (e) { showToast(pc.label + ": " + e.message, true); } finally { setBuscando(""); }
   }
   async function setModel(id, model) { const arr = (await store.get("providers")).map(p => p.id === id ? { ...p, model } : p); await store.set("providers", arr); setProvs(arr); }
-  async function toggle(id) { const arr = (await store.get("providers")).map(p => p.id === id ? { ...p, enabled: !p.enabled } : p); await store.set("providers", arr); setProvs(arr); }
+  async function toggle(id) { const arr = (await store.get("providers")).map(p => p.id === id ? { ...p, enabled: !p.enabled } : p); await store.set("providers", arr); setProvs(arr); onMudou(); }
   // Reordena a fila: sobe/desce um provedor DENTRO do mesmo grupo (grátis/paga).
   // A ordem define quem o rodízio tenta primeiro.
   const tierDe = id => (PROVIDER_CATALOG.find(p => p.id === id)?.tier === "paid" ? 1 : 0);
