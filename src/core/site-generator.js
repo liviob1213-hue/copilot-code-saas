@@ -4,6 +4,7 @@ import { complete, streamComplete } from "./providers.js";
 import { t } from "../i18n.js";
 import { mergeStarter, STARTER_FILES } from "./starter-template.js";
 import { fetchComCorpo } from "./net.js";
+import { conferirProjeto, pedidoDeConserto } from "./verificador.js";
 
 /**
  * Infere o SQL das tabelas que o projeto GERADO usa (lendo os supabase.from(...)
@@ -941,6 +942,62 @@ function nomesConhecidos(txt) {
 // (icones), do react-router-dom (Link/Routes/etc.) ou, se for desconhecido,
 // cria um stub local — pra NUNCA mais dar "X is not defined" / tela branca.
 /**
+ * CONFERE O PROJETO E MANDA A IA CONSERTAR — antes de publicar.
+ *
+ * O build so diz se o codigo MONTA. Um nome usado e nunca criado passa por
+ * build e deploy sem aviso e so quebra quando a pessoa abre a pagina: o React
+ * derruba a tela e sobra um retangulo preto. Foi assim que a /agendar de um
+ * sistema de barbearia morreu com "horarios is not defined" — e, como o app
+ * nunca contava o erro para a IA, ela "corrigia" no escuro e dizia que tinha
+ * resolvido.
+ *
+ * Aqui o erro vira texto e volta para a IA, que recebe SO os arquivos com
+ * problema. Uma rodada; se ainda sobrar algo, avisamos em vez de publicar uma
+ * tela preta em silencio. Os arquivos do kit ficam de fora: ja funcionam.
+ */
+async function conferirEConsertar(files, { systemBase, contexto, providerId }, onEvent) {
+  const doKit = new Set(Object.keys(STARTER_FILES));
+  let achados = conferirProjeto(files, doKit);
+  if (!achados.length) return files;
+
+  const resumo = [...new Set(achados.map(a => a.nome))].join(", ");
+  onEvent({ type: "status", text: t("Conferindo o projeto… achei {n} nome(s) que não existem ({quais}) e estou pedindo o conserto.", { n: achados.length, quais: resumo }) });
+
+  try {
+    const r = await complete({
+      system: systemBase + contexto,
+      messages: [{ role: "user", text: pedidoDeConserto(achados) }],
+      tools: [], preferredProviderId: providerId
+    }, onEvent);
+    const corrigidos = normalizarCaminhos(parseFiles(r.text || ""));
+    // So aceita de volta arquivo que ja existia: a IA nao pode aproveitar a
+    // deixa para inventar telas novas nesta etapa.
+    const aplicados = [];
+    for (const [caminho, conteudo] of Object.entries(corrigidos)) {
+      if (files[caminho] === undefined || doKit.has(caminho)) continue;
+      files = { ...files, [caminho]: conteudo };
+      aplicados.push(caminho);
+    }
+    if (aplicados.length) {
+      files = corrigirEstiloImports(files);
+      files = garantirImportsLocais(files);
+      files = blindarImportsNpm(files);
+      files = dedupImports(files);
+      files = corrigirSintaxe(files);
+    }
+  } catch { /* sem conserto: o aviso abaixo ainda sai */ }
+
+  achados = conferirProjeto(files, doKit);
+  if (!achados.length) {
+    onEvent({ type: "notice", text: t("Conferido: o projeto não tem nomes quebrados. Pode publicar.") });
+  } else {
+    const quais = [...new Set(achados.map(a => `${a.nome} (${a.arquivo})`))].join(", ");
+    onEvent({ type: "notice", text: t("Atenção: {quais} continua sem existir no código, então essa tela pode abrir preta. Me peça para corrigir que eu insisto.", { quais }) });
+  }
+  return files;
+}
+
+/**
  * AUTO-CONSERTO ANTES DE PUBLICAR.
  *
  * Um site pode BUILDAR e PUBLICAR com sucesso e mesmo assim abrir em branco —
@@ -1705,6 +1762,7 @@ Mudanca pedida: "${userMessage}"`;
   files = dedupImports(files);            // remove imports duplicados (symbol X already declared)
   files = corrigirSintaxe(files);         // aspas curvas -> retas (evita build quebrado)
   files = repararRotasQuebradas(files, onEvent); // rota apontando pro nada -> conserta sozinho
+  files = await conferirEConsertar(files, { systemBase, contexto, providerId }, onEvent);
   files = injetarCredenciais(files, supabase);
   files = injetarImagens(files, embedImages);
 

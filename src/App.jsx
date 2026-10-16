@@ -90,6 +90,16 @@ export default function App({ oauthResult, oauthError }) {
   const [conn, setConn] = useState({ github: null, supabase: false, vercel: false, ia: true });
   // { [id]: "ok" | "sem-chave" | "desligado" } — ver refreshConn
   const [estadoProvs, setEstadoProvs] = useState(null);
+  // Largura da conversa, em %. Fica no navegador pra não ter que reajustar
+  // toda vez. Guardada direto no localStorage (não é dado de projeto).
+  const [larguraChat, setLarguraChat] = useState(() => {
+    const n = Number(localStorage.getItem("copilot:larguraChat"));
+    return Number.isFinite(n) && n >= 28 && n <= 72 ? n : 45;
+  });
+  const salvarLargura = (v) => {
+    setLarguraChat(v);
+    try { localStorage.setItem("copilot:larguraChat", String(Math.round(v))); } catch {}
+  };
   const [categoria, setCategoria] = useState("todos");
   const [vercelProjects, setVercelProjects] = useState(null);
   const [connOpen, setConnOpen] = useState(false);
@@ -644,7 +654,7 @@ export default function App({ oauthResult, oauthError }) {
               <button className={"m-tab" + (mobileView === "chat" ? " on" : "")} onClick={() => setMobileView("chat")}>{t("Chat")}</button>
               <button className={"m-tab" + (mobileView === "preview" ? " on" : "")} onClick={() => setMobileView("preview")}>{t("Preview")}</button>
             </div>
-            <div className={"chat-col" + (mobileView === "preview" ? " m-off" : "")}>
+            <div className={"chat-col" + (mobileView === "preview" ? " m-off" : "")} style={{ width: larguraChat + "%" }}>
               <div className="chat-top">
                 {repo ? (
                   <div className="repo-chip" title={`${repo.owner}/${repo.name}`}>
@@ -683,6 +693,34 @@ export default function App({ oauthResult, oauthError }) {
               )}
               {composer}
             </div>
+
+            {/* Divisória arrastável: a conversa era fixa em 45% e, numa tela de
+                1366px, sobravam ~470px — estreito a ponto de obrigar a mexer no
+                zoom do navegador pra ler. Agora cada um escolhe, e fica salvo. */}
+            <div
+              className="split-handle"
+              role="separator"
+              aria-label={t("Arraste para mudar a largura da conversa")}
+              title={t("Arraste para mudar a largura da conversa (dois cliques volta ao padrão)")}
+              onDoubleClick={() => salvarLargura(45)}
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId);
+                const area = e.currentTarget.parentElement;
+                const mover = (ev) => {
+                  const r = area.getBoundingClientRect();
+                  const pct = ((ev.clientX - r.left) / r.width) * 100;
+                  setLarguraChat(Math.min(72, Math.max(28, pct)));
+                };
+                const soltar = (ev) => {
+                  e.currentTarget.releasePointerCapture?.(ev.pointerId);
+                  window.removeEventListener("pointermove", mover);
+                  window.removeEventListener("pointerup", soltar);
+                  setLarguraChat(v => { salvarLargura(v); return v; });
+                };
+                window.addEventListener("pointermove", mover);
+                window.addEventListener("pointerup", soltar);
+              }}
+            />
 
             <div className={"preview-col" + (mobileView === "chat" ? " m-off" : "")}>
               <div className="preview-bar">

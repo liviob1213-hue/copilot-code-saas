@@ -405,6 +405,15 @@ input, textarea, select { font-family: inherit; }
    Workspace
    ============================================================ */
 .workspace { flex: 1; display: flex; min-height: 0; }
+/* Pega na divisória: estreita, mas com área de clique folgada pra não exigir
+   pontaria. O cursor já avisa que dá pra arrastar. */
+.split-handle {
+  flex: none; width: 6px; margin: 0 -3px; z-index: 3;
+  cursor: col-resize; background: transparent;
+  transition: background .15s var(--ease);
+}
+.split-handle:hover, .split-handle:active { background: rgba(239, 68, 68, .35); }
+
 .chat-col {
   width: 45%; min-width: 348px; display: flex; flex-direction: column; min-height: 0;
   border-right: 1px solid var(--edge);
@@ -690,6 +699,11 @@ select.chip { -webkit-appearance: none; appearance: none; }
   display: flex; align-items: center; gap: 10px;
   padding: 10px 14px; border-bottom: 1px solid var(--edge);
   background: rgba(10, 10, 16, .5); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  /* O backdrop-filter cria um CONTEXTO DE EMPILHAMENTO proprio. Sem o
+     position+z-index abaixo, o z-index 41 do seletor de rotas so valia DENTRO
+     da barra, e o .preview-stage (que vem depois no HTML) era desenhado por
+     cima: o menu abria, mas ficava escondido atras do preview. */
+  position: relative; z-index: 2;
 }
 .browser-dots { display: flex; gap: 6px; flex: none; }
 .browser-dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--glass-3); display: block; }
@@ -935,8 +949,11 @@ input.text.mini { width: 118px; padding: 7px 9px; font-size: 12px; font-family: 
   .seg-btn { flex: 1; white-space: nowrap; }
   .setup-steps { margin-left: 0; }
   .tpl-grid { grid-template-columns: 1fr; }
-  .chat-col, .preview-col { width: 100%; min-width: 0; border-right: 0; min-height: 0; flex: 1; }
+  /* No celular as colunas viram abas: a largura em % e a divisória não fazem
+     sentido, então o width inline é anulado e a pega some. */
+  .chat-col, .preview-col { width: 100% !important; min-width: 0; border-right: 0; min-height: 0; flex: 1; }
   .chat-col.m-off, .preview-col.m-off { display: none; }
+  .split-handle { display: none; }
 
   .home-inner { padding: 68px 16px 34px; }
   .steps { grid-template-columns: 1fr; }
