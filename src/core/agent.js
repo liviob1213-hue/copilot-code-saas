@@ -73,7 +73,7 @@ EDICAO NIVEL PROFISSIONAL (como um cirurgiao, nao um pintor que refaz o quadro):
 - "Remova/tire X" = apague X (e imports que ficarem sem uso). Nunca crie arquivo novo para remover algo.
 - "Adicione uma pagina/secao" = crie o componente seguindo o padrao dos arquivos vizinhos, ligue a ROTA no App e um link no menu.
 - "Melhore o visual/deixe profissional" = pode refazer o LAYOUT daquela parte, preservando textos e funcionalidade, com hierarquia tipografica, espacamento generoso, cards com sombra suave, estados de hover e responsivo mobile-first.
-- "Coloque imagens/fotos" = use fotos do tema geradas por IA: https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=1200&height=800&nologo=true&seed=N com onError trocando para https://picsum.photos/seed/N/1200/800.
+- "Coloque imagens/fotos" = use https://picsum.photos/seed/PALAVRA/1200/800 (uma semente por imagem) com onError trocando para https://picsum.photos/1200/800?grayscale. NAO use image.pollinations.ai: so permite 1 imagem a cada 45s por IP e as demais voltam erro.
 - Cadastros/edicoes em sistemas abrem em MODAL; listas tem estados de vazio/carregando; acoes dao feedback (toast simples feito com useState).
 - Aspas retas sempre (nunca aspas curvas); todo icone lucide usado no JSX precisa estar no import do topo do arquivo.` + _regrasTrabalho(ctx) + (ctx.idiomaIA || "");
 }

@@ -88,6 +88,8 @@ export default function App({ oauthResult, oauthError }) {
   const [rota, setRota] = useState("/");
   const [viewport, setViewport] = useState("desktop");
   const [conn, setConn] = useState({ github: null, supabase: false, vercel: false, ia: true });
+  // ids dos provedores ligados E com chave salva (ver refreshConn)
+  const [provsProntos, setProvsProntos] = useState(null);
   const [categoria, setCategoria] = useState("todos");
   const [vercelProjects, setVercelProjects] = useState(null);
   const [connOpen, setConnOpen] = useState(false);
@@ -116,7 +118,13 @@ export default function App({ oauthResult, oauthError }) {
     const gh = await store.get("github"), sb = await store.get("supabase"), vc = await store.getSecret("VERCEL_TOKEN");
     // IA pronta = pelo menos um provedor ligado com chave salva.
     const provs = (await store.get("providers")) || [], segredos = (await store.get("secrets")) || {};
-    const ia = provs.some(p => p.enabled !== false && (segredos[PROVIDER_CATALOG.find(c => c.id === p.id)?.secretKey] || "").trim());
+    const temChave = p => p.enabled !== false && Boolean((segredos[PROVIDER_CATALOG.find(c => c.id === p.id)?.secretKey] || "").trim());
+    const ia = provs.some(temChave);
+    // Quais provedores dá pra escolher de verdade. Sem isto, o seletor listava
+    // o catálogo inteiro: escolher a Claude sem ter chave dela deixava o app
+    // falhando em toda mensagem com "o provedor escolhido não está ativo ou
+    // está sem chave", sem dizer qual nem onde resolver.
+    setProvsProntos(new Set(provs.filter(temChave).map(p => p.id)));
     setConn({ github: gh.login || (gh.token ? "conectado" : null), avatar: gh.avatar || "", supabase: Boolean(sb.oauth || sb.token), vercel: Boolean(vc), ia });
     if (vc) loadVercelProjects();
   }
@@ -408,7 +416,15 @@ export default function App({ oauthResult, oauthError }) {
     const s = await history.getSession(id);
     if (!s) return;
     setHistOpen(false); sessionRef.current = id; stickRef.current = true;
-    setRepo(s.repo || null); setPreviewUrl(s.repo?.url || null);
+    // Mesma recuperação do openProject: conversas antigas foram salvas antes de
+    // existir o store de briefs, e sem o pedido original a IA recria genérico.
+    let r = s.repo || null;
+    if (r && !r.brief) {
+      const briefs = (await store.get("briefs")) || {};
+      const salvo = briefs[`${r.owner}/${r.name}`];
+      if (salvo) r = { ...r, brief: salvo };
+    }
+    setRepo(r); setPreviewUrl(r?.url || null);
     setRota("/"); carregarRotas(s.repo);
     setMessages((s.messages || []).map(m => ({ role: m.role, text: m.text })));
     setView("workspace");
@@ -421,7 +437,10 @@ export default function App({ oauthResult, oauthError }) {
     if (existente) { await openSession(existente.id); return; }
 
     sessionRef.current = null;
-    const repoInfo = { owner: p.owner, name: p.name, branch: p.branch || "main", url: p.url || null, brief: "" };
+    // Recupera o pedido original salvo na criação. Sem ele, pedir "arruma isso"
+    // num projeto reaberto fazia a IA recriar um site genérico, de outro tema.
+    const briefs = (await store.get("briefs")) || {};
+    const repoInfo = { owner: p.owner, name: p.name, branch: p.branch || "main", url: p.url || null, brief: briefs[`${p.owner}/${p.name}`] || "" };
     setRepo(repoInfo);
     setRota("/"); carregarRotas(repoInfo);
     setMessages([{ role: "assistant", text: t("Projeto aberto: {repo}. Peça as alterações aqui que eu edito.", { repo: `${p.owner}/${p.name}` }) }]);
@@ -454,6 +473,7 @@ export default function App({ oauthResult, oauthError }) {
       inputRef={inputRef}
       kind={kind} setKind={setKind} onSend={handleSend} onBlindar={handleBlindar}
       providerId={providerId} activeModel={activeModel} onPickModel={pickModel} modelsCache={modelsCache} modelHealth={modelHealth}
+      provsProntos={provsProntos}
       attached={attached} onAddFiles={addFiles} onRemoveAttach={(i) => setAttached(a => a.filter((_, x) => x !== i))}
       projects={vercelProjects} onLoadProjects={loadVercelProjects} onOpenProject={openProject} onNew={novoProjeto}
       onPlusConexoes={() => { setKeysOpen(false); setConnOpen(true); }} onPlusChaves={() => { setKeysOpen(true); setConnOpen(true); }}
@@ -885,7 +905,7 @@ function TplIcon({ ic }) {
 }
 
 /* ---------------- Composer (v0-style) ---------------- */
-function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
+function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, provsProntos, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
   const [plus, setPlus] = useState(false);
   const fileRef = useRef(null);
   return (
@@ -919,7 +939,7 @@ function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, o
             </div>
           </>)}
         </div>
-        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} />
+        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} provsProntos={provsProntos} onPlusChaves={onPlusChaves} />
         <button className="chip" onClick={onBlindar} disabled={busy || !repo} title={t("Blindar contra vazamento de dados")}><IconShield /></button>
         <div className="spacer" />
         <ProjectPicker projects={projects} onLoad={onLoadProjects} onOpen={onOpenProject} onNew={onNew} />
@@ -1012,7 +1032,7 @@ function detectarSegredo(texto) {
   return null;
 }
 
-function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {} }) {
+function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {}, provsProntos = null, onPlusChaves = () => {} }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const label = providerId ? (activeModel || t("modelo")) : t("Automático");
@@ -1033,12 +1053,22 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelH
               const todos = [...new Set([...(pc.models || []), ...(modelsCache[pc.id] || [])])].filter(EH_CODIGO).filter(m => h[m]?.status !== "fail");
               const models = todos.filter(m => !q || m.toLowerCase().includes(q.toLowerCase()) || pc.label.toLowerCase().includes(q.toLowerCase()));
               if (!models.length) return null;
+              // Sem chave salva, escolher este provedor só produz erro em toda
+              // mensagem. Em vez de deixar escolher e falhar depois, marcamos e
+              // o clique leva direto pra tela de chaves. (provsProntos null =
+              // ainda carregando: não marca nada pra não piscar "sem chave".)
+              const semChave = provsProntos !== null && !provsProntos.has(pc.id);
               return (
                 <div key={pc.id}>
-                  <div className="pop-group">{pc.label}</div>
+                  <div className="pop-group">{pc.label}{semChave && <span className="tag-sem-chave">{t("sem chave")}</span>}</div>
                   {models.map(m => {
                     const sel = providerId === pc.id && activeModel === m;
-                    return <button key={m} className={"pop-item" + (sel ? " sel" : "")} onClick={() => { onPick(pc.id, m); setOpen(false); }}>
+                    return <button key={m} className={"pop-item" + (sel ? " sel" : "") + (semChave ? " sem-chave" : "")}
+                      title={semChave ? t("Adicione a chave deste serviço para poder usá-lo") : ""}
+                      onClick={() => {
+                        setOpen(false);
+                        if (semChave) onPlusChaves(); else onPick(pc.id, m);
+                      }}>
                       <span>{m}</span>{sel && <IconCheck />}
                     </button>;
                   })}

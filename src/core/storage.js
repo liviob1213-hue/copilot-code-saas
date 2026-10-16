@@ -58,6 +58,11 @@ const DEFAULTS = {
   repoAuto: true,
   lovableRepos: [],   // sem uso no web (Lovable e so da extensao), mantido por compatibilidade
   previewUrls: {},
+  // Pedido ORIGINAL de cada projeto ("owner/nome" -> texto). Precisa ser salvo
+  // em disco: ele so vivia na memoria, entao bastava recarregar a pagina ou
+  // reabrir o projeto pela lista para sumir — e um "conserta isso" sem ele faz
+  // a IA inventar um site generico, sem saber de que negocio o projeto e.
+  briefs: {},
   projects: {},
   settings: {
     autoCommit: false,

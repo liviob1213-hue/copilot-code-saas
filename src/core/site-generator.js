@@ -297,8 +297,8 @@ ESTRUTURA DA PAGINA (secoes como componentes, montadas na Home):
 2. Hero de impacto: eyebrow especifico, titulo grande (para quem / qual resultado / por que agir agora), subtitulo, 2 CTAs (primario + secundario) e uma prova visual.
 
 IMAGENS (o site NAO pode ficar vazio/amador — use em hero, galeria, cards de servico/produto, equipe, depoimentos):
-- FOTOS DO TEMA, GERADAS POR IA (preferido — combinam com o negocio): https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=LARGURA&height=ALTURA&nologo=true&seed=NUMERO — a DESCRICAO e especifica e fotografica, em ingles, com espacos como %20 (ex.: https://image.pollinations.ai/prompt/modern%20barbershop%20interior%20warm%20light%20professional%20photo?width=1200&height=800&nologo=true&seed=11). Uma descricao e seed DIFERENTES por imagem.
-- SEMPRE com fallback, porque a geracao pode demorar/falhar: onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://picsum.photos/seed/FALLBACK/LARGURA/ALTURA"; }} + width, height, alt e loading="lazy" (no hero use loading="eager"). Coloque a <img> dentro de um container com fundo neutro (bg-muted) e aspect-ratio fixo, pra nao "pular" o layout enquanto carrega.
+- FOTOS: https://picsum.photos/seed/PALAVRA/LARGURA/ALTURA — uma PALAVRA (semente) diferente por imagem, sempre a mesma foto para a mesma semente. NAO use image.pollinations.ai: o servico so permite 1 imagem a cada 45 segundos por IP e devolve erro (402) em todas as outras, entao um site com varias fotos nasce quebrado.
+- SEMPRE com fallback, porque qualquer servico pode cair: onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://picsum.photos/LARGURA/ALTURA?grayscale"; }} + width, height, alt e loading="lazy" (no hero use loading="eager"). Coloque a <img> dentro de um container com fundo neutro (bg-muted) e aspect-ratio fixo, pra nao "pular" o layout enquanto carrega.
 - AVATARES/PESSOAS (depoimentos, equipe): https://i.pravatar.cc/160?img=NUMERO (1 a 70).
 - Diga no texto/README que sao imagens temporarias para a pessoa trocar pelas reais.
 - Nunca use logos/fotos de marcas reais nem personagens conhecidos — so imagens genericas. Mockups de UI (dashboard, telas do app) continue fazendo em CSS/SVG.
@@ -376,14 +376,15 @@ Valores em R$ (Intl.NumberFormat pt-BR). SEMEIE 3 meses de lancamentos plausivei
 - ENTRADAS e SAIDAS: registrar movimento em modal (atualiza a quantidade do produto) e historico filtravel.
 - FORNECEDORES (CRUD). SEMEIE 12 produtos e alguns movimentos.`,
   gerador_imagem: `Este e um GERADOR DE IMAGENS COM IA (funciona DE VERDADE e de graca, sem chave).
-- Geracao: monte a URL https://image.pollinations.ai/prompt/{PROMPT_CODIFICADO}?width=W&height=H&seed=SEED&nologo=true&model=flux e use como src de <img> (encodeURIComponent no prompt). A imagem leva alguns segundos: mostre um SKELETON animado ate o onLoad; trate onError com mensagem e botao "Tentar de novo".
+- Geracao: monte a URL https://image.pollinations.ai/prompt/{PROMPT_CODIFICADO}?width=W&height=H&seed=SEED&nologo=true&model=flux e use como src de <img> (encodeURIComponent no prompt). A imagem leva alguns segundos: mostre um SKELETON animado ate o onLoad.
+- LIMITE GRATIS (trate sempre, senao o app parece quebrado): o servico libera 1 IMAGEM A CADA 45 SEGUNDOS POR IP e responde 402 nas demais. Gere UMA de cada vez (fila), com contagem regressiva visivel ("proxima imagem em Xs") e o botao Gerar desabilitado enquanto espera. No onError, diga em portugues claro que o limite gratis foi atingido e ofereca "Tentar de novo" — nunca deixe a imagem de erro aparecer como se fosse o resultado.
 - TELA PRINCIPAL: campo de prompt grande, chips de ESTILO (fotorealista, anime, 3D, aquarela, cinematografico, logo minimalista) que acrescentam termos ao prompt, seletor de PROPORCAO (1:1, 16:9, 9:16, 4:3 -> width/height), quantidade (1-4 variacoes com seeds diferentes) e botao "Gerar".
 - RESULTADOS em grade; cada imagem com BAIXAR (fetch -> blob -> download), copiar link, "variar" (nova seed) e salvar na GALERIA (useStore "galeria").
 - "/galeria" com o historico salvo. Visual de produto de IA moderno (escuro, cards com brilho sutil).`,
   gerador_video: `Este e um GERADOR DE VIDEOS COM IA. Geracao de video exige um provedor pago (ex.: Replicate, fal.ai, Luma, Runway) — NUNCA coloque chave secreta no front.
 - Arquitetura: o front chama uma Supabase EDGE FUNCTION ("gerar-video") que guarda a chave do provedor como secret e retorna o id do job; o front faz POLLING do status ate ficar pronto e mostra o <video>. Se o Supabase/chave nao estiver configurado, mostre uma tela clara "Configure sua chave do provedor" com o passo a passo (o app NAO pode quebrar sem a chave).
 - TELA: prompt, imagem inicial opcional (upload -> image-to-video), duracao, proporcao, estilo; botao "Gerar video"; barra de progresso com etapas; resultado com player, baixar e salvar na galeria (useStore "videos").
-- Inclua tambem um modo GRATIS que funciona sem chave: "Slideshow com IA" — gera 4-6 imagens pelo Pollinations (https://image.pollinations.ai/prompt/...) e anima como video (transicoes CSS Ken Burns) com texto sobreposto.`,
+- Inclua tambem um modo GRATIS que funciona sem chave: "Slideshow com IA" — anima 4-6 imagens como video (transicoes CSS Ken Burns) com texto sobreposto. Use https://picsum.photos/seed/PALAVRA/1280/720 para as imagens: o Pollinations so libera 1 imagem a cada 45s por IP e um slideshow de 6 imagens levaria mais de 4 minutos.`,
   chat_ia: `Este e um ASSISTENTE / CHATBOT COM IA (atendimento, tira-duvidas, agente de vendas).
 - Interface de chat moderna: bolhas, digitando..., markdown basico, sugestoes de perguntas, historico de conversas na lateral (useStore "conversas").
 - A IA responde via uma Supabase EDGE FUNCTION ("chat") que guarda a chave do modelo como secret (nunca no front). Sem Supabase/chave: modo DEMO com respostas pre-programadas por palavra-chave para o app funcionar na hora.
@@ -1266,7 +1267,7 @@ PADRAO DE PRODUTO PRONTO PRA VENDER (o que separa um app de verdade de um rascun
 - PERSISTENCIA: o que a pessoa cria NAO some ao recarregar (useStore de src/lib/useStore.js, ou Supabase se ligado).
 - ACESSIVEL: contraste bom, foco visivel (focus-visible:ring), botoes com aria-label quando so tem icone, alvos de toque >= 44px.
 - MOVIMENTO com proposito: transicoes de 150-300ms em hover/abrir modal; entrada suave dos cards; respeite prefers-reduced-motion.
-- Em apps com produtos/servicos/imoveis/pratos, use FOTOS do tema geradas por IA: https://image.pollinations.ai/prompt/DESCRICAO_EM_INGLES?width=800&height=600&nologo=true&seed=N com onError trocando para https://picsum.photos/seed/N/800/600.`;
+- Em apps com produtos/servicos/imoveis/pratos, use FOTOS: https://picsum.photos/seed/PALAVRA/800/600 (uma semente por item), com onError trocando para https://picsum.photos/800/600?grayscale. NAO use image.pollinations.ai (limite de 1 imagem a cada 45s por IP: as demais voltam erro).`;
 
 // "Cortada" = algum arquivo ficou ABERTO (mais ===FILE: do que ===END===).
 // Antes exigiamos que o texto TERMINASSE em ===END===; num teste real a IA

@@ -305,6 +305,9 @@ export async function criarProjeto({ userMessage, kind = "app", providerId = "",
     resumo = await resumirDidatico({ userMessage, files, mode: "create", providerId });
   }
 
+  // Guarda o pedido original junto do projeto, para um "conserta isso" dias
+  // depois ainda saber de que negocio o site e.
+  await store.set("briefs", { ...(await store.get("briefs")), [full]: userMessage });
   const repoInfo = { owner: repo.owner, name: repo.name, branch: repo.branch, url, brief: userMessage };
   if (sessionId) {
     await history.setSessionRepo(sessionId, repoInfo);

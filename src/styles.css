@@ -672,6 +672,16 @@ select.chip { -webkit-appearance: none; appearance: none; }
 .pop-item:hover { background: var(--glass-2); color: var(--ink); }
 .pop-item.sel { color: #fecdd3; background: rgba(239, 68, 68, .14); }
 .pop-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Provedor sem chave salva: fica visivel (para a pessoa saber que existe), mas
+   apagado, e o clique abre a tela de chaves em vez de escolher algo que so
+   falharia. */
+.pop-item.sem-chave { opacity: .45; }
+.pop-item.sem-chave:hover { opacity: .75; }
+.tag-sem-chave {
+  margin-left: 6px; padding: 1px 5px; border-radius: 999px;
+  background: var(--glass-2); color: var(--ink-faint);
+  font-size: 9px; letter-spacing: .04em; text-transform: none; font-weight: 600;
+}
 
 /* ============================================================
    Preview
