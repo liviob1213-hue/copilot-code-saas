@@ -1036,6 +1036,15 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
         } catch { /* fragmento parcial — ignora */ }
       }
     }
+  } catch (e) {
+    // NAO JOGUE FORA O QUE JA CHEGOU. Medido num teste real: a Claude
+    // transmitiu ~30 arquivos por 5 minutos, o prazo estourou, o erro subiu, e
+    // quem chama recomecava a geracao inteira pelo caminho SEM streaming —
+    // outros minutos de tela muda, e o trabalho ja feito perdido. Agora o
+    // pedaco recebido volta marcado como interrompido: a continuacao termina
+    // de onde parou, em vez de comecar do zero.
+    if (!full.trim()) throw e;
+    motivoParada = "interrompido";
   } finally {
     clearTimeout(timeout);
   }
