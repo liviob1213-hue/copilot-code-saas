@@ -16,6 +16,7 @@ export const SECRETS = {
   MISTRAL_API_KEY: "",
   OPENROUTER_API_KEY: "",
   XAI_API_KEY: "",
+  TEAMSOCLO_API_KEY: "",
 
   SUPABASE_URL: "",
   SUPABASE_ANON_KEY: "",
@@ -54,7 +55,7 @@ export const VERCEL_OAUTH = {
 // Suba este numero SEMPRE que mudar modelo/provedor no catalogo: a migracao em
 // storage.js so roda quando ele muda, e e ela que troca um modelo salvo que nao
 // existe mais (ex.: "claude-sonnet-5" antigo, que fazia a Anthropic dar 400).
-export const CATALOG_VERSION = 14;
+export const CATALOG_VERSION = 15;
 
 // tier: "free" entra no rodizio automatico primeiro; "paid" so e usado no
 // automatico depois que TODAS as gratis se esgotarem (protege o saldo do cliente).
@@ -175,6 +176,43 @@ export const PROVIDER_CATALOG = [
     note: "Paga. Forte em codigo. Enxerga imagem no modelo de visao (mais lento)."
   },
   {
+    id: "teamsoclo",
+    tier: "paid",
+    // A documentacao nao informa janela de contexto nem teto de saida. Usamos
+    // numeros conservadores: o gateway cobra entrada + saida + raciocinio, e
+    // chutar alto so gastaria credito da pessoa a toa.
+    contextBudget: 120000,
+    maxOutput: 32000,
+    vision: true,
+    label: "TeamSocLo (Claude)",
+    // PROTOCOLO DA ANTHROPIC, que e o que a documentacao configura: a pagina
+    // manda apontar ANTHROPIC_BASE_URL para https://gpt.teamsoclo.site, ou seja,
+    // POST /v1/messages com o corpo da Anthropic. O gateway tambem aceita o
+    // formato da OpenAI, mas aqui queremos a API do Claude de verdade.
+    kind: "anthropic",
+    // A doc usa ANTHROPIC_AUTH_TOKEN (Bearer), nao ANTHROPIC_API_KEY: todos os
+    // exemplos, inclusive o do /v1/messages, mandam "Authorization: Bearer".
+    // Sem este sinal o adaptador mandaria x-api-key e tomaria 401.
+    authBearer: true,
+    endpoint: "https://gpt.teamsoclo.site/v1/messages",
+    // GET /v1/models com a mesma chave devolve SO os modelos que o pacote dela
+    // permite: o botao "buscar modelos" resolve o problema de cada chave ter um
+    // pacote diferente (chave GPT nao chama modelo claude e vice-versa).
+    listEndpoint: "https://gpt.teamsoclo.site/v1/models",
+    secretKey: "TEAMSOCLO_API_KEY",
+    keyUrl: "https://redeem.teamsoclo.site",
+    defaultModel: "claude-sonnet-5",
+    // SO MODELOS CLAUDE. O gateway tambem vende pacotes GPT (gpt-5.6-sol,
+    // gpt-astra), mas eles ficam fora da lista de proposito: quem escolhe este
+    // provedor aqui quer Claude. Se a chave for de um pacote GPT, o botao
+    // "buscar modelos" mostra o que ela permite.
+    models: [
+      "claude-opus-5-5", "claude-opus-5", "claude-sonnet-5", "claude-sonnet-4-6",
+      "claude-haiku-4-5", "claude-fable-5-1", "claude-fable-5"
+    ],
+    note: "Paga (creditos). Modelos Claude. Clique em buscar modelos: a chave so acessa os do pacote dela."
+  },
+  {
     id: "xai",
     tier: "paid",
     contextBudget: 120000,
@@ -198,7 +236,9 @@ export const PROVIDER_PRICES = {
   groq:       { in: 0,    out: 0 },
   anthropic:  { in: 3.00, out: 15.00 },
   deepseek:   { in: 0.28, out: 1.10 },
-  xai:        { in: 0.20, out: 1.50 }
+  xai:        { in: 0.20, out: 1.50 },
+  // Creditos pre-pagos por CDK, nao dolar por token: nao da para estimar custo aqui.
+  teamsoclo:  { in: 0,    out: 0 }
 };
 
 export const COOLDOWN_MS = {

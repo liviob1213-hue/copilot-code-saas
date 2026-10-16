@@ -230,7 +230,13 @@ function buildRequest(provider, cfg, apiKey, { system, messages, tools, model })
       url: provider.endpoint,
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
+        // A Anthropic autentica com x-api-key. Gateways que falam o MESMO
+        // protocolo costumam usar "Authorization: Bearer" — e o TeamSocLo so
+        // documenta essa forma, inclusive no exemplo do /v1/messages. Por isso
+        // o provedor escolhe, em vez de ficar preso a um dos dois.
+        ...(provider.authBearer
+          ? { authorization: `Bearer ${apiKey}` }
+          : { "x-api-key": apiKey }),
         "anthropic-version": "2023-06-01",
         "anthropic-dangerous-direct-browser-access": "true"
       },
@@ -516,7 +522,10 @@ export async function listModels(providerId) {
   // A Anthropic so libera acesso direto do navegador no /v1/messages; o
   // /v1/models recusa a chamada da pagina (aparecia como 400 no console). Como
   // mantemos a lista certa no catalogo, devolvemos ela em vez de ir na rede.
-  if (provider.kind === "anthropic") return [...provider.models];
+  // Gateways que falam o protocolo da Anthropic (authBearer) nao tem essa
+  // restricao — e neles a busca importa de verdade, porque cada chave so acessa
+  // os modelos do pacote dela.
+  if (provider.kind === "anthropic" && !provider.authBearer) return [...provider.models];
 
   let url = provider.listEndpoint;
   const headers = { accept: "application/json" };
@@ -524,7 +533,8 @@ export async function listModels(providerId) {
   if (provider.kind === "gemini") {
     url += `?key=${encodeURIComponent(apiKey)}&pageSize=200`;
   } else if (provider.kind === "anthropic") {
-    headers["x-api-key"] = apiKey;
+    if (provider.authBearer) headers.authorization = `Bearer ${apiKey}`;
+    else headers["x-api-key"] = apiKey;
     headers["anthropic-version"] = "2023-06-01";
     headers["anthropic-dangerous-direct-browser-access"] = "true";
   } else {

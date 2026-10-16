@@ -1630,7 +1630,8 @@ const CORES_IA = {
   groq: "linear-gradient(135deg,#f43f5e,#fb923c)",
   anthropic: "linear-gradient(135deg,#d97757,#fbbf24)",
   deepseek: "linear-gradient(135deg,#4f7cff,#22d3ee)",
-  xai: "linear-gradient(135deg,#64748b,#0f172a)"
+  xai: "linear-gradient(135deg,#64748b,#0f172a)",
+  teamsoclo: "linear-gradient(135deg,#16a34a,#06b6d4)"
 };
 
 function AiProviders({ showToast, onMudou = () => {} }) {
