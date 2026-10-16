@@ -143,7 +143,13 @@ export const PROVIDER_CATALOG = [
     // responde 400. Os validos da familia Claude 5 sao os de baixo.
     defaultModel: "claude-sonnet-5-5",
     models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"],
-    maxOutput: 16000,
+    // Os modelos Claude 5 aceitam ate 128 mil tokens de saida. Pediamos 16 mil:
+    // um projeto inteiro nao cabia, a resposta vinha cortada e o app gastava
+    // rodadas de "continue de onde parou". 32 mil e o meio-termo seguro aqui —
+    // esta chamada NAO usa streaming (o adaptador da Anthropic nao e
+    // openai-compativel), e pedir muito mais faria uma unica resposta demorar
+    // perto do teto de 5 minutos.
+    maxOutput: 32000,
     note: "Paga. Melhor qualidade de codigo e enxerga imagem."
   },
   {

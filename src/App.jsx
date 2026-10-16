@@ -88,8 +88,8 @@ export default function App({ oauthResult, oauthError }) {
   const [rota, setRota] = useState("/");
   const [viewport, setViewport] = useState("desktop");
   const [conn, setConn] = useState({ github: null, supabase: false, vercel: false, ia: true });
-  // ids dos provedores ligados E com chave salva (ver refreshConn)
-  const [provsProntos, setProvsProntos] = useState(null);
+  // { [id]: "ok" | "sem-chave" | "desligado" } — ver refreshConn
+  const [estadoProvs, setEstadoProvs] = useState(null);
   const [categoria, setCategoria] = useState("todos");
   const [vercelProjects, setVercelProjects] = useState(null);
   const [connOpen, setConnOpen] = useState(false);
@@ -118,13 +118,20 @@ export default function App({ oauthResult, oauthError }) {
     const gh = await store.get("github"), sb = await store.get("supabase"), vc = await store.getSecret("VERCEL_TOKEN");
     // IA pronta = pelo menos um provedor ligado com chave salva.
     const provs = (await store.get("providers")) || [], segredos = (await store.get("secrets")) || {};
-    const temChave = p => p.enabled !== false && Boolean((segredos[PROVIDER_CATALOG.find(c => c.id === p.id)?.secretKey] || "").trim());
+    const comChave = p => Boolean((segredos[PROVIDER_CATALOG.find(c => c.id === p.id)?.secretKey] || "").trim());
+    const temChave = p => p.enabled !== false && comChave(p);
     const ia = provs.some(temChave);
     // Quais provedores dá pra escolher de verdade. Sem isto, o seletor listava
     // o catálogo inteiro: escolher a Claude sem ter chave dela deixava o app
     // falhando em toda mensagem com "o provedor escolhido não está ativo ou
     // está sem chave", sem dizer qual nem onde resolver.
-    setProvsProntos(new Set(provs.filter(temChave).map(p => p.id)));
+    // "desligado" e "sem chave" sao problemas diferentes e tem solucoes
+    // diferentes: um se resolve no botao de ligar, o outro colando a chave.
+    // Dizer "sem chave" para um servico que tem chave e so esta desligado
+    // mandaria a pessoa procurar no lugar errado.
+    setEstadoProvs(Object.fromEntries(provs.map(p =>
+      [p.id, !comChave(p) ? "sem-chave" : (p.enabled === false ? "desligado" : "ok")]
+    )));
     setConn({ github: gh.login || (gh.token ? "conectado" : null), avatar: gh.avatar || "", supabase: Boolean(sb.oauth || sb.token), vercel: Boolean(vc), ia });
     if (vc) loadVercelProjects();
   }
@@ -473,7 +480,7 @@ export default function App({ oauthResult, oauthError }) {
       inputRef={inputRef}
       kind={kind} setKind={setKind} onSend={handleSend} onBlindar={handleBlindar}
       providerId={providerId} activeModel={activeModel} onPickModel={pickModel} modelsCache={modelsCache} modelHealth={modelHealth}
-      provsProntos={provsProntos}
+      estadoProvs={estadoProvs}
       attached={attached} onAddFiles={addFiles} onRemoveAttach={(i) => setAttached(a => a.filter((_, x) => x !== i))}
       projects={vercelProjects} onLoadProjects={loadVercelProjects} onOpenProject={openProject} onNew={novoProjeto}
       onPlusConexoes={() => { setKeysOpen(false); setConnOpen(true); }} onPlusChaves={() => { setKeysOpen(true); setConnOpen(true); }}
@@ -910,7 +917,7 @@ function TplIcon({ ic }) {
 }
 
 /* ---------------- Composer (v0-style) ---------------- */
-function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, provsProntos, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
+function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, estadoProvs, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
   const [plus, setPlus] = useState(false);
   const fileRef = useRef(null);
   return (
@@ -944,7 +951,7 @@ function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, o
             </div>
           </>)}
         </div>
-        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} provsProntos={provsProntos} onPlusChaves={onPlusChaves} />
+        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} estadoProvs={estadoProvs} onPlusChaves={onPlusChaves} />
         <button className="chip" onClick={onBlindar} disabled={busy || !repo} title={t("Blindar contra vazamento de dados")}><IconShield /></button>
         <div className="spacer" />
         <ProjectPicker projects={projects} onLoad={onLoadProjects} onOpen={onOpenProject} onNew={onNew} />
@@ -1037,7 +1044,7 @@ function detectarSegredo(texto) {
   return null;
 }
 
-function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {}, provsProntos = null, onPlusChaves = () => {} }) {
+function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {}, estadoProvs = null, onPlusChaves = () => {} }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const label = providerId ? (activeModel || t("modelo")) : t("Automático");
@@ -1067,15 +1074,19 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelH
               if (!models.length) return null;
               // Sem chave salva, escolher este provedor só produz erro em toda
               // mensagem. Em vez de deixar escolher e falhar depois, marcamos e
-              // o clique leva direto pra tela de chaves. (provsProntos null =
+              // o clique leva direto pra tela de chaves. (estadoProvs null =
               // ainda carregando: não marca nada pra não piscar "sem chave".)
-              const semChave = provsProntos !== null && !provsProntos.has(pc.id);
+              const estado = estadoProvs ? (estadoProvs[pc.id] || "sem-chave") : "ok";
               // Marcado = escolher aqui só daria erro. O clique leva à tela de
-              // chaves, onde dá pra colar a chave e testar de novo.
-              const marcado = semChave || todosFalharam;
-              const etiqueta = semChave ? t("sem chave") : t("chave recusada");
-              const dicaItem = semChave
+              // chaves, onde dá pra colar a chave, ligar o serviço ou testar.
+              const marcado = estado !== "ok" || todosFalharam;
+              const etiqueta = estado === "sem-chave" ? t("sem chave")
+                : estado === "desligado" ? t("desligado")
+                : t("chave recusada");
+              const dicaItem = estado === "sem-chave"
                 ? t("Adicione a chave deste serviço para poder usá-lo")
+                : estado === "desligado"
+                ? t("Este serviço está desligado. Clique para ligá-lo em Chaves de IA.")
                 : t("A chave deste serviço foi recusada no teste. Clique para conferir ou testar de novo.");
               return (
                 <div key={pc.id}>

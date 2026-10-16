@@ -768,9 +768,14 @@ export async function complete({ system, messages, tools, preferredProviderId = 
     // passava dos 180s anteriores e morria de timeout logo antes de entregar.
     // Esperar mais so e seguro porque fetchComCorpo() agora limita TAMBEM a
     // leitura do corpo — antes, um corpo travado ignorava este prazo.
-    const timeoutMs = provider.id === "openai"
-      ? (ehRaciocinioOpenAI ? 360_000 : 240_000)
-      : (provider.id === "deepseek" ? 300_000 : 90_000);
+    // PRAZO GENEROSO PARA TODOS. Os 90s que sobravam para os demais provedores
+    // matavam a geracao no meio: a Claude escreveu um projeto por 1m30 e foi
+    // abortada aos 90s, virando "o provedor recusou o pedido" (no modo manual
+    // nao ha outro na fila para assumir). Escrever um projeto inteiro leva
+    // minutos em qualquer IA, e esperar nao e mais arriscado desde que
+    // fetchComCorpo() passou a limitar TAMBEM a leitura do corpo — antes, um
+    // corpo travado ignorava este prazo e prendia a tela para sempre.
+    const timeoutMs = ehRaciocinioOpenAI ? 360_000 : 300_000;
     let res, bodyText;
     try {
       const req = buildRequest(provider, cfg, apiKey, { system: systemUsado, messages: msgs, tools, model });
