@@ -896,11 +896,14 @@ export async function complete({ system, messages, tools, preferredProviderId = 
     return { ...parsed, providerId: provider.id, providerLabel: provider.label, model };
   }
 
-  const err = new Error(
-    preferredProviderId
-      ? "O provedor escolhido no modo manual recusou o pedido. Troque de modelo, volte para Automatico ou tente mais tarde."
-      : "Todas as APIs ativas atingiram o limite ou falharam agora. Ative outra API em Conexoes ou tente de novo em alguns minutos."
-  );
+  // O MOTIVO REAL VAI JUNTO. Antes so a frase generica chegava a tela e o
+  // "errors" — que tem a resposta de cada provedor, com status e explicacao —
+  // era descartado. Sem ele, nem a pessoa nem quem conserta sabem se foi chave,
+  // cota, tamanho do pedido ou modelo invalido: so sobra adivinhar.
+  const base = preferredProviderId
+    ? "O provedor escolhido no modo manual recusou o pedido. Troque de modelo, volte para Automatico ou tente mais tarde."
+    : "Todas as APIs ativas atingiram o limite ou falharam agora. Ative outra API em Conexoes ou tente de novo em alguns minutos.";
+  const err = new Error(errors.length ? `${base}\n\nMotivo: ${errors.join(" | ")}` : base);
   err.transitorio = houveTransitorio && !houvePermanente;
   err.detalhes = errors;
   throw err;
