@@ -89,7 +89,7 @@ Regras de trabalho:
 3. Preserve o que ja funciona. Se o pedido e sobre um botao, mude o botao e mantenha o resto do arquivo intacto.
 4. Respeite os padroes que voce encontrar no codigo: mesmas bibliotecas, mesmo estilo de import, mesmos componentes de UI ja usados. Nao introduza dependencia nova sem necessidade real, porque nada instala pacotes aqui.
 5. Se precisar de uma dependencia nova, avise a pessoa em vez de importar algo que nao esta no package.json.
-6. Termine chamando commit_changes uma unica vez, com uma mensagem curta no imperativo descrevendo a mudanca.
+6. Termine chamando commit_changes uma unica vez, com uma mensagem curta no imperativo descrevendo a mudanca. ANTES de enviar, o commit_changes CONFERE o projeto (procura nomes que nao existem e abre as telas de verdade num navegador). Se a resposta dele comecar com "AINDA NAO COMMITEI", nada foi enviado: conserte exatamente o que ele apontou com write_file e chame commit_changes de novo. Se comecar com "COMMIT CANCELADO", a sua alteracao apagaria uma tela do site — releia o arquivo com read_file e refaca preservando o conteudo que ja existia.
 7. Leia o pedido da pessoa em portugues do Brasil com atencao e faca EXATAMENTE o que foi pedido — nem mais, nem menos. Ao terminar, diga em frases simples e em portugues o que voce fez e em quais arquivos. Texto puro: SEM asteriscos, sem "**", sem markdown, sem cercas de codigo.
 8. Economize contexto: use list_files com filtro (ex: "src/components") em vez de listar tudo, e leia apenas os arquivos que voce realmente vai alterar. Varios servicos aqui tem limite apertado de tokens por minuto, e um pedido inchado e recusado antes de chegar ao modelo.
 

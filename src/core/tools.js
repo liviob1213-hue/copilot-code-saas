@@ -4,6 +4,7 @@ import * as sb from "./supabase-mgmt.js";
 import { AGENT_LIMITS } from "./config.js";
 import { corrigirEstiloImports, garantirIconesEComponentes, blindarImportsNpm, corrigirSintaxe, dedupImports, removerRouterDuplicado } from "./site-generator.js";
 import { STARTER_FILES } from "./starter-template.js";
+import { conferirAntesDoCommit } from "./conferir-edicao.js";
 
 // Rede de seguranca do build aplicada tambem nas EDICOES (antes so a criacao
 // tinha). Usa o package.json REAL do repo para nao neutralizar pacotes que o
@@ -181,6 +182,9 @@ export function createWorkspace(repo, settings) {
     staged: new Map(),    // path -> { content } | { delete: true }
     treeCache: null,
     fileCache: new Map(),
+    projetoCache: null,   // projeto inteiro em memoria, para a conferencia rodar a previa
+    voltasConferencia: 0, // quantas vezes ja pedimos conserto antes de commitar
+    bloqueios: 0,         // quantas vezes cancelamos o commit por apagar a tela
     commits: []
   };
 }
@@ -431,6 +435,13 @@ export async function runTool(ws, name, args, emit = () => {}) {
       // Mesma rede de seguranca da criacao (imports, icones, pacotes, aspas).
       await blindarEdicao(ws, files);
 
+      // Mesma CONFERENCIA da criacao: nomes que nao existem + abrir as telas de
+      // verdade. Roda sobre o que seria commitado, ja blindado. Pode cancelar o
+      // commit (se a edicao apagaria a tela) ou devolver o erro para a IA
+      // consertar antes. Nunca trava por falha dela mesma.
+      const conferencia = await conferirAntesDoCommit(ws, files, emit);
+      if (conferencia.acao !== "seguir") return conferencia.mensagem;
+
       const prefix = ws.settings?.commitPrefix ? ws.settings.commitPrefix + " " : "";
       const result = await gh.commitFiles({
         owner, repo, branch,
@@ -440,6 +451,7 @@ export async function runTool(ws, name, args, emit = () => {}) {
       ws.staged.clear();
       ws.treeCache = null;
       ws.fileCache.clear();
+      ws.projetoCache = null;
       ws.commits.push(result);
       emit({ type: "commit", ...result });
       return `Commit ${result.shortSha} enviado para ${branch} com ${files.length} arquivo(s). O Lovable vai sincronizar em instantes.`;

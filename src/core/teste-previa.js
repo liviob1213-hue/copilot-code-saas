@@ -15,7 +15,7 @@ import { extrairRotas } from "./site-generator.js";
 const PRAZO_POR_ROTA = 15000;
 
 /** Abre UMA rota e devolve o que aconteceu. */
-function abrirRota(files, rota) {
+function abrirRota(files, rota, prazo = PRAZO_POR_ROTA) {
   return new Promise((resolve) => {
     const marca = "previa-" + Math.random().toString(36).slice(2);
     const iframe = document.createElement("iframe");
@@ -42,7 +42,7 @@ function abrirRota(files, rota) {
       // Sem resposta no prazo: quase sempre e biblioteca que nao baixou. Nao
       // acusamos o projeto por isso — seria culpar o codigo por falha de rede.
       encerrar({ rota, estado: "sem-resposta", achados: [], elementos: 0 });
-    }, PRAZO_POR_ROTA);
+    }, prazo);
 
     addEventListener("message", ouvir);
     iframe.srcdoc = montarHtmlPrevia(files, rota, { marca });
@@ -54,17 +54,25 @@ function abrirRota(files, rota) {
  * Testa o projeto inteiro. Devolve:
  *   { rotas: [{rota, estado, achados}], problemas: [...], ok: boolean }
  * "problemas" ja vem pronto para virar texto para a IA.
+ *
+ * As opcoes existem para a EDICAO, que nao pode demorar como a criacao: ela
+ * manda as rotas que quer (as mais provaveis primeiro) e aperta os relogios.
+ * Sem opcao nenhuma, o comportamento e o de sempre — todas as rotas, 15s cada.
  */
-export async function testarProjeto(files, onEvent = () => {}) {
+export async function testarProjeto(files, onEvent = () => {}, opcoes = {}) {
   if (typeof document === "undefined") return { rotas: [], problemas: [], ok: true, pulado: "sem navegador" };
   const app = acharApp(files);
   if (!app) return { rotas: [], problemas: [], ok: true, pulado: "sem App" };
 
-  const rotas = extrairRotas(files[app]);
+  const { prazoPorRota = PRAZO_POR_ROTA, prazoTotal = Infinity } = opcoes;
+  const rotas = opcoes.rotas?.length ? opcoes.rotas : extrairRotas(files[app]);
+  const comecou = Date.now();
   const resultados = [];
   for (const rota of rotas) {
+    // Estourou o tempo: entregamos o que ja sabemos em vez de prender a pessoa.
+    if (resultados.length && Date.now() - comecou > prazoTotal) break;
     onEvent({ type: "status", text: `Abrindo a tela ${rota} para ver se funciona…` });
-    resultados.push(await abrirRota(files, rota));
+    resultados.push(await abrirRota(files, rota, prazoPorRota));
   }
 
   const problemas = [];
