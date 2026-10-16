@@ -240,14 +240,19 @@ export async function gerarPlano({ userMessage, kind = "app", providerId = "" },
   return (r.text || "").trim();
 }
 
-export async function criarProjeto({ userMessage, kind = "app", providerId = "", deploy = true, sessionId = null, embedImages = [] }, onEvent = () => {}) {
+/**
+ * GERA o projeto — e PARA aí. Nada de GitHub nem Vercel.
+ *
+ * Antes isto gerava e publicava de uma vez. A pessoa só via o resultado depois
+ * de o repositório e o deploy já existirem, então toda tentativa frustrada
+ * deixava lixo na conta dela (eram 25 projetos, boa parte de tentativas que
+ * deram errado) e cada ajuste custava um ciclo de publicação.
+ *
+ * Agora a geração devolve os arquivos, a interface mostra a prévia rodando de
+ * verdade, e publicar virou uma decisão — ver publicarProjeto() abaixo.
+ */
+export async function criarProjeto({ userMessage, kind = "app", providerId = "", sessionId = null, embedImages = [] }, onEvent = () => {}) {
   if (!(await temGithub())) throw new Error(t("Conecte o GitHub antes de criar um projeto (Conexões)."));
-
-  // Aqui havia um pré-voo que checava se a Vercel enxergava os repositórios do
-  // GitHub. Ele saiu porque a pergunta deixou de existir: o deploy não passa
-  // mais pela integração da Vercel no GitHub — o vercel.js envia os arquivos
-  // direto. Manter a checagem só criaria um bloqueio por um motivo que não
-  // derruba mais nada.
 
   const convHistory = await historicoDaSessao(sessionId);
   const sb = await store.get("supabase");
@@ -259,10 +264,39 @@ export async function criarProjeto({ userMessage, kind = "app", providerId = "",
   const files = result.paginaUnica ? { "index.html": result.html } : result.files;
   if (!files || !Object.keys(files).length) throw new Error(t("A IA não retornou arquivos. Tente de novo ou troque de modelo."));
 
+  const pedirChave = detectaChaveNecessaria(files);
+  let resumo;
+  if (pedirChave) {
+    resumo = `Criei o projeto usando o ${pedirChave.label} pro mapa. Pra ele funcionar, me manda aqui a sua chave do ${pedirChave.label} (começa com "${pedirChave.prefix}…"): quando colar, eu coloco no app e republico — sem mexer em arquivo.`;
+  } else {
+    onEvent({ type: "status", text: "Escrevendo um resumo do que foi feito…" });
+    resumo = await resumirDidatico({ userMessage, files, mode: "create", providerId });
+  }
+
+  if (sessionId) {
+    await history.appendMessage(sessionId, {
+      role: "assistant",
+      text: resumo || "Projeto montado. Confira a prévia e clique em Publicar quando estiver bom.",
+      meta: { provider: result.provider, model: result.model }
+    });
+  }
+
+  return { files, resumo, pedirChave, nome: nomeDoPedido(userMessage), brief: userMessage,
+           provider: result.provider, model: result.model, kind };
+}
+
+/**
+ * PUBLICA o que já foi gerado: cria o repositório, sobe os arquivos e manda
+ * para a Vercel. Só roda quando a pessoa clica em Publicar.
+ */
+export async function publicarProjeto({ files, nome, brief, providerId = "", sessionId = null, deploy = true }, onEvent = () => {}) {
+  if (!(await temGithub())) throw new Error(t("Conecte o GitHub antes de publicar (Conexões)."));
+  if (!files || !Object.keys(files).length) throw new Error(t("Não há projeto para publicar."));
+
   onEvent({ type: "status", text: "Criando o repositório no GitHub (onde seu código fica guardado)…" });
   const repo = await github.createRepoWithFiles({
-    name: nomeDoPedido(userMessage),
-    description: userMessage.slice(0, 120),
+    name: nome || "meu-projeto",
+    description: String(brief || "").slice(0, 120),
     privado: true,
     files: objToFiles(files)
   });
@@ -271,7 +305,6 @@ export async function criarProjeto({ userMessage, kind = "app", providerId = "",
   const full = `${repo.owner}/${repo.name}`;
   if (!lista.includes(full)) { lista.push(full); await store.set("extensionRepos", lista); }
 
-  // Cria as tabelas no Supabase, se houver um projeto ligado.
   await criarTabelasSeConectado({ files, providerId }, onEvent);
 
   let url = null;
@@ -288,37 +321,24 @@ export async function criarProjeto({ userMessage, kind = "app", providerId = "",
         const urls = await store.get("previewUrls");
         urls[full] = url; await store.set("previewUrls", urls);
       }
-      // Publicado, mas a Vercel pede login para abrir: visto de fora e
-      // indistinguivel de um site quebrado, entao e preciso dizer em voz alta.
       if (dep?.avisoProtecao) onEvent({ type: "notice", text: dep.avisoProtecao });
     } catch (e) {
       onEvent({ type: "notice", text: t("Projeto criado no GitHub, mas o deploy da Vercel falhou: ") + e.message });
     }
   }
 
-  const pedirChave = detectaChaveNecessaria(files);
-  let resumo;
-  if (pedirChave) {
-    resumo = `Criei o projeto usando o ${pedirChave.label} pro mapa. Pra ele funcionar, me manda aqui a sua chave do ${pedirChave.label} (começa com "${pedirChave.prefix}…"): quando colar, eu coloco no app e republico — sem mexer em arquivo.`;
-  } else {
-    onEvent({ type: "status", text: "Escrevendo um resumo do que foi feito…" });
-    resumo = await resumirDidatico({ userMessage, files, mode: "create", providerId });
-  }
-
-  // Guarda o pedido original junto do projeto, para um "conserta isso" dias
-  // depois ainda saber de que negocio o site e.
-  await store.set("briefs", { ...(await store.get("briefs")), [full]: userMessage });
-  const repoInfo = { owner: repo.owner, name: repo.name, branch: repo.branch, url, brief: userMessage };
+  await store.set("briefs", { ...(await store.get("briefs")), [full]: brief || "" });
+  const repoInfo = { owner: repo.owner, name: repo.name, branch: repo.branch, url, brief: brief || "" };
   if (sessionId) {
     await history.setSessionRepo(sessionId, repoInfo);
     await history.appendMessage(sessionId, {
       role: "assistant",
-      text: resumo || `Projeto criado: ${repo.owner}/${repo.name}${url ? `\nNo ar: ${url}` : ""}`,
-      meta: { repo: repoInfo, provider: result.provider, model: result.model }
+      text: `Publicado: ${repo.owner}/${repo.name}${url ? `
+No ar: ${url}` : ""}`,
+      meta: { repo: repoInfo }
     });
   }
-
-  return { repo: repoInfo, url, provider: result.provider, model: result.model, files, resumo, pedirChave };
+  return { repo: repoInfo, url };
 }
 
 // Le os arquivos que a IA controla (src/, index.html, package.json), pulando o

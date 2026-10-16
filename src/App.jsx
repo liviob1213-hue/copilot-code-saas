@@ -3,7 +3,8 @@ import Aurora from "./Aurora.jsx";
 import BorderGlow from "./BorderGlow.jsx";
 import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
-import { criarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
+import { criarProjeto, publicarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
+import { montarHtmlPrevia } from "./core/previa.js";
 import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, startVercelLoginWeb, githubConfigurado, supabaseConfigurado, vercelConfigurado } from "./core/oauth-web.js";
@@ -90,6 +91,11 @@ export default function App({ oauthResult, oauthError }) {
   const [conn, setConn] = useState({ github: null, supabase: false, vercel: false, ia: true });
   // { [id]: "ok" | "sem-chave" | "desligado" } — ver refreshConn
   const [estadoProvs, setEstadoProvs] = useState(null);
+  // Projeto gerado e AINDA NÃO publicado: { files, nome, brief, kind }. É o que
+  // alimenta a prévia de verdade e o botão Publicar.
+  const [rascunho, setRascunho] = useState(null);
+  const [rotaPrevia, setRotaPrevia] = useState("/");
+  const [publicando, setPublicando] = useState(false);
   // Largura da conversa, em %. Fica no navegador pra não ter que reajustar
   // toda vez. Guardada direto no localStorage (não é dado de projeto).
   const [larguraChat, setLarguraChat] = useState(() => {
@@ -347,13 +353,24 @@ export default function App({ oauthResult, oauthError }) {
         ? await editarProjeto({ repo, userMessage: userText, providerId, sessionId: sessionRef.current, embedImages: images }, onEvent)
         : await criarProjeto({ userMessage: userText, kind: modo || detectarTipo(userText), providerId, sessionId: sessionRef.current, embedImages: images }, onEvent);
       endRun();
-      setRepo(r.repo);
-      if (r.url) setPreviewUrl(r.url);
-      // Atualiza o seletor de rotas: na criação já temos os arquivos; na
-      // edição relemos o App.jsx (a alteração pode ter criado rotas novas).
-      if (r.files?.["src/App.jsx"]) aplicarRotas(r.files["src/App.jsx"]);
-      else carregarRotas(r.repo);
-      pushMsg("assistant", r.resumo || `${repo ? t("Pronto — alteração salva.") : t("Projeto criado: {repo}", { repo: `${r.repo.owner}/${r.repo.name}` })}${r.url ? `\n${t("No ar:")} ${r.url}` : ""}`);
+      // CRIAÇÃO: nada foi publicado ainda. Guardamos os arquivos, mostramos a
+      // prévia rodando de verdade e esperamos a pessoa clicar em Publicar.
+      if (!repo) {
+        setRascunho({ files: r.files, nome: r.nome, brief: r.brief, kind: r.kind });
+        setRotaPrevia("/");
+        aplicarRotas(r.files?.["src/App.jsx"] || "");
+      } else {
+        setRepo(r.repo);
+        if (r.url) setPreviewUrl(r.url);
+      }
+      // Na edição relemos o App.jsx (a alteração pode ter criado rotas novas).
+      if (repo) {
+        if (r.files?.["src/App.jsx"]) aplicarRotas(r.files["src/App.jsx"]);
+        else carregarRotas(r.repo);
+      }
+      pushMsg("assistant", r.resumo || (repo
+        ? t("Pronto — alteração salva.")
+        : t("Projeto montado. Confira a prévia ao lado e clique em Publicar quando estiver bom.")));
       refreshHistory(); loadVercelProjects();
     } catch (e) {
       endRun();
@@ -395,6 +412,32 @@ export default function App({ oauthResult, oauthError }) {
     pushMsg("assistant", t("Plano descartado. Me diga o que mudar ou mande um novo pedido que eu monto outro plano."));
   }
   function handleBlindar() { if (!repo) return showToast(t("Crie ou abra um projeto antes de blindar."), true); run(BLINDAR_PROMPT, { hardening: true }); }
+  // Só aqui o projeto sai do navegador: cria o repositório e publica na Vercel.
+  async function publicar() {
+    if (!rascunho || publicando) return;
+    setPublicando(true);
+    flowRef.current = "sistema";
+    startRun();
+    try {
+      const r = await publicarProjeto({
+        files: rascunho.files, nome: rascunho.nome, brief: rascunho.brief,
+        providerId, sessionId: sessionRef.current
+      }, onEvent);
+      endRun();
+      setRepo(r.repo);
+      setRascunho(null);               // a partir daqui o preview é o site no ar
+      if (r.url) setPreviewUrl(r.url);
+      pushMsg("assistant", r.url
+        ? t("Publicado! Seu site está no ar: {url}", { url: r.url })
+        : t("Publicado no GitHub: {repo}", { repo: `${r.repo.owner}/${r.repo.name}` }));
+      refreshHistory(); loadVercelProjects();
+    } catch (e) {
+      endRun();
+      pushMsg("error", t("Não consegui publicar: ") + e.message);
+      showToast(e.message, true);
+    } finally { setPublicando(false); }
+  }
+
   async function desfazer() {
     if (!repo || busy) return showToast(repo ? t("Aguarde terminar.") : t("Nenhum projeto aberto."), true);
     setView("workspace"); flowRef.current = "sistema"; setBusy(true);
@@ -418,11 +461,14 @@ export default function App({ oauthResult, oauthError }) {
   // Troca a rota mostrada no preview (igual ao Lovable: clicou, o preview vai).
   function irParaRota(nova) {
     setRota(nova);
+    // Antes de publicar, trocar de tela é trocar a rota da prévia local — não
+    // existe URL para navegar ainda.
+    if (rascunho) { setRotaPrevia(nova); return; }
     const base = (() => { try { return new URL(repo?.url || previewUrl).origin; } catch { return null; } })();
     if (base) setPreviewUrl(base + (nova === "/" ? "/" : nova) + "?r=" + Date.now());
   }
 
-  function novoProjeto() { setModo(""); setRotas(["/"]); setRota("/"); sessionRef.current = null; setRepo(null); setPreviewUrl(null); setMessages([]); setView("home"); }
+  function novoProjeto() { setModo(""); setRotas(["/"]); setRota("/"); sessionRef.current = null; setRepo(null); setPreviewUrl(null); setRascunho(null); setRotaPrevia("/"); setMessages([]); setView("home"); }
   // Só preenche o campo (comportamento igual ao de digitar): não envia nada.
   function sugerir(texto) {
     setInput(texto);
@@ -725,23 +771,44 @@ export default function App({ oauthResult, oauthError }) {
             <div className={"preview-col" + (mobileView === "chat" ? " m-off" : "")}>
               <div className="preview-bar">
                 <div className="browser-dots"><i /><i /><i /></div>
-                <RotaPicker rotas={rotas} rota={rota} onPick={irParaRota} previewUrl={previewUrl} onAbrir={() => carregarRotas(repo)} />
+                <RotaPicker rotas={rotas} rota={rota} onPick={irParaRota} previewUrl={previewUrl} local={Boolean(rascunho)} onAbrir={() => carregarRotas(repo)} />
                 <div className="vp-toggle">
                   <button className={"vp" + (viewport === "desktop" ? " on" : "")} onClick={() => setViewport("desktop")} title={t("Computador")}><IconDesktop /></button>
                   <button className={"vp" + (viewport === "mobile" ? " on" : "")} onClick={() => setViewport("mobile")} title={t("Celular")}><IconMobile /></button>
                 </div>
                 <div className="preview-actions">
+                  {/* Nada foi para o GitHub nem para a Vercel ainda: este botão é
+                      que decide. Enquanto ele não for clicado, a conta da pessoa
+                      não ganha repositório nem deploy de tentativa. */}
+                  {rascunho && (
+                    <button className="btn sm primary" onClick={publicar} disabled={publicando || busy}
+                      title={t("Criar o repositório no GitHub e colocar no ar na Vercel")}>
+                      {publicando ? t("Publicando…") : t("Publicar")}
+                    </button>
+                  )}
+                  {rascunho && <button className="icon-btn" onClick={() => setRotaPrevia(r => r)} title={t("Recarregar a prévia")}><IconRefresh /></button>}
                   {repo && <button className="icon-btn" onClick={desfazer} disabled={busy} title={t("Desfazer a última alteração")}><IconUndo /></button>}
                   {previewUrl && <button className="icon-btn" onClick={() => setPreviewUrl(previewUrl + (previewUrl.includes("?") ? "&" : "?") + "r=" + Date.now())} title={t("Recarregar")}><IconRefresh /></button>}
                   {previewUrl && <button className="btn sm" onClick={() => window.open(previewUrl, "_blank")} title={t("Abrir em nova aba")}>{t("Abrir")} <IconExternal /></button>}
                 </div>
               </div>
               <div className={"preview-stage" + (viewport === "mobile" ? " mobile" : "")}>
-                {previewUrl ? <iframe className="preview-frame" src={previewUrl} title="preview" />
+                {/* Prévia LOCAL: o projeto roda aqui antes de existir repositório.
+                    A key força o iframe a remontar ao trocar de tela — a prévia usa
+                    MemoryRouter, então a rota entra na montagem. */}
+                {rascunho ? (
+                  <iframe
+                    key={rotaPrevia}
+                    className="preview-frame"
+                    title="previa"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                    srcDoc={montarHtmlPrevia(rascunho.files, rotaPrevia, { marca: "painel" })}
+                  />
+                ) : previewUrl ? <iframe className="preview-frame" src={previewUrl} title="preview" />
                   : <div className="preview-empty">
                       <span className="orb"><IconMonitor /></span>
                       <b>{t("O preview aparece aqui")}</b>
-                      <p>{t("Assim que a Vercel publicar, a página roda neste painel. Use o ícone de celular pra ver o layout no mobile.")}</p>
+                      <p>{t("Assim que o projeto for montado, a página roda neste painel. Use o ícone de celular pra ver o layout no mobile.")}</p>
                     </div>}
               </div>
             </div>
@@ -1180,9 +1247,12 @@ function ProjectPicker({ projects, onLoad, onOpen, onNew }) {
 
 // Barra de endereço do preview que também LISTA as rotas do projeto: clicou,
 // o preview abre aquela tela (/admin, /clientes…), como no Lovable.
-function RotaPicker({ rotas, rota, onPick, previewUrl, onAbrir }) {
+function RotaPicker({ rotas, rota, onPick, previewUrl, onAbrir, local = false }) {
   const [open, setOpen] = useState(false);
-  const host = (() => { try { return new URL(previewUrl).host; } catch { return null; } })();
+  // Antes de publicar nao existe endereco: a barra diz que a previa e local,
+  // em vez de "sem preview ainda", que daria a impressao de que nada rodou.
+  const host = local ? t("prévia local — ainda não publicado")
+    : (() => { try { return new URL(previewUrl).host; } catch { return null; } })();
   // Sempre clicavel: antes ficava desabilitado quando so havia "/" (por exemplo
   // quando a leitura do App.jsx falhava) e dava a impressao de estar quebrado.
   const soRaiz = rotas.length <= 1;
@@ -1191,7 +1261,7 @@ function RotaPicker({ rotas, rota, onPick, previewUrl, onAbrir }) {
       <button
         className="url-bar clicavel"
         onClick={() => { const abrindo = !open; setOpen(abrindo); if (abrindo && soRaiz) onAbrir?.(); }}
-        title={previewUrl || t("sem preview ainda")}
+        title={local ? t("A prévia roda aqui no navegador. Clique em Publicar pra colocar no ar.") : (previewUrl || t("sem preview ainda"))}
       >
         <span className="lock"><IconLock /></span>
         <span className="url">{host ? host : t("sem preview ainda")}<b className="url-rota">{host && rota !== "/" ? rota : ""}</b></span>
