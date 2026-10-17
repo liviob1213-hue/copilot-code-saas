@@ -1197,3 +1197,73 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
 .rotas-pop button svg:first-child { opacity: .6; flex: none; }
 .rotas-pop button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rotas-aviso { padding: 9px 11px 4px; font-size: 11.5px; line-height: 1.5; color: var(--ink-faint); font-family: var(--font); }
+
+/* ============================================================
+   Entrada (Login.jsx)
+   ============================================================ */
+.login-tela {
+  min-height: 100dvh; display: grid; place-items: center; padding: 24px;
+  background:
+    radial-gradient(820px 520px at 50% -8%, rgba(239, 68, 68, .14), transparent 62%),
+    var(--bg);
+}
+.login-caixa {
+  width: 100%; max-width: 392px; padding: 30px 26px 26px;
+  background: var(--panel-solid); border: 1px solid var(--edge);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-2);
+  animation: rise .28s var(--ease) both;
+}
+.login-marca { text-align: center; margin-bottom: 22px; }
+.login-orb {
+  display: grid; place-items: center; width: 46px; height: 46px; margin: 0 auto 12px;
+  border-radius: 14px; color: #fff;
+  background: linear-gradient(135deg, #ef4444, #f97316); box-shadow: 0 12px 30px -12px rgba(239, 68, 68, .9);
+}
+.login-marca h1 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
+.login-marca p { margin: 6px 0 0; font-size: 13px; color: var(--ink-faint); line-height: 1.45; }
+
+.login-google {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 11px 14px; border-radius: var(--r-sm); cursor: pointer;
+  background: #fff; color: #1f2328; border: 0; font-size: 14px; font-weight: 600;
+  transition: filter .18s var(--ease), transform .18s var(--ease);
+}
+.login-google:hover:not(:disabled) { filter: brightness(.96); }
+.login-google:active:not(:disabled) { transform: translateY(1px); }
+.login-google:disabled { opacity: .6; cursor: default; }
+
+.login-ou { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--ink-faint); font-size: 12px; }
+.login-ou::before, .login-ou::after { content: ""; flex: 1; height: 1px; background: var(--edge); }
+
+.login-form { display: flex; flex-direction: column; gap: 8px; }
+.login-form label { font-size: 12px; color: var(--ink-dim); font-weight: 600; }
+.login-form .btn.wide { width: 100%; margin-top: 6px; justify-content: center; }
+.login-codigo {
+  font-family: var(--mono); font-size: 22px; letter-spacing: .34em;
+  text-align: center; padding: 12px;
+}
+.login-enviado { margin: 0 0 4px; font-size: 13px; color: var(--ink-dim); line-height: 1.5; }
+.login-enviado b { color: var(--ink); overflow-wrap: anywhere; }
+
+.login-rodape { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.login-link {
+  background: 0; border: 0; padding: 0; cursor: pointer;
+  color: var(--ink-faint); font-size: 12.5px; text-decoration: underline;
+}
+.login-link:hover:not(:disabled) { color: var(--ink); }
+.login-link:disabled { opacity: .45; cursor: default; text-decoration: none; }
+.login-dica { margin: 12px 0 0; font-size: 12px; color: var(--ink-faint); text-align: center; }
+
+.login-erro {
+  margin-top: 14px; padding: 10px 12px; border-radius: var(--r-sm); font-size: 13px; line-height: 1.45;
+  background: rgba(239, 68, 68, .12); border: 1px solid rgba(239, 68, 68, .32); color: #fecdd3;
+}
+
+/* A caixa cabe em tela de celular sem o teclado cobrir o campo. */
+@media (max-width: 420px) {
+  .login-tela { padding: 16px; align-items: start; padding-top: 7vh; }
+  .login-caixa { padding: 24px 18px 20px; }
+}
+
+/* Foto do Google no painel de Conexões */
+.acc-foto { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }

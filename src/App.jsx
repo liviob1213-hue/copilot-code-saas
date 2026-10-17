@@ -5,6 +5,7 @@ import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, publicarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
+import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, startVercelLoginWeb, githubConfigurado, supabaseConfigurado, vercelConfigurado } from "./core/oauth-web.js";
@@ -55,7 +56,7 @@ const PROMPT_CLONE = "Recrie esta página com a minha marca e o meu conteúdo: h
 // ir direto pra construção. Troque pra true pra reativar o fluxo de plano.
 const PLANO_ATIVO = false;
 
-export default function App({ oauthResult, oauthError }) {
+export default function App({ oauthResult, oauthError, sessao = null }) {
   const lang = useIdioma();   // re-renderiza tudo ao trocar o idioma
   useEffect(() => { document.title = t("Copilot Code — crie sites, apps e SaaS com IA"); }, [lang]);
   const [view, setView] = useState("home");
@@ -827,7 +828,7 @@ export default function App({ oauthResult, oauthError }) {
       {/* onMudou: a cada chave salva/ligada o seletor precisa saber NA HORA. Antes
           só o onClose atualizava, então salvar a chave e abrir o seletor sem
           fechar o painel mostrava "sem chave" num serviço que já tinha chave. */}
-      {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase}
+      {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase} sessao={sessao}
         onMudou={() => { refreshConn(); loadModelsCache(); }}
         onClose={() => { setConnOpen(false); refreshConn(); loadModelsCache(); }} showToast={showToast} />}
       {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
@@ -1517,7 +1518,7 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
 function ConnRow({ icon, name, sub, subOff, children }) {
   return (<div className="conn-row"><div className="conn-ic">{icon}</div><div className="conn-main"><div className="conn-name">{name}</div><div className={"conn-sub" + (subOff ? " off" : "")}>{sub}</div></div><div className="conn-act">{children}</div></div>);
 }
-function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, onMudou = () => {} }) {
+function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, sessao = null, onMudou = () => {} }) {
   const [secrets, setSecrets] = useState(null);
   const [gh, setGh] = useState({});
   const [sb, setSb] = useState({});
@@ -1575,6 +1576,25 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, onM
       <div className="drawer">
         <DrawerHead icon={<IconPlug />} titulo={t("Conexões")} onClose={onClose} />
         <div className="body">
+          {/* A conta do Copilot Code fica SEPARADA das conexoes. Juntar com o
+              GitHub confundiria: sair de uma nao e sair da outra. */}
+          {authConfigurada() && sessao && (() => {
+            const u = dadosDoUsuario(sessao);
+            return (
+              <>
+                <div className="drawer-section">{t("Sua conta")}</div>
+                <div className="conn-card">
+                  <ConnRow
+                    icon={u?.foto ? <img className="acc-foto" src={u.foto} alt="" /> : <IconUser />}
+                    name={u?.nome || t("Conectado")}
+                    sub={u?.email || ""}
+                  >
+                    <button className="btn sm ghost" onClick={() => sairDaConta()}>{t("Sair")}</button>
+                  </ConnRow>
+                </div>
+              </>
+            );
+          })()}
           <div className="drawer-section">{t("Serviços")}</div>
           <div className="conn-card">
             <ConnRow icon={<Gh />} name="GitHub" sub={gh.login ? `@${gh.login}` : t("desconectado")} subOff={!gh.login}>
