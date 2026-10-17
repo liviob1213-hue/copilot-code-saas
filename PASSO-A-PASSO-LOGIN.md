@@ -148,10 +148,17 @@ Este é o passo mais longo, porque envolve o Google. Faça com calma.
    - **Value:** a chave *anon public* do Passo 1
    - Marque as três caixas → **Save**
 5. Vá na aba **Deployments**, clique nos três pontinhos do deploy mais recente e
-   escolha **Redeploy** → confirme.
+   escolha **Redeploy**. **Na janelinha que abrir, DESMARQUE a caixinha "Use
+   existing Build Cache"** e então confirme.
 
-> **Atenção:** variável de ambiente só vale depois de republicar. Se você só
+> **Atenção 1:** variável de ambiente só vale depois de republicar. Se você só
 > salvar e não clicar em Redeploy, nada muda.
+>
+> **Atenção 2:** desmarque mesmo o **"Use existing Build Cache"**. Marcada, a
+> Vercel reaproveita o app antigo (de antes das variáveis) e a tela de login
+> **não aparece**, mesmo com tudo certo. Os valores do Supabase são gravados
+> dentro do app no momento da construção — por isso ele precisa ser construído
+> de novo, do zero, com as variáveis já salvas.
 
 ---
 
