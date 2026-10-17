@@ -129,6 +129,13 @@ Este é o passo mais longo, porque envolve o Google. Faça com calma.
 
 ## Passo 5 — Ligar no app (é aqui que o login passa a valer)
 
+> **⚠️ O nome PRECISA começar com `VITE_` — não tire isso.** Essa palavra não é
+> enfeite: a ferramenta que monta o app (Vite) só deixa o navegador enxergar as
+> variáveis cujo nome começa com `VITE_`. Se você tirar o `VITE_`, o app não
+> consegue ler o valor, acha que o login não está ligado e **não mostra a tela de
+> entrada**. Se a Vercel reclamar de alguma coisa, me mande o print — mas o nome
+> tem que ser exatamente este.
+
 1. Entre em **https://vercel.com** e abra o projeto **copilot-code-saas**.
 2. **Settings** → **Environment Variables**.
 3. Adicione a primeira:
@@ -172,7 +179,7 @@ Para sair: ícone de **Conexões** na barra lateral → bloco **Sua conta** →
 | **"Esse jeito de entrar ainda não foi ligado no Supabase"** | Passo 4: a chavinha do Google não está ligada. |
 | **"O endereço de retorno não está liberado"** | Passo 3: falta a URL em *Redirect URLs*. |
 | Depois do Google cai numa página em branco | Passo 3: a *Site URL* está diferente do endereço real do app. |
-| O app **não pede login** | Passo 5: as variáveis não foram salvas, ou faltou o **Redeploy**. |
+| O app **não pede login** | Passo 5: os nomes têm que começar com `VITE_` (sem isso o app não lê), as variáveis não foram salvas, ou faltou o **Redeploy**. |
 | **"Muitas tentativas seguidas"** | Limite do Supabase. Espere 1 minuto. |
 | O e-mail não chega | Veja o spam. O envio grátis do Supabase é limitado (poucos por hora) — para uso real, configure um serviço de e-mail em *Authentication → Emails → SMTP Settings*. |
 
