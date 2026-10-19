@@ -6,6 +6,7 @@ import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, publicarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
+import { carregarPlano, motivoDoBloqueio, linkDeConvite } from "./core/plano.js";
 import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, startVercelLoginWeb, githubConfigurado, supabaseConfigurado, vercelConfigurado } from "./core/oauth-web.js";
@@ -59,7 +60,18 @@ const PLANO_ATIVO = false;
 export default function App({ oauthResult, oauthError, sessao = null }) {
   const lang = useIdioma();   // re-renderiza tudo ao trocar o idioma
   useEffect(() => { document.title = t("Copilot Code — crie sites, apps e SaaS com IA"); }, [lang]);
+  // Lê o plano assim que a sessão existe (e de novo se a pessoa trocar de conta).
+  useEffect(() => {
+    let vivo = true;
+    carregarPlano(sessao).then(p => { if (vivo) setAcesso(p); });
+    return () => { vivo = false; };
+  }, [sessao]);
   const [view, setView] = useState("home");
+  // O que esta pessoa pode fazer (plano, slots, se cria app). Começa liberado:
+  // se a consulta demorar ou falhar, é melhor deixar passar do que travar quem
+  // tem direito. A trava que realmente segura dinheiro é a da chave da casa,
+  // e essa vive no servidor.
+  const [acesso, setAcesso] = useState({ carregado: false, semLogin: true, pago: true, podeApps: true, slotsRestantes: Infinity, codigoConvite: "" });
   const [modo, setModo] = useState("");   // "" | "site" | "app" — escolhido nos blocos da home (força o tipo)        // home | workspace
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -345,6 +357,21 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       return;
     }
 
+    // Trava do plano. Vale só para projeto NOVO: quem já tem um projeto aberto
+    // continua editando, mesmo que o plano tenha vencido no meio do caminho —
+    // tirar a ferramenta da mão de alguém no meio do trabalho é pior do que
+    // deixar terminar.
+    if (!repo && !acesso.semLogin && !acesso.pago) {
+      const tipoPedido = modo || detectarTipo(userText);
+      const bloqueio = motivoDoBloqueio(acesso, tipoPedido === "app" ? "app" : "site");
+      if (bloqueio) {
+        pushMsg("user", userText, images.length ? images : undefined);
+        pushMsg("assistant", bloqueio);
+        setInput("");
+        return;
+      }
+    }
+
     setView("workspace");
     flowRef.current = "ia";
     setBusy(true);
@@ -572,6 +599,12 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
 
   // Blocos estilo Bolt abaixo do campo: escolhem o TIPO do projeto.
   function escolherTipo(id) {
+    // App e SaaS sao do plano Pro. Mostramos o bloco mesmo assim, com cadeado:
+    // esconder nao converte ninguem, ver o que esta bloqueado converte.
+    if ((id === "app" || id === "ia") && !acesso.podeApps) {
+      showToast(motivoDoBloqueio(acesso, "app"));
+      return;
+    }
     if (id === "clone") { setModo(""); sugerir(t(PROMPT_CLONE)); return; }
     if (id === "ia") { setModo("app"); setCategoria("ia"); irParaModelos(); return; }
     const novo = modo === id ? "" : id;

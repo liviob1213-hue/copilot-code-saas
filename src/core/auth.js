@@ -40,6 +40,15 @@ function sb() {
   return cliente;
 }
 
+/**
+ * O cliente do Supabase das CONTAS, para quem precisa consultar as tabelas
+ * perfis/cotas (ver core/plano.js). Devolve null quando o login nao esta
+ * configurado — quem chama tem que aguentar esse null sem quebrar.
+ */
+export function clienteContas() {
+  return sb();
+}
+
 /** Sessao atual (ou null). */
 export async function sessaoAtual() {
   const c = sb();

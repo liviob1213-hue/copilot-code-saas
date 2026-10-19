@@ -2,7 +2,9 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import Login from "./Login.jsx";
+import Admin from "./Admin.jsx";
 import { authConfigurada, sessaoAtual, aoMudarSessao } from "./core/auth.js";
+import { guardarConviteDaUrl } from "./core/plano.js";
 import "./styles.css";
 
 import * as store from "./core/storage.js";
@@ -18,6 +20,10 @@ const MODELO_RUIM = m => /vision|experimental|preview|(^|[-_])exp([-_]|$)|-exp\b
 async function boot() {
   installProxy(GITHUB_OAUTH.workerUrl);
   await store.ensureDefaults();
+
+  // Chegou por link de convite? Guarda o codigo antes de qualquer coisa — o
+  // cadastro acontece noutra tela e, pelo Google, ate noutro site.
+  guardarConviteDaUrl();
 
   // Conserta escolhas antigas: modelo base de visão/experimental -> modelo de
   // código padrão do provedor (a visão é acionada sozinha quando há imagem).
@@ -56,6 +62,10 @@ async function boot() {
  */
 function Portao(props) {
   const exigeLogin = authConfigurada();
+  // A pagina de liberar acesso mora em /acesso-anual. Quem decide se voce pode
+  // mesmo liberar e o servidor (/api/liberar); aqui so escolhemos a tela.
+  const ehAcessoAnual = typeof window !== "undefined" &&
+    /^\/acesso-anual\/?$/.test(window.location.pathname);
   const [sessao, setSessao] = useState(null);
   const [pronto, setPronto] = useState(!exigeLogin);
 
@@ -68,12 +78,15 @@ function Portao(props) {
     return () => { vivo = false; parar(); };
   }, [exigeLogin]);
 
+  // Sem login configurado a pagina de liberar acesso nao tem como funcionar
+  // (nao ha token para provar quem e voce), entao nem aparece.
   if (!exigeLogin) return <App {...props} />;
   // Enquanto a sessao e lida: nada na tela. Mostrar o login por uma fracao de
   // segundo e depois trocar para o app daria um "piscar" feio em quem ja esta
   // logado — e a leitura e instantanea (fica no proprio navegador).
   if (!pronto) return null;
   if (!sessao) return <Login />;
+  if (ehAcessoAnual) return <Admin sessao={sessao} />;
   return <App {...props} sessao={sessao} />;
 }
 
