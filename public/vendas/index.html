@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Copilot Code — sua ideia no ar hoje, sem programador</title>
+<meta name="description" content="Descreva o site ou app que voce quer. A IA escreve o codigo, testa pagina por pagina e publica no ar. Comece gratis com IAs gratuitas, sem cartao." />
+<meta name="theme-color" content="#06060a" />
+<link rel="icon" type="image/png" href="/brand/logo.png" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Copilot Code — sua ideia no ar hoje, sem programador" />
+<meta property="og:description" content="Voce descreve. A IA cria, testa e publica. Comece gratis, sem cartao." />
+<meta property="og:image" content="/vendas/app-inicio.jpg" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+<style>
+/* ===========================================================================
+   Paleta identica a do app (src/styles.css) para a pagina parecer a ferramenta
+   =========================================================================== */
+:root{
+  --bg:#06060a;
+  --panel:#101018;
+  --panel-2:#0b0b12;
+  --glass:rgba(255,255,255,.028);
+  --edge:rgba(255,255,255,.075);
+  --edge-hi:rgba(255,255,255,.16);
+  --ink:#f4f5f9;
+  --ink-dim:#a8aabd;
+  --ink-faint:#6f7188;
+  --brand:#f43f5e;
+  --grad:linear-gradient(115deg,#fb7185 0%,#ef4444 42%,#f97316 100%);
+  --grad-soft:linear-gradient(135deg,rgba(239,68,68,.22),rgba(249,115,22,.12));
+  --ok:#34d399;
+  --glow:0 18px 60px -22px rgba(239,68,68,.65);
+  --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:26px;
+  --font:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --ease:cubic-bezier(.22,.8,.32,1);
+  --max:1120px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--font);
+  -webkit-font-smoothing:antialiased; line-height:1.6;
+  overflow-x:hidden;
+}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+
+.wrap{width:100%;max-width:var(--max);margin:0 auto;padding:0 20px}
+.grad-text{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ---------- botoes ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  font-weight:700;font-size:16px;letter-spacing:-.01em;
+  padding:16px 30px;border-radius:var(--r-md);border:1px solid transparent;
+  cursor:pointer;transition:transform .25s var(--ease),box-shadow .25s var(--ease),background .2s;
+  text-align:center;
+}
+.btn-primary{background:var(--grad);color:#fff;box-shadow:var(--glow)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 24px 70px -20px rgba(239,68,68,.8)}
+.btn-ghost{background:var(--glass);border-color:var(--edge);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--edge-hi);background:rgba(255,255,255,.055)}
+.btn-lg{padding:19px 40px;font-size:17px}
+.btn-block{width:100%}
+
+/* ---------- topo ---------- */
+.nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(6,6,10,.82);backdrop-filter:blur(18px);
+  border-bottom:1px solid var(--edge);
+}
+.nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
+.logo{display:flex;align-items:center;gap:11px;font-weight:800;font-size:17.5px;letter-spacing:-.02em}
+.logo img{width:33px;height:33px}
+.nav-links{display:flex;align-items:center;gap:30px}
+.nav-links a{color:var(--ink-dim);font-size:14.5px;font-weight:500;transition:color .2s}
+.nav-links a:hover{color:var(--ink)}
+.nav .btn{padding:11px 22px;font-size:14.5px}
+@media(max-width:880px){.nav-links a{display:none}}
+
+/* ---------- hero ---------- */
+.hero{position:relative;padding:92px 0 64px;text-align:center;overflow:hidden}
+.hero::before{
+  content:"";position:absolute;inset:-320px 0 auto;height:860px;
+  background:radial-gradient(ellipse 62% 50% at 50% 42%,rgba(239,68,68,.30),transparent 68%);
+  pointer-events:none;
+}
+.hero::after{
+  content:"";position:absolute;left:50%;top:-180px;transform:translateX(-50%);
+  width:1px;height:1px;box-shadow:0 0 420px 190px rgba(249,115,22,.10);pointer-events:none;
+}
+.hero>*{position:relative;z-index:1}
+.badge{
+  display:inline-flex;align-items:center;gap:9px;
+  padding:8px 17px;border-radius:999px;
+  background:var(--grad-soft);border:1px solid rgba(251,113,133,.30);
+  font-size:13.5px;font-weight:600;color:#fecdd3;margin-bottom:28px;
+}
+.badge .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+h1{
+  font-size:clamp(38px,6.4vw,70px);font-weight:900;line-height:1.04;
+  letter-spacing:-.035em;margin-bottom:24px;
+}
+.hero p.sub{
+  font-size:clamp(16.5px,2.1vw,20.5px);color:var(--ink-dim);
+  max-width:700px;margin:0 auto 38px;line-height:1.6;
+}
+.hero-ctas{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:22px}
+.trust{
+  display:flex;gap:9px 26px;justify-content:center;flex-wrap:wrap;
+  font-size:13.5px;color:var(--ink-faint);
+}
+.trust span{display:inline-flex;align-items:center;gap:7px}
+.trust svg{flex:none;color:var(--ok)}
+
+/* ---------- moldura de navegador para os prints ---------- */
+.shot{
+  border-radius:var(--r-lg);overflow:hidden;
+  border:1px solid var(--edge);background:var(--panel-2);
+  box-shadow:0 50px 110px -36px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.03);
+}
+.shot-bar{
+  display:flex;align-items:center;gap:8px;padding:11px 14px;
+  background:#0d0d14;border-bottom:1px solid var(--edge);
+}
+.shot-bar i{width:11px;height:11px;border-radius:50%;background:#2a2a36;flex:none}
+.shot-bar i:nth-child(1){background:#ff5f57}
+.shot-bar i:nth-child(2){background:#febc2e}
+.shot-bar i:nth-child(3){background:#28c840}
+.shot-url{
+  flex:1;margin-left:10px;height:24px;border-radius:7px;background:#14141d;
+  display:flex;align-items:center;padding:0 12px;
+  font-size:11.5px;color:var(--ink-faint);font-weight:500;
+}
+.hero-shot{max-width:940px;margin:52px auto 0;position:relative}
+.hero-shot::after{
+  content:"";position:absolute;left:8%;right:8%;bottom:-36px;height:70px;
+  background:radial-gradient(ellipse at center,rgba(239,68,68,.30),transparent 72%);
+  filter:blur(26px);z-index:-1;
+}
+
+/* ---------- secoes ---------- */
+/* scroll-margin: o topo fixo tem 70px, entao o alvo do menu para abaixo dele */
+section{padding:92px 0;position:relative;scroll-margin-top:84px}
+.sec-head{text-align:center;max-width:720px;margin:0 auto 58px}
+.eyebrow{
+  font-size:12.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--brand);margin-bottom:15px;
+}
+h2{font-size:clamp(28px,4.4vw,45px);font-weight:900;letter-spacing:-.032em;line-height:1.1;margin-bottom:17px}
+.sec-head p{font-size:clamp(15.5px,1.9vw,18.5px);color:var(--ink-dim)}
+
+.divider{height:1px;background:linear-gradient(90deg,transparent,var(--edge),transparent)}
+
+/* ---------- cards ---------- */
+.grid{display:grid;gap:18px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:900px){.g3,.g4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+.card{
+  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
+  padding:30px 27px;transition:border-color .3s var(--ease),transform .3s var(--ease);
+}
+.card:hover{border-color:var(--edge-hi);transform:translateY(-3px)}
+.card h3{font-size:19px;font-weight:700;letter-spacing:-.018em;margin-bottom:10px}
+.card p{color:var(--ink-dim);font-size:15.5px}
+.ico{
+  width:46px;height:46px;border-radius:var(--r-md);margin-bottom:19px;
+  display:grid;place-items:center;background:var(--grad-soft);
+  border:1px solid rgba(251,113,133,.22);color:#fb7185;
+}
+
+/* ---------- dor ---------- */
+.dor{background:linear-gradient(180deg,transparent,rgba(239,68,68,.045),transparent)}
+.dor-card{
+  background:var(--panel);border:1px solid var(--edge);border-left:3px solid var(--brand);
+  border-radius:var(--r-md);padding:24px 26px;
+}
+.dor-card h3{font-size:17px;font-weight:700;margin-bottom:8px;letter-spacing:-.015em}
+.dor-card p{color:var(--ink-dim);font-size:15px}
+.dor-fim{
+  text-align:center;margin-top:50px;font-size:clamp(19px,2.8vw,27px);
+  font-weight:800;letter-spacing:-.025em;line-height:1.35;
+}
+
+/* ---------- passos ---------- */
+.passo{position:relative;padding-top:12px}
+.passo-n{
+  font-size:54px;font-weight:900;line-height:1;letter-spacing:-.05em;
+  background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;
+  margin-bottom:14px;opacity:.95;
+}
+.passo h3{font-size:21px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px}
+.passo p{color:var(--ink-dim);font-size:15.5px}
+.fala{
+  margin-top:15px;padding:14px 17px;border-radius:var(--r-md);
+  background:var(--glass);border:1px solid var(--edge);
+  font-size:14.5px;color:var(--ink-dim);font-style:italic;
+}
+
+/* ---------- galeria ---------- */
+.galeria{display:grid;grid-template-columns:repeat(2,1fr);gap:26px}
+@media(max-width:820px){.galeria{grid-template-columns:1fr}}
+.gal-item h4{font-size:17px;font-weight:700;margin:18px 0 6px;letter-spacing:-.015em}
+.gal-item p{color:var(--ink-dim);font-size:14.5px}
+
+/* ---------- lista de checks ---------- */
+.checks{list-style:none;display:grid;gap:13px}
+.checks li{display:flex;gap:12px;align-items:flex-start;font-size:15.5px;color:var(--ink-dim)}
+.checks svg{flex:none;margin-top:4px;color:var(--ok)}
+.checks b{color:var(--ink);font-weight:600}
+
+/* ---------- comparativo ---------- */
+.tabela{
+  border:1px solid var(--edge);border-radius:var(--r-lg);overflow:hidden;background:var(--panel);
+}
+.tab-row{display:grid;grid-template-columns:1.15fr 1fr 1fr;border-bottom:1px solid var(--edge)}
+.tab-row:last-child{border-bottom:none}
+.tab-row>div{padding:19px 20px;font-size:15px;color:var(--ink-dim);display:flex;align-items:center}
+.tab-row>div:first-child{color:var(--ink);font-weight:600}
+.tab-head>div{
+  background:#0c0c14;font-weight:800;font-size:13px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink-faint);
+}
+.tab-head .mine{color:#fb7185}
+.tab-row .mine{background:rgba(239,68,68,.055);color:var(--ink);font-weight:600}
+@media(max-width:760px){
+  .tab-row{grid-template-columns:1fr}
+  .tab-row>div{padding:12px 17px;border-bottom:1px solid var(--edge)}
+  .tab-row>div:first-child{background:#0c0c14;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint)}
+  .tab-head{display:none}
+  .tab-row>div:not(:first-child)::before{content:attr(data-l);color:var(--ink-faint);font-weight:700;margin-right:9px;font-size:13px}
+}
+
+/* ---------- modelos ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:11px;justify-content:center}
+.chip{
+  padding:11px 20px;border-radius:999px;background:var(--panel);
+  border:1px solid var(--edge);font-size:14.5px;font-weight:500;color:var(--ink-dim);
+  transition:border-color .25s,color .25s,transform .25s var(--ease);
+}
+.chip:hover{border-color:rgba(251,113,133,.45);color:var(--ink);transform:translateY(-2px)}
+
+/* ---------- planos ---------- */
+.planos{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:start}
+@media(max-width:940px){.planos{grid-template-columns:1fr;max-width:460px;margin:0 auto}}
+.plano{
+  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-xl);
+  padding:34px 29px;display:flex;flex-direction:column;position:relative;
+}
+.plano.destaque{
+  border-color:rgba(251,113,133,.5);
+  background:linear-gradient(180deg,rgba(239,68,68,.085),var(--panel) 42%);
+  box-shadow:0 34px 90px -40px rgba(239,68,68,.6);
+}
+@media(min-width:941px){.plano.destaque{transform:scale(1.045);z-index:2}}
+.selo{
+  position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+  background:var(--grad);color:#fff;font-size:11.5px;font-weight:800;
+  letter-spacing:.09em;text-transform:uppercase;padding:7px 17px;border-radius:999px;
+  white-space:nowrap;box-shadow:0 10px 26px -10px rgba(239,68,68,.9);
+}
+.plano-nome{font-size:15px;font-weight:700;color:var(--ink-dim);letter-spacing:.02em;margin-bottom:6px}
+.plano-desc{font-size:14px;color:var(--ink-faint);margin-bottom:22px;min-height:40px}
+.preco{display:flex;align-items:baseline;gap:7px;margin-bottom:6px}
+.preco .moeda{font-size:21px;font-weight:700;color:var(--ink-dim)}
+.preco .valor{font-size:50px;font-weight:900;letter-spacing:-.045em;line-height:1}
+.preco .per{font-size:15px;color:var(--ink-faint);font-weight:600}
+.preco-nota{font-size:13.5px;color:var(--ink-faint);margin-bottom:5px;min-height:20px}
+.preco-eco{
+  display:inline-block;font-size:13px;font-weight:700;color:#86efac;
+  background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);
+  padding:4px 11px;border-radius:999px;margin-bottom:24px;
+}
+.plano .checks{margin-bottom:28px;flex:1}
+.plano .checks li{font-size:14.8px}
+.riscado{text-decoration:line-through;color:var(--ink-faint)}
+.bonus-li{
+  background:rgba(249,115,22,.09);border:1px solid rgba(249,115,22,.26);
+  border-radius:var(--r-sm);padding:12px 14px;margin-top:4px;
+}
+.bonus-li svg{color:#fb923c}
+.nota-honesta{
+  margin-top:18px;padding:13px 15px;border-radius:var(--r-sm);
+  background:var(--glass);border:1px solid var(--edge);
+  font-size:13.5px;color:var(--ink-faint);line-height:1.5;
+}
+
+/* ---------- bonus ---------- */
+.bonus{
+  background:linear-gradient(135deg,rgba(249,115,22,.1),rgba(239,68,68,.06));
+  border:1px solid rgba(249,115,22,.26);border-radius:var(--r-xl);
+  padding:46px 42px;display:grid;grid-template-columns:1fr auto;gap:36px;align-items:center;
+}
+@media(max-width:820px){.bonus{grid-template-columns:1fr;padding:34px 26px;text-align:center}}
+.bonus-tag{
+  display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;
+  letter-spacing:.12em;text-transform:uppercase;color:#fb923c;margin-bottom:14px;
+}
+.bonus h2{font-size:clamp(24px,3.3vw,36px);margin-bottom:14px}
+.bonus p{color:var(--ink-dim);font-size:16.5px;max-width:580px}
+@media(max-width:820px){.bonus p{margin:0 auto}}
+.bonus-valor{text-align:center;flex:none}
+.bonus-valor .de{font-size:16px;color:var(--ink-faint);text-decoration:line-through}
+.bonus-valor .por{
+  font-size:34px;font-weight:900;letter-spacing:-.03em;
+  background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.bonus-valor .obs{font-size:13px;color:var(--ink-faint);margin-top:4px}
+
+/* ---------- faq ---------- */
+.faq{max-width:780px;margin:0 auto;display:grid;gap:12px}
+details{
+  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-md);
+  padding:20px 24px;transition:border-color .25s;
+}
+details[open]{border-color:var(--edge-hi)}
+summary{
+  cursor:pointer;font-weight:650;font-size:16.5px;list-style:none;
+  display:flex;justify-content:space-between;align-items:center;gap:16px;letter-spacing:-.012em;
+}
+summary::-webkit-details-marker{display:none}
+summary::after{
+  content:"+";font-size:25px;font-weight:400;color:var(--brand);
+  transition:transform .3s var(--ease);flex:none;line-height:1;
+}
+details[open] summary::after{transform:rotate(45deg)}
+details p{margin-top:14px;color:var(--ink-dim);font-size:15.5px}
+
+/* ---------- cta final ---------- */
+.final{text-align:center;position:relative;overflow:hidden;padding:110px 0}
+.final::before{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse 58% 62% at 50% 52%,rgba(239,68,68,.22),transparent 70%);
+  pointer-events:none;
+}
+.final>*{position:relative;z-index:1}
+.final h2{font-size:clamp(30px,5vw,54px);margin-bottom:18px}
+.final p{font-size:clamp(16px,2.1vw,19.5px);color:var(--ink-dim);max-width:620px;margin:0 auto 36px}
+
+/* ---------- rodape ---------- */
+footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);font-size:14px}
+.foot-in{display:flex;justify-content:space-between;align-items:center;gap:22px;flex-wrap:wrap}
+.foot-links{display:flex;gap:24px}
+.foot-links a:hover{color:var(--ink-dim)}
+
+/* ---------- animacao de entrada ---------- */
+.rv{opacity:0;transform:translateY(26px);transition:opacity .75s var(--ease),transform .75s var(--ease)}
+.rv.on{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){
+  .rv{opacity:1;transform:none;transition:none}
+  html{scroll-behavior:auto}
+}
+</style>
+<noscript><style>.rv{opacity:1!important;transform:none!important}</style></noscript>
+</head>
+<body>
+
+<!-- =========================== TOPO =========================== -->
+<nav class="nav">
+  <div class="wrap nav-in">
+    <a href="#" class="logo"><img src="/brand/logo.png" alt="" /> Copilot Code</a>
+    <div class="nav-links">
+      <a href="#como">Como funciona</a>
+      <a href="#dentro">Por dentro</a>
+      <a href="#planos">Planos</a>
+      <a href="#faq">Dúvidas</a>
+    </div>
+    <!-- TROQUE AQUI: link para abrir o app -->
+    <a href="/" class="btn btn-primary">Começar grátis</a>
+  </div>
+</nav>
+
+<!-- =========================== HERO =========================== -->
+<header class="hero">
+  <div class="wrap">
+    <div class="badge"><span class="dot"></span> Comece grátis — sem cartão de crédito</div>
+    <h1>Sua ideia no ar <span class="grad-text">hoje</span>.<br />Sem programador, sem agência.</h1>
+    <p class="sub">
+      Você descreve, em português, o site ou app que quer. A IA escreve o código,
+      abre página por página pra testar, conserta o que quebrou — e só então te mostra.
+      Gostou? Um clique e está no ar.
+    </p>
+    <div class="hero-ctas">
+      <!-- TROQUE AQUI: link para abrir o app -->
+      <a href="/" class="btn btn-primary btn-lg">Criar meu primeiro site grátis</a>
+      <a href="#dentro" class="btn btn-ghost btn-lg">Ver por dentro</a>
+    </div>
+    <div class="trust">
+      <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> Grátis de verdade, com IAs gratuitas</span>
+      <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> Sem crédito que acaba no meio</span>
+      <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg> O código é seu, no seu GitHub</span>
+    </div>
+
+    <div class="hero-shot rv">
+      <div class="shot">
+        <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+        <img src="app-inicio.jpg" alt="Tela inicial do Copilot Code" />
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="divider"></div>
+
+<!-- =========================== A DOR =========================== -->
+<section class="dor">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">Se você chegou até aqui</div>
+      <h2>Provavelmente você já passou por uma dessas</h2>
+      <p>E nenhuma delas é culpa sua.</p>
+    </div>
+
+    <div class="grid g2">
+      <div class="dor-card rv">
+        <h3>"Pedi orçamento e ouvi R$ 4.000 e 45 dias."</h3>
+        <p>Para um site de uma página. Você agradeceu, desligou o telefone e deixou pra lá.</p>
+      </div>
+      <div class="dor-card rv">
+        <h3>"Os créditos acabaram no terceiro pedido."</h3>
+        <p>Testou uma ferramenta gringa, gostou do que viu, e a barrinha zerou. Pra continuar, mais dólar.</p>
+      </div>
+      <div class="dor-card rv">
+        <h3>"A mensalidade subiu junto com o dólar."</h3>
+        <p>A ferramenta era boa. Mas cobrar em dólar todo mês, no fim, não fechou a conta.</p>
+      </div>
+      <div class="dor-card rv">
+        <h3>"A IA me entregou um site quebrado."</h3>
+        <p>Página em branco, botão que não clica, e nenhuma pista do que fazer. Você não sabia nem por onde começar a consertar.</p>
+      </div>
+      <div class="dor-card rv">
+        <h3>"Travei no construtor de sites."</h3>
+        <p>Arrastou bloquinho por duas horas, não ficou parecido com o que você imaginou, e você fechou a aba.</p>
+      </div>
+      <div class="dor-card rv">
+        <h3>"Minha ideia tá parada há meses."</h3>
+        <p>No bloco de notas, esperando o dia em que você fosse "ter tempo de aprender a programar".</p>
+      </div>
+    </div>
+
+    <p class="dor-fim rv">
+      Não falta ideia. Falta uma ferramenta que <span class="grad-text">termine o serviço</span>.
+    </p>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== A VIRADA =========================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">A virada</div>
+      <h2>O Copilot Code termina o serviço</h2>
+      <p>Três coisas que ele faz e que mudam o jogo pra quem não programa.</p>
+    </div>
+
+    <div class="grid g3">
+      <div class="card rv">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h3>Ele conversa</h3>
+        <p>Você escreve em português o que quer, do jeito que explicaria pra um amigo. Sem jargão, sem menu escondido, sem tutorial de duas horas.</p>
+      </div>
+      <div class="card rv">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        <h3>Ele confere</h3>
+        <p>Antes de te mostrar qualquer coisa, ele abre o projeto, percorre página por página, testa, acha o que quebrou e conserta. Sozinho.</p>
+      </div>
+      <div class="card rv">
+        <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></div>
+        <h3>Ele publica</h3>
+        <p>Quando você aprovar, vai pro seu GitHub e entra no ar na Vercel. Com endereço, cadeado de segurança, tudo pronto pra mandar pro cliente.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== COMO FUNCIONA =========================== -->
+<section id="como">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">Como funciona</div>
+      <h2>Três passos. Nenhuma linha de código.</h2>
+    </div>
+
+    <div class="grid g3">
+      <div class="passo rv">
+        <div class="passo-n">01</div>
+        <h3>Descreva a ideia</h3>
+        <p>Do jeito que você falaria. Pode ser uma frase.</p>
+        <div class="fala">"Um sistema de agendamento pro meu salão, com os horários livres, os profissionais e confirmação no WhatsApp."</div>
+      </div>
+      <div class="passo rv">
+        <div class="passo-n">02</div>
+        <h3>Veja pronto, ali na tela</h3>
+        <p>A IA cria, testa cada página e te mostra o projeto funcionando. Não gostou de algo? É só pedir pra mudar, conversando.</p>
+      </div>
+      <div class="passo rv">
+        <div class="passo-n">03</div>
+        <h3>Publique com um clique</h3>
+        <p>Só quando você aprovar. Aí sim ele manda pro seu GitHub e coloca no ar na Vercel, com endereço pronto pra divulgar.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== POR DENTRO =========================== -->
+<section id="dentro">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">Por dentro</div>
+      <h2>Veja o que te espera lá dentro</h2>
+      <p>Telas reais da ferramenta. Nada de ilustração bonita que não existe.</p>
+    </div>
+
+    <div class="galeria">
+      <div class="gal-item rv">
+        <div class="shot">
+          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+          <img src="app-inicio.jpg" alt="Tela inicial: uma caixa para descrever a ideia" loading="lazy" />
+        </div>
+        <h4>Uma caixa e a sua ideia</h4>
+        <p>Sem painel confuso. Você escreve o que quer e escolhe se é um site, um app/SaaS ou a cópia de um site que você gostou.</p>
+      </div>
+
+      <div class="gal-item rv">
+        <div class="shot">
+          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+          <img src="app-modelos.jpg" alt="Galeria de modelos prontos" loading="lazy" />
+        </div>
+        <h4>Modelos prontos pra começar</h4>
+        <p>Agendamento, CRM de vendas, cardápio digital, controle financeiro, loja, área de membros, estoque, academia. Cada um já nasce com telas e dados de exemplo.</p>
+      </div>
+
+      <div class="gal-item rv">
+        <div class="shot">
+          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+          <img src="app-ia.jpg" alt="Seletor de modelos de IA" loading="lazy" />
+        </div>
+        <h4>Você escolhe qual IA trabalha</h4>
+        <p>Gemini, OpenRouter, Mistral, Claude, GPT e outras. No modo automático ele reveza sozinho entre as que você ligou — se uma falhar, outra assume.</p>
+      </div>
+
+      <div class="gal-item rv">
+        <div class="shot">
+          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+          <img src="app-conexoes.jpg" alt="Painel de conexões e chaves de IA" loading="lazy" />
+        </div>
+        <h4>Suas chaves, suas contas</h4>
+        <p>GitHub, Vercel, Supabase e as chaves de IA num lugar só. As opções marcadas como <b>grátis</b> são as que você usa sem pagar nada de IA.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== O CORRETOR =========================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">O diferencial</div>
+      <h2>A diferença está no que acontece <span class="grad-text">antes</span> de você ver</h2>
+      <p>É aqui que ele deixa de ser "mais uma IA que escreve código".</p>
+    </div>
+
+    <div class="grid g2" style="align-items:center;gap:44px">
+      <div class="rv">
+        <p style="font-size:17.5px;color:var(--ink-dim);margin-bottom:26px">
+          A maioria das ferramentas escreve o código e some. Se abriu em branco, se o botão não
+          funciona, se faltou uma página — o problema passou a ser seu, e você não sabe nem o que
+          perguntar.
+        </p>
+        <p style="font-size:17.5px;color:var(--ink);font-weight:600;margin-bottom:26px">
+          O Copilot Code faz o contrário. Depois de escrever, ele mesmo vira o conferente do
+          próprio trabalho.
+        </p>
+        <ul class="checks">
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b>Relê o código</b> procurando o que está faltando ou fora do lugar.</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b>Abre página por página</b> de verdade, como se fosse um visitante.</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b>Conserta sozinho</b> o que encontrou quebrado, e testa de novo.</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b>Só então te mostra</b> — já funcionando, não um monte de arquivo.</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b>Nada vai pro ar sem a sua aprovação.</b> O botão de publicar é seu.</span></li>
+        </ul>
+      </div>
+
+      <div class="card rv" style="background:linear-gradient(180deg,rgba(239,68,68,.07),var(--panel));border-color:rgba(251,113,133,.25)">
+        <div class="eyebrow" style="margin-bottom:20px">O que você evita</div>
+        <ul class="checks" style="gap:17px">
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Página branca sem explicação</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Mandar um link quebrado pro cliente</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Gastar IA refazendo o que já tinha dado errado</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Ficar horas copiando erro em vermelho pro chat</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Descobrir o problema só depois de publicar</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== BYOK =========================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">Por que custa menos</div>
+      <h2>Aqui não existe crédito pra acabar</h2>
+      <p>
+        As outras ferramentas revendem crédito de IA com margem em cima. Você paga a ferramenta
+        <em>e</em> a IA embutida, em dólar. Aqui você usa a sua própria chave — e paga a IA direto
+        pra ela, pelo preço de custo.
+      </p>
+    </div>
+
+    <div class="tabela rv">
+      <div class="tab-row tab-head">
+        <div>&nbsp;</div>
+        <div>Ferramentas gringas</div>
+        <div class="mine">Copilot Code</div>
+      </div>
+      <div class="tab-row">
+        <div>Mensalidade</div>
+        <div data-l="Gringas:">US$ 25 a 50, em dólar</div>
+        <div class="mine" data-l="Aqui:">R$ 47 — ou R$ 24,75 no anual</div>
+      </div>
+      <div class="tab-row">
+        <div>Créditos de IA</div>
+        <div data-l="Gringas:">Acabam. Pra continuar, paga mais</div>
+        <div class="mine" data-l="Aqui:">Não existem. A chave é sua</div>
+      </div>
+      <div class="tab-row">
+        <div>Preço da IA</div>
+        <div data-l="Gringas:">Embutido, com margem da plataforma</div>
+        <div class="mine" data-l="Aqui:">Direto com o fornecedor, preço de custo</div>
+      </div>
+      <div class="tab-row">
+        <div>Usar IA gratuita</div>
+        <div data-l="Gringas:">Não dá</div>
+        <div class="mine" data-l="Aqui:">Dá — e é exatamente o plano grátis</div>
+      </div>
+      <div class="tab-row">
+        <div>Onde fica seu código</div>
+        <div data-l="Gringas:">Preso na plataforma</div>
+        <div class="mine" data-l="Aqui:">No seu GitHub, desde o primeiro projeto</div>
+      </div>
+      <div class="tab-row">
+        <div>Se você cancelar</div>
+        <div data-l="Gringas:">Perde o acesso aos projetos</div>
+        <div class="mine" data-l="Aqui:">Os projetos continuam seus, no ar</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== O QUE DÁ PRA CRIAR =========================== -->
+<section>
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">O que dá pra criar</div>
+      <h2>Do site de uma página ao sistema com login</h2>
+      <p>Alguns modelos que já vêm prontos — e que a IA adapta pro seu negócio.</p>
+    </div>
+    <div class="chips rv">
+      <span class="chip">Sistema de agendamento</span>
+      <span class="chip">CRM de vendas</span>
+      <span class="chip">Cardápio digital</span>
+      <span class="chip">Controle financeiro</span>
+      <span class="chip">Loja online</span>
+      <span class="chip">Área de membros</span>
+      <span class="chip">Controle de estoque</span>
+      <span class="chip">Sistema para academia</span>
+      <span class="chip">Página de vendas</span>
+      <span class="chip">Link na bio</span>
+      <span class="chip">Portfólio</span>
+      <span class="chip">Site institucional</span>
+      <span class="chip">Captura de leads</span>
+      <span class="chip">Painel de métricas</span>
+      <span class="chip">Blog</span>
+      <span class="chip">Clone de um site que você gostou</span>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== PLANOS =========================== -->
+<section id="planos">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">Planos</div>
+      <h2>Comece de graça. Assine só se valer a pena.</h2>
+      <p>Você testa com as IAs gratuitas o quanto quiser. Quando quiser resultado profissional, libera as IAs pagas.</p>
+    </div>
+
+    <div class="planos">
+      <!-- GRÁTIS -->
+      <div class="plano rv">
+        <div class="plano-nome">Grátis</div>
+        <div class="plano-desc">Pra tirar a ideia do papel hoje e ver no que dá.</div>
+        <div class="preco"><span class="moeda">R$</span><span class="valor">0</span></div>
+        <div class="preco-nota">Para sempre. Sem cartão.</div>
+        <div style="height:34px"></div>
+        <ul class="checks">
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>IAs <b>gratuitas</b> (Gemini, OpenRouter e outras)</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Projetos <b>ilimitados</b></span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Todos os modelos prontos</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Conferência e teste automáticos</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Prévia antes de publicar</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Publica no seu GitHub e na Vercel</span></li>
+        </ul>
+        <!-- TROQUE AQUI: link para abrir o app -->
+        <a href="/" class="btn btn-ghost btn-block">Começar grátis</a>
+        <div class="nota-honesta">
+          Sendo honesto: as IAs gratuitas dão conta de sites simples e funcionais, mas não entregam
+          acabamento profissional. Pra isso, use as pagas.
+        </div>
+      </div>
+
+      <!-- MENSAL -->
+      <div class="plano rv">
+        <div class="plano-nome">Pro Mensal</div>
+        <div class="plano-desc">Quando você quer resultado de gente grande.</div>
+        <div class="preco"><span class="moeda">R$</span><span class="valor">47</span><span class="per">/mês</span></div>
+        <div class="preco-nota">Cancele quando quiser.</div>
+        <div style="height:34px"></div>
+        <ul class="checks">
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b>Tudo do plano grátis</b></span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Libera as <b>IAs pagas</b>: Claude, GPT, Gemini Pro, DeepSeek e as demais</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Projetos com <b>acabamento profissional</b></span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Modo automático com revezamento entre IAs</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Suporte por e-mail</span></li>
+        </ul>
+        <!-- TROQUE AQUI: link do checkout do plano mensal -->
+        <a href="#" class="btn btn-ghost btn-block">Assinar o mensal</a>
+      </div>
+
+      <!-- ANUAL -->
+      <div class="plano destaque rv">
+        <div class="selo">Mais escolhido — melhor custo</div>
+        <div class="plano-nome" style="color:#fb7185">Pro Anual</div>
+        <div class="plano-desc">O mesmo de cima, pela metade do preço, com um bônus vitalício.</div>
+        <div class="preco"><span class="moeda">R$</span><span class="valor">297</span><span class="per">/ano</span></div>
+        <div class="preco-nota">Sai a <b style="color:var(--ink)">R$ 24,75 por mês</b> — contra <span class="riscado">R$ 564</span> no mensal.</div>
+        <span class="preco-eco">Você economiza R$ 267 por ano</span>
+        <ul class="checks">
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b>Tudo do Pro Mensal</b>, incluindo as IAs gratuitas</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b>Todas as atualizações</b>, para sempre — sem pagar de novo</span></li>
+          <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Prioridade no suporte</span></li>
+          <li class="bonus-li"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b style="color:#fdba74">BÔNUS: Lovable Copilot vitalício</b> — a extensão que edita projetos do Lovable, front e back. Vendida a R$ 97. Aqui é sua, pra sempre.</span></li>
+        </ul>
+        <!-- TROQUE AQUI: link do checkout do plano anual -->
+        <a href="#" class="btn btn-primary btn-block">Quero o plano anual</a>
+      </div>
+    </div>
+
+    <p style="text-align:center;margin-top:34px;color:var(--ink-faint);font-size:14.5px" class="rv">
+      Em todos os planos você usa a sua própria chave de IA. O que você paga pra IA vai direto pra
+      ela, sem passar por aqui.
+    </p>
+  </div>
+</section>
+
+<!-- =========================== BÔNUS =========================== -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="bonus rv">
+      <div>
+        <div class="bonus-tag">🎁 Só no plano anual</div>
+        <h2>Leve o <span class="grad-text">Lovable Copilot</span> de brinde. Vitalício.</h2>
+        <p>
+          É a nossa extensão que edita projetos do Lovable — tanto o que aparece na tela quanto o
+          que roda por trás. Quem compra separado paga R$ 97, uma vez. Quem assina o anual recebe
+          junto, sem custo, e continua com ela mesmo depois.
+        </p>
+      </div>
+      <div class="bonus-valor">
+        <div class="de">R$ 97</div>
+        <div class="por">Incluso</div>
+        <div class="obs">acesso vitalício</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== FAQ =========================== -->
+<section id="faq">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">Dúvidas</div>
+      <h2>O que todo mundo pergunta antes</h2>
+    </div>
+
+    <div class="faq">
+      <details class="rv"><summary>Preciso saber programar?</summary>
+        <p>Não. Essa é a razão de a ferramenta existir. Você escreve em português o que quer e a IA cuida do código. Em nenhum momento você precisa entender o que está escrito lá dentro — e, se quiser entender, ela explica cada passo.</p>
+      </details>
+
+      <details class="rv"><summary>O que é essa tal de "chave de IA"?</summary>
+        <p>É uma senha que você pega de graça no site da empresa de IA (Google, OpenRouter e outras) e cola uma vez só dentro da ferramenta. É ela que autoriza a IA a trabalhar pra você. Tem um passo a passo dentro do app mostrando onde clicar, em português.</p>
+      </details>
+
+      <details class="rv"><summary>Dá pra usar de graça de verdade, ou é pegadinha?</summary>
+        <p>De verdade. Várias IAs têm versão gratuita, e a ferramenta já vem preparada pra usar essas. Você cria projetos ilimitados, testa, publica e não paga nada — nem pra gente, nem pra IA.</p>
+      </details>
+
+      <details class="rv"><summary>Então por que eu pagaria por um plano?</summary>
+        <p>Por causa da diferença de qualidade. As IAs gratuitas são boas pra sites simples, mas erram mais, escrevem menos e travam em projetos maiores. As pagas entregam acabamento profissional, acertam de primeira com mais frequência e aguentam sistemas de verdade. O plano é o que libera o uso delas aqui dentro.</p>
+      </details>
+
+      <details class="rv"><summary>O código é meu mesmo?</summary>
+        <p>É seu. Vai direto pro seu GitHub, na sua conta, desde o primeiro projeto. Se um dia você cancelar, os projetos continuam no ar e continuam seus. Você não fica refém.</p>
+      </details>
+
+      <details class="rv"><summary>Posso cancelar quando quiser?</summary>
+        <p>Pode, a qualquer momento, sem multa e sem ligar pra ninguém. No mensal você fica até o fim do mês já pago. No anual, o bônus do Lovable Copilot continua seu de qualquer jeito — é vitalício.</p>
+      </details>
+
+      <details class="rv"><summary>Preciso pagar hospedagem?</summary>
+        <p>Não precisa. A publicação é feita na Vercel, que tem plano gratuito mais que suficiente pra projeto pessoal e pra maioria dos negócios pequenos. O endereço e o cadeado de segurança já vêm junto.</p>
+      </details>
+
+      <details class="rv"><summary>Funciona no celular?</summary>
+        <p>A ferramenta abre no navegador do celular, mas criar projeto rende muito mais no computador, onde você vê o chat e a prévia lado a lado. Os sites que ela cria, esses sim, já nascem funcionando bem no celular.</p>
+      </details>
+
+      <details class="rv"><summary>E se a IA criar algo errado?</summary>
+        <p>Primeiro, ela mesma tenta consertar antes de te mostrar — é o conferente automático. Se ainda assim não ficou como você queria, é só dizer o que mudar, conversando. E nada vai pro ar sem você apertar o botão de publicar.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== CTA FINAL =========================== -->
+<section class="final">
+  <div class="wrap">
+    <h2 class="rv">Sua ideia já esperou<br /><span class="grad-text">tempo demais</span>.</h2>
+    <p class="rv">
+      Comece de graça, sem cartão. Em alguns minutos você vê na tela aquilo que está parado no seu
+      bloco de notas há meses. Se gostar do que vir, aí você decide.
+    </p>
+    <div class="hero-ctas rv">
+      <!-- TROQUE AQUI: link para abrir o app -->
+      <a href="/" class="btn btn-primary btn-lg">Criar meu primeiro site grátis</a>
+      <a href="#planos" class="btn btn-ghost btn-lg">Ver os planos</a>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== RODAPÉ =========================== -->
+<footer>
+  <div class="wrap foot-in">
+    <a href="#" class="logo" style="font-size:15.5px"><img src="/brand/logo.png" alt="" style="width:26px;height:26px" /> Copilot Code</a>
+    <div class="foot-links">
+      <a href="#como">Como funciona</a>
+      <a href="#planos">Planos</a>
+      <a href="#faq">Dúvidas</a>
+    </div>
+    <div>© <span id="ano"></span> Copilot Code</div>
+  </div>
+</footer>
+
+<script>
+  // Numa pagina de vendas, conteudo invisivel e venda perdida. Entao a animacao
+  // de entrada so pode existir se tudo tambem funcionar sem ela: qualquer falha
+  // aqui revela a pagina inteira em vez de deixa-la em branco.
+  (function () {
+    var alvos = document.querySelectorAll(".rv");
+    function revelarTudo() {
+      for (var i = 0; i < alvos.length; i++) alvos[i].classList.add("on");
+    }
+    try {
+      var ano = document.getElementById("ano");
+      if (ano) ano.textContent = new Date().getFullYear();
+
+      if (!("IntersectionObserver" in window)) { revelarTudo(); return; }
+
+      var obs = new IntersectionObserver(function (entradas) {
+        entradas.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add("on"); obs.unobserve(e.target); }
+        });
+      }, { threshold: 0.12, rootMargin: "0px 0px -60px 0px" });
+
+      for (var j = 0; j < alvos.length; j++) obs.observe(alvos[j]);
+
+      // Rede de seguranca: se por qualquer motivo algo acima da dobra nao foi
+      // revelado em 3s, mostra assim mesmo.
+      setTimeout(function () {
+        for (var k = 0; k < alvos.length; k++) {
+          var r = alvos[k].getBoundingClientRect();
+          if (r.top < window.innerHeight) alvos[k].classList.add("on");
+        }
+      }, 3000);
+    } catch (e) {
+      revelarTudo();
+    }
+  })();
+</script>
+</body>
+</html>

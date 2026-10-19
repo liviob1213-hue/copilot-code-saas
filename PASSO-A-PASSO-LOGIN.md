@@ -184,6 +184,7 @@ Para sair: ícone de **Conexões** na barra lateral → bloco **Sua conta** →
 |---|---|
 | Chegou um **link** no e-mail em vez de código | Passo 2 não foi salvo. Confira se o modelo tem `{{ .Token }}`. |
 | **"Esse jeito de entrar ainda não foi ligado no Supabase"** | Passo 4: a chavinha do Google não está ligada. |
+| Google abre uma página com **"No API key found in request"** | O Google foi ligado no Supabase **errado** (o dos projetos). Ligue no projeto das CONTAS. Confira também que o endereço de retorno no Google Cloud é o `/auth/v1/callback` **desse** projeto. |
 | **"O endereço de retorno não está liberado"** | Passo 3: falta a URL em *Redirect URLs*. |
 | Depois do Google cai numa página em branco | Passo 3: a *Site URL* está diferente do endereço real do app. |
 | O app **não pede login** | Passo 5: os nomes têm que começar com `VITE_` (sem isso o app não lê), as variáveis não foram salvas, ou faltou o **Redeploy**. |
