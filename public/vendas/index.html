@@ -405,7 +405,9 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
     <div class="hero-shot rv">
       <div class="shot">
         <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
-        <img src="app-inicio.jpg" alt="Tela inicial do Copilot Code" />
+        <!-- caminho absoluto: a pagina e servida em /vendas (sem barra no fim),
+             entao caminho relativo cairia na raiz do site e quebraria -->
+        <img src="/vendas/app-inicio.jpg" alt="Tela inicial do Copilot Code" />
       </div>
     </div>
   </div>
@@ -532,7 +534,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
       <div class="gal-item rv">
         <div class="shot">
           <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
-          <img src="app-inicio.jpg" alt="Tela inicial: uma caixa para descrever a ideia" loading="lazy" />
+          <img src="/vendas/app-inicio.jpg" alt="Tela inicial: uma caixa para descrever a ideia" loading="lazy" />
         </div>
         <h4>Uma caixa e a sua ideia</h4>
         <p>Sem painel confuso. Você escreve o que quer e escolhe se é um site, um app/SaaS ou a cópia de um site que você gostou.</p>
@@ -541,7 +543,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
       <div class="gal-item rv">
         <div class="shot">
           <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
-          <img src="app-modelos.jpg" alt="Galeria de modelos prontos" loading="lazy" />
+          <img src="/vendas/app-modelos.jpg" alt="Galeria de modelos prontos" loading="lazy" />
         </div>
         <h4>Modelos prontos pra começar</h4>
         <p>Agendamento, CRM de vendas, cardápio digital, controle financeiro, loja, área de membros, estoque, academia. Cada um já nasce com telas e dados de exemplo.</p>
@@ -550,7 +552,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
       <div class="gal-item rv">
         <div class="shot">
           <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
-          <img src="app-ia.jpg" alt="Seletor de modelos de IA" loading="lazy" />
+          <img src="/vendas/app-ia.jpg" alt="Seletor de modelos de IA" loading="lazy" />
         </div>
         <h4>Você escolhe qual IA trabalha</h4>
         <p>Gemini, OpenRouter, Mistral, Claude, GPT e outras. No modo automático ele reveza sozinho entre as que você ligou — se uma falhar, outra assume.</p>
@@ -559,7 +561,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
       <div class="gal-item rv">
         <div class="shot">
           <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
-          <img src="app-conexoes.jpg" alt="Painel de conexões e chaves de IA" loading="lazy" />
+          <img src="/vendas/app-conexoes.jpg" alt="Painel de conexões e chaves de IA" loading="lazy" />
         </div>
         <h4>Suas chaves, suas contas</h4>
         <p>GitHub, Vercel, Supabase e as chaves de IA num lugar só. As opções marcadas como <b>grátis</b> são as que você usa sem pagar nada de IA.</p>
