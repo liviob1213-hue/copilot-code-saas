@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import Aurora from "./Aurora.jsx";
+import Tutoriais from "./Tutoriais.jsx";
 import BorderGlow from "./BorderGlow.jsx";
 import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
@@ -125,6 +126,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   const [keysOpen, setKeysOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
+  const [tutsOpen, setTutsOpen] = useState(false);   // aba Tutoriais (tela em src/Tutoriais.jsx)
   const [sessions, setSessions] = useState([]);
   const [modelsCache, setModelsCache] = useState({});
   const [modelHealth, setModelHealth] = useState({});
@@ -590,10 +592,12 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
         abrir: () => openProject(p)
       }));
 
-  const sidebarAtivo = projOpen ? "projetos" : histOpen ? "conversas" : connOpen ? "conexoes" : "inicio";
+  const sidebarAtivo = tutsOpen ? "tutoriais" : projOpen ? "projetos" : histOpen ? "conversas" : connOpen ? "conexoes" : "inicio";
   const abrirConexoes = () => { setKeysOpen(false); setConnOpen(true); };
   const abrirChaves = () => { setKeysOpen(true); setConnOpen(true); };
   const abrirProjetos = () => { loadVercelProjects(); setProjOpen(true); };
+  // No celular a barra lateral cobre a tela toda, entao sai da frente ao abrir os tutoriais.
+  const abrirTutoriais = () => { setTutsOpen(true); if (window.innerWidth <= 820) setSideOpen(false); };
   const abrirConversas = () => { refreshHistory(); setHistOpen(true); };
   const irParaModelos = () => document.getElementById("modelos")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -621,13 +625,13 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
         ? <Sidebar
             conn={conn} projects={vercelProjects} ativo={sidebarAtivo}
             onNew={novoProjeto} onProjetos={abrirProjetos} onConversas={abrirConversas}
-            onConexoes={abrirConexoes} onChaves={abrirChaves}
+            onConexoes={abrirConexoes} onChaves={abrirChaves} onTutoriais={abrirTutoriais}
             onOpenProject={openProject} onCollapse={() => setSideOpen(false)}
           />
         : <SideRail
             conn={conn} ativo={sidebarAtivo} onExpand={() => setSideOpen(true)}
             onNew={novoProjeto} onProjetos={abrirProjetos} onConversas={abrirConversas}
-            onConexoes={abrirConexoes} onChaves={abrirChaves}
+            onConexoes={abrirConexoes} onChaves={abrirChaves} onTutoriais={abrirTutoriais}
           />}
       {sideOpen && <div className="side-scrim" onClick={() => setSideOpen(false)} />}
 
@@ -864,6 +868,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase} sessao={sessao}
         onMudou={() => { refreshConn(); loadModelsCache(); }}
         onClose={() => { setConnOpen(false); refreshConn(); loadModelsCache(); }} showToast={showToast} />}
+      {tutsOpen && <Tutoriais onClose={() => setTutsOpen(false)} />}
       {toast && <div className={"toast" + (toast.err ? " err" : "")}>{toast.text}</div>}
     </div>
   );
@@ -959,7 +964,7 @@ function Conta({ conn, onClick, compact = false }) {
   );
 }
 
-function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onConexoes, onChaves, onOpenProject, onCollapse }) {
+function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onConexoes, onChaves, onTutoriais, onOpenProject, onCollapse }) {
   return (
     <aside className="sidebar">
       <div className="side-head">
@@ -980,6 +985,7 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
           {Array.isArray(projects) && projects.length > 0 && <span className="nav-count">{projects.length}</span>}
         </button>
         <button className={"nav-item" + (ativo === "conversas" ? " on" : "")} onClick={onConversas}><IconChat /> {t("Conversas")}</button>
+        <button className={"nav-item" + (ativo === "tutoriais" ? " on" : "")} onClick={onTutoriais}><IconPlayBox /> {t("Tutoriais")}</button>
         <span className="side-sep" />
         <button className={"nav-item" + (ativo === "conexoes" ? " on" : "")} onClick={onConexoes}><IconPlug /> {t("Conexões")}</button>
         <button className="nav-item" onClick={onChaves}><IconKey /> {t("Chaves de IA")}</button>
@@ -1012,7 +1018,7 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
 }
 
 // Menu recolhido (estilo Bolt): trilho só de ícones, com dica ao passar o mouse.
-function SideRail({ conn, ativo, onExpand, onNew, onProjetos, onConversas, onConexoes, onChaves }) {
+function SideRail({ conn, ativo, onExpand, onNew, onProjetos, onConversas, onConexoes, onChaves, onTutoriais }) {
   return (
     <aside className="rail">
       <button className="rail-btn" onClick={onExpand} data-tip={t("Expandir menu")}><IconPanel /></button>
@@ -1021,6 +1027,7 @@ function SideRail({ conn, ativo, onExpand, onNew, onProjetos, onConversas, onCon
       <button className={"rail-btn" + (ativo === "inicio" ? " on" : "")} onClick={onNew} data-tip={t("Início")}><IconHome /></button>
       <button className={"rail-btn" + (ativo === "projetos" ? " on" : "")} onClick={onProjetos} data-tip={t("Projetos")}><IconGrid /></button>
       <button className={"rail-btn" + (ativo === "conversas" ? " on" : "")} onClick={onConversas} data-tip={t("Conversas")}><IconChat /></button>
+      <button className={"rail-btn" + (ativo === "tutoriais" ? " on" : "")} onClick={onTutoriais} data-tip={t("Tutoriais")}><IconPlayBox /></button>
       <span className="rail-sep" />
       <button className={"rail-btn" + (ativo === "conexoes" ? " on" : "")} onClick={onConexoes} data-tip={t("Conexões")}><IconPlug /></button>
       <button className="rail-btn" onClick={onChaves} data-tip={t("Chaves de IA")}><IconKey /></button>
@@ -1812,6 +1819,7 @@ const IconGrid = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><r
 const IconChat = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
 const IconGem = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><path d="M6 3h12l3.5 5.5L12 21 2.5 8.5z" /><path d="M2.5 8.5h19M8.5 3.5 6 8.5l6 12.5M15.5 3.5 18 8.5 12 21" /></svg>;
 const IconPlug = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><path d="M9 2v6M15 2v6M7 8h10v3a5 5 0 0 1-10 0zM12 16v6" /></svg>;
+const IconPlayBox = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S}><rect x="2.5" y="4" width="19" height="16" rx="3" /><path d="m10 9 5 3-5 3z" /></svg>;
 const IconSpark = () => <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2.5l1.9 5.7 5.6 1.9-5.6 1.9L12 17.7l-1.9-5.7L4.5 10l5.6-1.9z" /><path d="M18.5 15.5l.7 2.1 2.1.7-2.1.7-.7 2.1-.7-2.1-2.1-.7 2.1-.7z" opacity=".65" /></svg>;
 const IconImage = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.4" /><path d="m21 15.5-4.5-4.5L6 21" /></svg>;
 const IconCheck = () => <svg viewBox="0 0 24 24" width="14" height="14" {...S} strokeWidth="2.4"><path d="M20 6 9 17l-5-5" /></svg>;
