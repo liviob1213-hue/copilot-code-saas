@@ -170,6 +170,121 @@ b = await (await worker.fetch(req(BASE + "/status"), ENV)).json();
 ok(b.segredos.github && b.segredos.supabase && b.segredos.vercel, "/status acha os tres");
 ok(!JSON.stringify(b).includes("vc_segredo") && !JSON.stringify(b).includes("sb_segredo"), "/status NAO vaza valor de segredo");
 
+// ===========================================================================
+//  A CHAVE DA CASA (/casa)
+//  -------------------------------------------------------------------------
+//  Aqui o que interessa e: ninguem usa a nossa chave de IA sem um passe bom.
+//  O passe e assinado pela Vercel (api/_lib.js) e conferido pelo Worker — por
+//  isso o teste usa a MESMA funcao de assinatura do servidor de verdade, e nao
+//  uma copia; copia esconde justamente o erro que importa (segredo diferente,
+//  formato diferente).
+// ===========================================================================
+console.log("\n--- a chave da casa (/casa) ---");
+
+process.env.PASSE_IA_SEGREDO = "segredo-de-teste";
+const { assinarPasse } = await import("../api/_lib.js");
+
+const ENV_CASA = {
+  PASSE_IA_SEGREDO: "segredo-de-teste",
+  IA_CASA_GEMINI_KEY: "chave_gemini",
+  IA_CASA_OPENROUTER_KEY: "chave_or_1, chave_or_2",
+  IA_CASA_GROQ_KEY: "chave_groq"
+};
+
+const pedidoCasa = (passe, corpo) => req(BASE + "/casa", {
+  method: "POST",
+  headers: passe ? { "x-passe-ia": passe, "content-type": "application/json" } : { "content-type": "application/json" },
+  body: JSON.stringify(corpo)
+});
+
+// --- passe bom: a chamada sai, com a chave da casa no lugar certo ----------
+fingir(jsonRes({ candidates: [] }));
+let passe = assinarPasse({ usuarioId: "u1", provedor: "gemini", pago: false });
+r = await worker.fetch(pedidoCasa(passe, { modelo: "gemini-flash-latest", corpo: { contents: [] } }), ENV_CASA);
+ok(r.status === 200, "gemini: passe bom passa");
+ok(capturado.url.includes("gemini-flash-latest:generateContent"), "gemini: modelo vai no endereco");
+ok(capturado.url.includes("key=chave_gemini"), "gemini: usa a chave da casa");
+ok(r.headers.get("access-control-allow-origin") === "*", "/casa devolve CORS");
+
+fingir(jsonRes({ choices: [] }));
+passe = assinarPasse({ usuarioId: "u1", provedor: "groq", pago: false });
+r = await worker.fetch(pedidoCasa(passe, { modelo: "openai/gpt-oss-20b", corpo: { model: "openai/gpt-oss-20b" } }), ENV_CASA);
+ok(r.status === 200 && capturado.headers.get("authorization") === "Bearer chave_groq", "groq: chave da casa vai no Authorization");
+ok(!capturado.url.includes("chave_groq"), "groq: a chave NAO aparece no endereco");
+
+// --- passe ruim: nada sai --------------------------------------------------
+b = await (await worker.fetch(pedidoCasa("", { modelo: "gemini-flash-latest", corpo: {} }), ENV_CASA)).json();
+ok(b.error === "passe_invalido", "sem passe: recusa");
+
+b = await (await worker.fetch(pedidoCasa("lixo.lixo", { modelo: "gemini-flash-latest", corpo: {} }), ENV_CASA)).json();
+ok(b.error === "passe_invalido", "passe malformado: recusa");
+
+// Assinado com OUTRO segredo = passe de outra pessoa. Tem que ser recusado,
+// senao qualquer um emitiria passes e gastaria a nossa chave.
+process.env.PASSE_IA_SEGREDO = "segredo-errado";
+const passeFalso = assinarPasse({ usuarioId: "u1", provedor: "gemini", pago: false });
+process.env.PASSE_IA_SEGREDO = "segredo-de-teste";
+b = await (await worker.fetch(pedidoCasa(passeFalso, { modelo: "gemini-flash-latest", corpo: {} }), ENV_CASA)).json();
+ok(b.error === "passe_invalido", "passe assinado com outro segredo: recusa");
+
+// Passe vencido (a validade e curta de proposito: 2 minutos).
+const { createHmac } = await import("node:crypto");
+const corpoVencido = Buffer.from(JSON.stringify({ u: "u1", p: "gemini", pg: false, exp: Date.now() - 1000 })).toString("base64url");
+const vencido = `${corpoVencido}.${createHmac("sha256", "segredo-de-teste").update(corpoVencido).digest("base64url")}`;
+b = await (await worker.fetch(pedidoCasa(vencido, { modelo: "gemini-flash-latest", corpo: {} }), ENV_CASA)).json();
+ok(b.error === "passe_invalido", "passe vencido: recusa");
+
+// Worker sem o segredo configurado: recusa tudo (nao empresta chave as cegas).
+b = await (await worker.fetch(pedidoCasa(passe, { modelo: "openai/gpt-oss-20b", corpo: {} }), { IA_CASA_GROQ_KEY: "x" })).json();
+ok(b.error === "casa_sem_segredo", "Worker sem PASSE_IA_SEGREDO: recusa");
+
+// --- o provedor vem do PASSE, nunca do corpo -------------------------------
+// Passe de groq + corpo pedindo outra coisa: continua groq. Sem isso, daria pra
+// pedir um modelo caro depois de a Vercel ter autorizado o barato.
+fingir(jsonRes({ choices: [] }));
+passe = assinarPasse({ usuarioId: "u1", provedor: "groq", pago: false });
+r = await worker.fetch(pedidoCasa(passe, { provedor: "gemini", modelo: "openai/gpt-oss-20b", corpo: {} }), ENV_CASA);
+ok(capturado.url.includes("api.groq.com"), "o provedor sai do passe, nao do corpo");
+
+// --- modelo tem que ser dos gratuitos --------------------------------------
+passe = assinarPasse({ usuarioId: "u1", provedor: "openrouter", pago: false });
+b = await (await worker.fetch(pedidoCasa(passe, { modelo: "anthropic/claude-opus-4", corpo: {} }), ENV_CASA)).json();
+ok(b.error === "modelo_nao_permitido", "openrouter: modelo pago e recusado (so os :free)");
+
+b = await (await worker.fetch(pedidoCasa(passe, { modelo: "", corpo: {} }), ENV_CASA)).json();
+ok(b.error === "modelo_nao_permitido", "sem modelo: recusa");
+
+passe = assinarPasse({ usuarioId: "u1", provedor: "gemini", pago: false });
+b = await (await worker.fetch(pedidoCasa(passe, { modelo: "gemini-3-pro", corpo: {} }), ENV_CASA)).json();
+ok(b.error === "modelo_nao_permitido", "gemini: modelo fora da familia flash e recusado");
+
+// --- sem chave configurada: diz isso, em vez de dar erro feio --------------
+passe = assinarPasse({ usuarioId: "u1", provedor: "mistral", pago: false });
+b = await (await worker.fetch(pedidoCasa(passe, { modelo: "codestral-latest", corpo: {} }), ENV_CASA)).json();
+ok(b.error === "casa_sem_chave" && b.provedor === "mistral", "provedor sem chave na casa: avisa qual");
+
+// --- varias chaves: estourou o limite de uma, tenta a seguinte -------------
+let chamadas = [];
+globalThis.fetch = async (url, init = {}) => {
+  chamadas.push(new Headers(init.headers || {}).get("authorization"));
+  return chamadas.length === 1
+    ? new Response("rate limit", { status: 429 })
+    : new Response(JSON.stringify({ choices: [] }), { status: 200, headers: { "content-type": "application/json" } });
+};
+passe = assinarPasse({ usuarioId: "u1", provedor: "openrouter", pago: false });
+r = await worker.fetch(pedidoCasa(passe, { modelo: "cohere/north-mini-code:free", corpo: {} }), ENV_CASA);
+ok(r.status === 200, "openrouter: 429 na 1a chave, a 2a assume");
+ok(chamadas.length === 2 && chamadas[0] === "Bearer chave_or_1" && chamadas[1] === "Bearer chave_or_2",
+  "as chaves sao tentadas em ordem", JSON.stringify(chamadas));
+
+// --- /status conta as chaves da casa sem mostrar nenhuma -------------------
+b = await (await worker.fetch(req(BASE + "/status"), { ...ENV, ...ENV_CASA })).json();
+ok(b.segredos.passe_ia === true, "/status diz que o passe esta configurado");
+ok(b.segredos.ia_da_casa.openrouter === 2 && b.segredos.ia_da_casa.mistral === 0,
+  "/status conta quantas chaves de cada servico", JSON.stringify(b.segredos.ia_da_casa));
+ok(!JSON.stringify(b).includes("chave_or_1") && !JSON.stringify(b).includes("segredo-de-teste"),
+  "/status NAO vaza chave nem segredo do passe");
+
 globalThis.fetch = realFetch;
 console.log(falhas ? `\n${falhas} FALHA(S)` : "\ntodos os casos passaram");
 process.exit(falhas ? 1 : 0);

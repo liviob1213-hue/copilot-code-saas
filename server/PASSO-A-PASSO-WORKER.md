@@ -124,6 +124,7 @@ integração for instalada num time, toda chamada à API precisa levá-lo junto.
 | Rota | Pra quê |
 | --- | --- |
 | `GET /status` | diz quais segredos ele achou (só `true`/`false`) — **novo** |
+| `POST /casa` | empresta a **sua** chave de IA gratuita pra quem está no plano grátis, depois de conferir o bilhete assinado pela Vercel. Ver [`PASSO-A-PASSO-SLOTS.md`](../PASSO-A-PASSO-SLOTS.md) |
 | `ANY /proxy?url=…` | refaz a chamada do lado do servidor e devolve com CORS, porque o navegador bloqueia `api.vercel.com`, `api.supabase.com` e várias IAs |
 | `POST /` | troca o `code` por token. O serviço vem do corpo: sem `provider` = GitHub, `provider:"supabase"`, `provider:"vercel"` (**novo**) |
 

@@ -113,6 +113,21 @@ Próximos passos (não incluídos ainda):
 
 ---
 
+## Contas, planos e slots
+
+Já funcionando, cada um com o seu passo a passo:
+
+| Assunto | Onde |
+| --- | --- |
+| Login (Supabase das contas) | [`PASSO-A-PASSO-LOGIN.md`](PASSO-A-PASSO-LOGIN.md) |
+| Planos pagos (Kiwify) | [`PASSO-A-PASSO-PLANOS.md`](PASSO-A-PASSO-PLANOS.md) |
+| **Plano grátis por slots** (1 site/dia com a chave da casa + 2 por convite) | [`PASSO-A-PASSO-SLOTS.md`](PASSO-A-PASSO-SLOTS.md) |
+
+As regras do plano grátis moram em **`supabase/slots.sql`** (função
+`limites_dos_slots`) — mudar um número ali vale pro app e pro servidor de uma vez.
+
+---
+
 ## Rumo ao monorepo (quando quiser)
 
 O `sync-core.mjs` é a ponte enquanto isso. O passo definitivo do ecossistema é

@@ -9,12 +9,14 @@
 //   3. Terminado o login, o app chama ESTA funcao com o codigo e o token.
 //   4. Aqui a gente acha o dono do codigo e anota, no perfil de quem entrou,
 //      que foi ele quem indicou (coluna convidado_por).
-//   5. Presente de boas-vindas: quem entrou ganha um site a mais na hora.
+//   5. Presente de boas-vindas: quem entrou ganha um site a mais na hora, pra
+//      criar com a chave propria (alem do site do dia, que todo mundo tem).
 //
-// O PREMIO DO DONO DO CONVITE NAO SAI AQUI, DE PROPOSITO: ele e pago quando a
-// pessoa convidada cria o primeiro site de verdade. Pagar no cadastro viraria
-// fazenda de conta fantasma — e o banco ja esta preparado para isso, na coluna
-// perfis.convite_creditado (ver supabase/contas.sql).
+// O PREMIO DO DONO DO CONVITE NAO SAI AQUI, DE PROPOSITO: ele e pago (+2 slots)
+// quando a pessoa convidada cria o primeiro projeto de verdade, em
+// /api/projeto-criado. Pagar no cadastro viraria fazenda de conta fantasma — e
+// o banco ja esta preparado para isso, na coluna perfis.convite_creditado
+// (ver supabase/contas.sql e supabase/slots.sql).
 //
 // POR QUE ISSO PRECISA DE SERVIDOR: o app roda inteiro no navegador, e o
 // navegador nao guarda segredo. Se o proprio app pudesse escrever na tabela de
@@ -120,6 +122,8 @@ export default async function handler(req, res) {
   if (e4) return json(res, 500, { erro: e4.message });
 
   // ---- o presente de boas-vindas: um site a mais ---------------------------
+  // Vai pro MESMO lugar que os slots de convite (cotas.slots_ganhos): os dois
+  // sao "sites pra criar com a chave da pessoa", entao dividem o mesmo saldo.
   // Se isso falhar, o convite JA ESTA gravado e nao se perde: o dono recebe o
   // premio dele do mesmo jeito quando esta pessoa criar o primeiro site. Por
   // isso aqui a gente nao devolve erro, so avisa que o bonus nao entrou.

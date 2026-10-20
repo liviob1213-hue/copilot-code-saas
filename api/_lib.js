@@ -93,6 +93,64 @@ export function json(res, status, corpo) {
   res.end(JSON.stringify(corpo));
 }
 
+// ============================================================================
+//  O PASSE DA CHAVE DA CASA
+// ----------------------------------------------------------------------------
+//  As chaves de IA gratuitas da casa vivem no Cloudflare Worker, nao aqui.
+//  POR QUE EM DOIS LUGARES, e nao tudo na Vercel:
+//
+//    - Quem decide SE a pessoa pode usar a chave da casa e aqui, porque e aqui
+//      que mora a chave service_role do Supabase (a que le o plano e gasta o
+//      slot). Essa decisao e rapida: uma consulta e pronto.
+//    - Quem ESPERA a IA escrever o projeto e o Worker, porque escrever um site
+//      leva minutos e funcao de servidor tem prazo curto pra responder. O
+//      Worker aguenta a espera e vai repassando a resposta em tempo real.
+//
+//  O passe e o bilhete que liga os dois: este servidor assina "o usuario X
+//  pode usar a chave da casa do provedor Y ate tal hora", e o Worker confere a
+//  assinatura antes de emprestar a chave. Os dois lados usam o MESMO segredo
+//  (variavel PASSE_IA_SEGREDO) — ele nunca sai de nenhum dos dois.
+//
+//  Validade curta de proposito (2 minutos): o passe vale UMA chamada de IA, e
+//  cada chamada passa por aqui antes, gastando a cota. Uma janela curta mantem
+//  o gasto honesto sem precisar de banco no Worker.
+// ============================================================================
+
+/** Os quatro servicos gratuitos que a casa empresta. */
+export const PROVEDORES_DA_CASA = ["gemini", "openrouter", "groq", "mistral"];
+
+export const PASSE_VALIDADE_MS = 2 * 60 * 1000;
+
+function base64url(buf) {
+  return Buffer.from(buf).toString("base64")
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * Monta o passe assinado. Formato: <dados em base64>.<assinatura em base64>.
+ * Devolve "" quando o segredo nao esta configurado — quem chama trata isso
+ * como "chave da casa desligada" e manda a pessoa usar a chave dela.
+ */
+export function assinarPasse({ usuarioId, provedor, pago }) {
+  const segredo = process.env.PASSE_IA_SEGREDO || "";
+  if (!segredo) return "";
+  const dados = {
+    u: String(usuarioId),
+    p: String(provedor),
+    pg: Boolean(pago),
+    exp: Date.now() + PASSE_VALIDADE_MS
+  };
+  const corpo = base64url(JSON.stringify(dados));
+  const assinatura = base64url(
+    crypto.createHmac("sha256", segredo).update(corpo).digest()
+  );
+  return `${corpo}.${assinatura}`;
+}
+
+export function casaConfigurada() {
+  return Boolean(process.env.PASSE_IA_SEGREDO);
+}
+
 /**
  * Grava o plano de alguem pelo e-mail. Usado tanto pelo webhook da Kiwify
  * quanto pela liberacao manual.

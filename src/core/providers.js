@@ -15,6 +15,92 @@ import { fetchComCorpo } from "./net.js";
  *   { role: "tool",      toolCallId, name, result }
  */
 
+// ============================================================================
+//  AS REGRAS DO PLANO (opcional)
+// ----------------------------------------------------------------------------
+//  Este arquivo e o "cerebro" compartilhado: ele nao conhece contas, planos nem
+//  servidor. Quem tem plano (o SaaS web) registra as regras de fora, no boot —
+//  ver src/core/casa.js. Sem registro, tudo aqui funciona como sempre funcionou:
+//  a pessoa usa a chave dela e nao existe limite nenhum.
+//
+//  O que a ponte responde:
+//    usaChaveDaCasa()  -> esta pessoa pode usar as nossas chaves gratuitas?
+//    provedoresDaCasa()-> quais servicos a casa empresta
+//    permitePagas()    -> o plano dela deixa usar API paga?
+//    prepararCasa(req, { provedorId, modelo }) -> redireciona a chamada pro
+//                         servidor que guarda a chave (ou null se nao der)
+// ============================================================================
+let regrasDoPlano = null;
+
+export function registrarRegrasDoPlano(ponte) {
+  regrasDoPlano = ponte || null;
+}
+
+function casaLigada() {
+  try { return Boolean(regrasDoPlano?.usaChaveDaCasa?.()); } catch { return false; }
+}
+
+function pagasLiberadas() {
+  try {
+    if (!regrasDoPlano?.permitePagas) return true;
+    return regrasDoPlano.permitePagas() !== false;
+  } catch { return true; }
+}
+
+/**
+ * A fila de provedores JA considerando o plano:
+ *
+ *   - tira as APIs PAGAS de quem nao tem direito a elas (plano gratis). A chave
+ *     e da pessoa, mas quem nao paga nao escolhe modelo pago — e o que separa
+ *     os planos;
+ *   - marca com viaCasa os servicos gratuitos que a casa empresta. Eles contam
+ *     como "tem chave", porque vai ter: a nossa, emprestada no servidor.
+ *
+ * QUEM TEM CHAVE PROPRIA ENTRA DUAS VEZES, e isso e de proposito: primeiro a
+ * entrada da casa, depois a dela. Assim o site do dia (que renova sozinho) e
+ * gasto antes dos slots de convite, que sao os escassos — e se a casa recusar
+ * no meio do caminho, o revezamento simplesmente cai na chave dela e o pedido
+ * termina, em vez de morrer com "acabou sua cota".
+ */
+async function filaDoPlano() {
+  const fila = await resolveQueue();
+  const semPagas = pagasLiberadas() ? fila : fila.filter(q => q.provider.tier !== "paid");
+  if (!casaLigada()) return semPagas;
+
+  let daCasa = [];
+  try { daCasa = regrasDoPlano.provedoresDaCasa?.() || []; } catch { daCasa = []; }
+  if (!daCasa.length) return semPagas;
+
+  const resultado = [];
+  for (const q of semPagas) {
+    if (!daCasa.includes(q.provider.id)) { resultado.push(q); continue; }
+    const pelaCasa = { ...q, hasKey: true, viaCasa: true };
+    if (!q.hasKey) { resultado.push(pelaCasa); continue; }
+    resultado.push(pelaCasa, q);
+  }
+  return resultado;
+}
+
+/**
+ * Se esta chamada vai pela casa, troca o endereco e a chave pelo caminho do
+ * servidor. Devolve o pedido original quando nao vai (ou quando a casa recusou
+ * na hora — nesse caso a chamada seguiria sem chave e tomaria 401, entao
+ * avisamos quem chama com null).
+ */
+async function pedidoDoPlano(req, entry, modelo) {
+  if (!entry?.viaCasa) return req;
+  if (!regrasDoPlano?.prepararCasa) return null;
+  try {
+    return await regrasDoPlano.prepararCasa(req, { provedorId: entry.provider.id, modelo });
+  } catch {
+    return null;
+  }
+}
+
+function recadoDoPlano() {
+  try { return regrasDoPlano?.recado?.() || ""; } catch { return ""; }
+}
+
 // --- normalizacao do historico -----------------------------------------------
 
 /**
@@ -664,7 +750,10 @@ export async function complete({ system, messages, tools, preferredProviderId = 
   // sempre tem chamadas e respostas de ferramenta casadas. Evita os 400 de
   // "tool sem tool_calls" e "tool_result sem tool_use".
   messages = normalizeConversation(messages);
-  const queue = await resolveQueue();   // ja ordenado por prioridade (gratis < pagas)
+  // Ja ordenado por prioridade (gratis < pagas) e ja com o plano aplicado: sem
+  // API paga pra quem nao tem direito, e com as gratuitas da casa emprestadas
+  // pra quem ainda nao colou chave nenhuma.
+  const queue = await filaDoPlano();
 
   // MANUAL (a pessoa escolheu um provedor no seletor) = so aquele, SEM rodizio.
   // AUTOMATICO = todas as ativas, as GRATIS antes das PAGAS. Regra critica: nunca
@@ -767,7 +856,7 @@ export async function complete({ system, messages, tools, preferredProviderId = 
       continue;
     }
 
-    onEvent({ type: "provider_try", provider: provider.label, model });
+    onEvent({ type: "provider_try", provider: provider.label, model, viaCasa: Boolean(entry.viaCasa) });
 
     // Modelos de raciocinio da OpenAI (gpt-5, o-series) "pensam" bastante e
     // geram devagar; damos ate 6 min. Os demais provedores, 90s.
@@ -789,10 +878,24 @@ export async function complete({ system, messages, tools, preferredProviderId = 
     let res, bodyText;
     try {
       const req = buildRequest(provider, cfg, apiKey, { system: systemUsado, messages: msgs, tools, model });
-      ({ res, text: bodyText } = await fetchComCorpo(req.url, {
+      // Vai pela chave da casa? Entao o endereco e a chave sao outros — ver
+      // src/core/casa.js. null = a casa recusou agora (cota do dia esgotada):
+      // seguir sem chave tomaria 401, entao pulamos pro proximo da fila.
+      const alvo = await pedidoDoPlano(req, entry, model);
+      if (!alvo) {
+        const motivo = recadoDoPlano() || "a IA da casa não está disponível agora";
+        // Nada foi enviado, entao este provedor NAO conta como tentativa: senao
+        // o proximo da fila receberia a nota "continue de onde o outro parou"
+        // sem ninguem ter comecado nada.
+        jaTentou--;
+        errors.push(`${provider.label}: ${motivo}`);
+        onEvent({ type: "provider_skip", provider: provider.label, reason: motivo });
+        continue;
+      }
+      ({ res, text: bodyText } = await fetchComCorpo(alvo.url, {
         method: "POST",
-        headers: req.headers,
-        body: JSON.stringify(req.body)
+        headers: alvo.headers,
+        body: JSON.stringify(alvo.body)
       }, timeoutMs));
     } catch (networkError) {
       houveTransitorio = true;
@@ -831,10 +934,17 @@ export async function complete({ system, messages, tools, preferredProviderId = 
         model = provider.defaultModel;
         try {
           const retryReq = buildRequest(provider, cfg, apiKey, { system: systemUsado, messages: msgs, tools, model });
-          const { res: retryRes, text: retryBody } = await fetchComCorpo(retryReq.url, {
+          const retryAlvo = await pedidoDoPlano(retryReq, entry, model);
+          if (!retryAlvo) {
+            const motivo = recadoDoPlano() || "a IA da casa não está disponível agora";
+            errors.push(`${provider.label}: ${motivo}`);
+            onEvent({ type: "provider_skip", provider: provider.label, reason: motivo });
+            continue;
+          }
+          const { res: retryRes, text: retryBody } = await fetchComCorpo(retryAlvo.url, {
             method: "POST",
-            headers: retryReq.headers,
-            body: JSON.stringify(retryReq.body)
+            headers: retryAlvo.headers,
+            body: JSON.stringify(retryAlvo.body)
           }, 90_000);
           if (retryRes.ok) {
             const retryJson = JSON.parse(retryBody);
@@ -967,7 +1077,7 @@ export async function completeComEspera(args, onEvent = () => {}) {
  */
 export async function streamComplete({ system, messages, tools = [], preferredProviderId = "" }, onEvent = () => {}, onDelta = () => {}) {
   messages = normalizeConversation(messages);
-  const queue = await resolveQueue();
+  const queue = await filaDoPlano();
   let usable;
   if (preferredProviderId) {
     usable = queue.filter(q => q.provider.id === preferredProviderId && q.cfg.enabled && q.hasKey);
@@ -995,7 +1105,14 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
   const req = buildRequest(provider, cfg, apiKey, { system, messages: msgs, tools, model });
   req.body.stream = true;
 
-  onEvent({ type: "provider_try", provider: provider.label, model });
+  // A troca pela chave da casa acontece DEPOIS do stream = true: o corpo tem
+  // que ir pro Worker ja pedindo transmissao (o Worker repassa o fluxo como
+  // vem). Se a casa recusar agora, lancamos — quem chama cai no complete(),
+  // que tenta a fila inteira e explica o motivo.
+  const alvo = await pedidoDoPlano(req, entry, model);
+  if (!alvo) throw new Error(recadoDoPlano() || "a IA da casa nao esta disponivel agora; usar complete()");
+
+  onEvent({ type: "provider_try", provider: provider.label, model, viaCasa: Boolean(entry.viaCasa) });
   const controller = new AbortController();
   // Mesmo teto do complete(): escrever um projeto inteiro leva minutos. No
   // stream cada pedaco que chega ja e sinal de vida, entao o prazo so pega
@@ -1003,7 +1120,7 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
   const timeout = setTimeout(() => controller.abort(), 300_000);
   let res;
   try {
-    res = await fetch(req.url, { method: "POST", headers: req.headers, body: JSON.stringify(req.body), signal: controller.signal });
+    res = await fetch(alvo.url, { method: "POST", headers: alvo.headers, body: JSON.stringify(alvo.body), signal: controller.signal });
   } catch (e) {
     clearTimeout(timeout);
     throw new Error("stream: rede/timeout");

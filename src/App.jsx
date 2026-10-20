@@ -7,7 +7,8 @@ import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, publicarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
-import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink } from "./core/plano.js";
+import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
+import { marcarProjetoNovo, consumirUsouCasa } from "./core/casa.js";
 import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, startVercelLoginWeb, githubConfigurado, supabaseConfigurado, vercelConfigurado } from "./core/oauth-web.js";
@@ -69,15 +70,26 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     registrarConviteDoLink(sessao)
       .catch(() => null)
       .then(() => carregarPlano(sessao))
-      .then(p => { if (vivo) setAcesso(p); });
+      .then(p => {
+        if (!vivo) return;
+        acessoRef.current = p;
+        setAcesso(p);
+        // Com o site do dia na mão, a IA já está pronta mesmo sem chave colada.
+        setConn(c => ({ ...c, ia: Boolean(c.iaPropria) || p.casaDisponivel === true }));
+      });
     return () => { vivo = false; };
   }, [sessao]);
   const [view, setView] = useState("home");
   // O que esta pessoa pode fazer (plano, slots, se cria app). Começa liberado:
   // se a consulta demorar ou falhar, é melhor deixar passar do que travar quem
   // tem direito. A trava que realmente segura dinheiro é a da chave da casa,
-  // e essa vive no servidor.
-  const [acesso, setAcesso] = useState({ carregado: false, semLogin: true, pago: true, podeApps: true, slotsRestantes: Infinity, codigoConvite: "" });
+  // e essa vive no servidor (ver src/core/plano.js).
+  const [acesso, setAcesso] = useState({
+    carregado: false, semLogin: true, pago: true, podeApps: true, podeApisPagas: true,
+    casaDisponivel: false, casaNovoProjeto: false, casaRestantesHoje: 0, casaTotalDia: 0,
+    propriosRestantes: Infinity, propriosTotal: Infinity, propriosUsados: 0,
+    convitesPagos: 0, podeCriarSite: true, codigoConvite: ""
+  });
   const [modo, setModo] = useState("");   // "" | "site" | "app" — escolhido nos blocos da home (força o tipo)        // home | workspace
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -156,6 +168,21 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   const inputRef = useRef(null);
   const homeFileRef = useRef(null);
   const flowRef = useRef("ia");   // "ia" = geração/edição por IA · "sistema" = deploy/reconexão sem IA
+  // O saldo de slots fora do React, pra funções soltas (refreshConn, run)
+  // poderem ler o valor ATUAL sem virar dependência de efeito.
+  const acessoRef = useRef(acesso);
+
+  /** Relê o saldo de slots (depois de criar um projeto, por exemplo). */
+  async function recarregarAcesso() {
+    try {
+      const p = await carregarPlano(sessao);
+      acessoRef.current = p;
+      setAcesso(p);
+      // "IA pronta" também muda com o saldo: quem gastou o site do dia e não
+      // tem chave própria volta a precisar de uma.
+      setConn(c => ({ ...c, ia: Boolean(c.iaPropria) || p.casaDisponivel === true }));
+    } catch { /* saldo desatualizado não quebra nada */ }
+  }
   async function loadModelsCache() { setModelsCache((await store.get("modelsCache")) || {}); setModelHealth((await store.get("modelHealth")) || {}); }
 
   function showToast(text, err = false) { setToast({ text, err }); setTimeout(() => setToast(null), 4200); }
@@ -165,7 +192,11 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     const provs = (await store.get("providers")) || [], segredos = (await store.get("secrets")) || {};
     const comChave = p => Boolean((segredos[PROVIDER_CATALOG.find(c => c.id === p.id)?.secretKey] || "").trim());
     const temChave = p => p.enabled !== false && comChave(p);
-    const ia = provs.some(temChave);
+    const iaPropria = provs.some(temChave);
+    // ...OU o site de hoje com a NOSSA IA. Quem entrou agora não tem chave
+    // nenhuma e mesmo assim consegue criar: sem isto, o app pediria uma chave
+    // que ela não precisa ter (ver src/core/casa.js).
+    const ia = iaPropria || acessoRef.current.casaDisponivel === true;
     // Quais provedores dá pra escolher de verdade. Sem isto, o seletor listava
     // o catálogo inteiro: escolher a Claude sem ter chave dela deixava o app
     // falhando em toda mensagem com "o provedor escolhido não está ativo ou
@@ -177,7 +208,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     setEstadoProvs(Object.fromEntries(provs.map(p =>
       [p.id, !comChave(p) ? "sem-chave" : (p.enabled === false ? "desligado" : "ok")]
     )));
-    setConn({ github: gh.login || (gh.token ? "conectado" : null), avatar: gh.avatar || "", supabase: Boolean(sb.oauth || sb.token), vercel: Boolean(vc), ia });
+    setConn({ github: gh.login || (gh.token ? "conectado" : null), avatar: gh.avatar || "", supabase: Boolean(sb.oauth || sb.token), vercel: Boolean(vc), ia, iaPropria });
     if (vc) loadVercelProjects();
   }
   async function refreshHistory() { setSessions(await history.listSessions()); }
@@ -379,7 +410,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     // deixar terminar.
     if (!repo && !acesso.semLogin && !acesso.pago) {
       const tipoPedido = modo || detectarTipo(userText);
-      const bloqueio = motivoDoBloqueio(acesso, tipoPedido === "app" ? "app" : "site");
+      const bloqueio = motivoDoBloqueio(acesso, tipoPedido === "app" ? "app" : "site", conn.iaPropria === true);
       if (bloqueio) {
         pushMsg("user", userText, images.length ? images : undefined);
         pushMsg("assistant", bloqueio);
@@ -387,6 +418,11 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
         return;
       }
     }
+
+    // PROJETO NOVO: avisa a chave da casa que a PRÓXIMA chamada de IA começa um
+    // projeto — nela o servidor confere se ainda há site do dia. Ver
+    // src/core/casa.js.
+    if (!repo) marcarProjetoNovo();
 
     setView("workspace");
     flowRef.current = "ia";
@@ -406,6 +442,21 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
         setRascunho({ files: r.files, nome: r.nome, brief: r.brief, kind: r.kind });
         setRotaPrevia("/");
         aplicarRotas(r.files?.["src/App.jsx"] || "");
+        // SAIU UM PROJETO: anota no servidor. É isto que gasta o slot próprio e
+        // que paga o convite de quem indicou esta pessoa. Não esperamos a
+        // resposta nem mostramos erro: o projeto já está na tela, e perder a
+        // contagem é menos grave do que estragar um momento que deu certo.
+        if (!acesso.semLogin) {
+          const usouCasa = consumirUsouCasa();
+          avisarProjetoCriado(sessao, { nome: r.nome, tipo: r.kind, chaveDaCasa: usouCasa })
+            .then(resp => {
+              if (resp?.premiouConvite) {
+                showToast(t("Quem te convidou ganhou {n} sites. Obrigado por criar!", { n: resp.premio }));
+              }
+              recarregarAcesso();
+            })
+            .catch(() => recarregarAcesso());
+        }
       } else {
         setRepo(r.repo);
         if (r.url) setPreviewUrl(r.url);
@@ -583,7 +634,8 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       inputRef={inputRef}
       kind={kind} setKind={setKind} onSend={handleSend} onBlindar={handleBlindar}
       providerId={providerId} activeModel={activeModel} onPickModel={pickModel} modelsCache={modelsCache} modelHealth={modelHealth}
-      estadoProvs={estadoProvs}
+      estadoProvs={estadoProvs} podeApisPagas={acesso.podeApisPagas !== false}
+      onPlanoPago={() => showToast(t("As IAs pagas (Claude, DeepSeek, xAI) fazem parte do plano Pro. No grátis dá para usar as quatro gratuitas."))}
       attached={attached} onAddFiles={addFiles} onRemoveAttach={(i) => setAttached(a => a.filter((_, x) => x !== i))}
       projects={vercelProjects} onLoadProjects={loadVercelProjects} onOpenProject={openProject} onNew={novoProjeto}
       onPlusConexoes={() => { setKeysOpen(false); setConnOpen(true); }} onPlusChaves={() => { setKeysOpen(true); setConnOpen(true); }}
@@ -1080,7 +1132,7 @@ function TplIcon({ ic }) {
 }
 
 /* ---------------- Composer (v0-style) ---------------- */
-function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, estadoProvs, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
+function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, estadoProvs, podeApisPagas = true, onPlanoPago = () => {}, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
   const [plus, setPlus] = useState(false);
   const fileRef = useRef(null);
   return (
@@ -1114,7 +1166,7 @@ function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, o
             </div>
           </>)}
         </div>
-        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} estadoProvs={estadoProvs} onPlusChaves={onPlusChaves} />
+        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} estadoProvs={estadoProvs} onPlusChaves={onPlusChaves} podeApisPagas={podeApisPagas} onPlanoPago={onPlanoPago} />
         <button className="chip" onClick={onBlindar} disabled={busy || !repo} title={t("Blindar contra vazamento de dados")}><IconShield /></button>
         <div className="spacer" />
         <ProjectPicker projects={projects} onLoad={onLoadProjects} onOpen={onOpenProject} onNew={onNew} />
@@ -1207,7 +1259,7 @@ function detectarSegredo(texto) {
   return null;
 }
 
-function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {}, estadoProvs = null, onPlusChaves = () => {} }) {
+function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {}, estadoProvs = null, onPlusChaves = () => {}, podeApisPagas = true, onPlanoPago = () => {} }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const label = providerId ? (activeModel || t("modelo")) : t("Automático");
@@ -1240,13 +1292,19 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelH
               // o clique leva direto pra tela de chaves. (estadoProvs null =
               // ainda carregando: não marca nada pra não piscar "sem chave".)
               const estado = estadoProvs ? (estadoProvs[pc.id] || "sem-chave") : "ok";
+              // IA paga no plano grátis: aparece, mas com etiqueta "Pro". Mesma
+              // razão de sempre — esconder não converte, mostrar bloqueado sim.
+              const soNoPago = pc.tier === "paid" && !podeApisPagas;
               // Marcado = escolher aqui só daria erro. O clique leva à tela de
               // chaves, onde dá pra colar a chave, ligar o serviço ou testar.
-              const marcado = estado !== "ok" || todosFalharam;
-              const etiqueta = estado === "sem-chave" ? t("sem chave")
+              const marcado = soNoPago || estado !== "ok" || todosFalharam;
+              const etiqueta = soNoPago ? t("Pro")
+                : estado === "sem-chave" ? t("sem chave")
                 : estado === "desligado" ? t("desligado")
                 : t("chave recusada");
-              const dicaItem = estado === "sem-chave"
+              const dicaItem = soNoPago
+                ? t("As IAs pagas fazem parte do plano Pro.")
+                : estado === "sem-chave"
                 ? t("Adicione a chave deste serviço para poder usá-lo")
                 : estado === "desligado"
                 ? t("Este serviço está desligado. Clique para ligá-lo em Chaves de IA.")
@@ -1260,7 +1318,9 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelH
                       title={marcado ? dicaItem : ""}
                       onClick={() => {
                         setOpen(false);
-                        if (marcado) onPlusChaves(); else onPick(pc.id, m);
+                        if (soNoPago) onPlanoPago();
+                        else if (marcado) onPlusChaves();
+                        else onPick(pc.id, m);
                       }}>
                       <span>{m}</span>{sel && <IconCheck />}
                     </button>;
@@ -1703,15 +1763,23 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, ses
 }
 
 /**
- * "Convide e ganhe sites" — dentro do painel de Conexões, embaixo da conta.
+ * "Seus sites" + "Convide e ganhe sites" — no painel de Conexões, embaixo da
+ * conta.
  *
- * O PRÊMIO É DOS DOIS LADOS, e isso é de propósito: quem compartilha o link
- * não está pedindo favor, está dando um presente (a pessoa convidada já entra
- * com um site a mais). Convite que só premia quem indica soa a corrente, e
- * quase ninguém manda.
+ * MOSTRA OS DOIS SALDOS SEPARADOS, e isso é de propósito: eles são de tipos
+ * diferentes e a pessoa precisa entender a diferença pra não achar que o app
+ * travou sem motivo.
  *
- * Fica invisível sem login configurado e sem código de convite — e o saldo de
- * sites não aparece para quem é do plano pago, porque pago não tem limite.
+ *   "Hoje, com a nossa IA"  -> 1 por dia, renova sozinho, não precisa de chave.
+ *   "Com a sua chave"       -> vem de convite, e só funciona com uma chave
+ *                              grátis colada em Conexões.
+ *
+ * O PRÊMIO É DOS DOIS LADOS: quem compartilha o link não está pedindo favor,
+ * está dando um presente (a pessoa convidada já entra com um site a mais).
+ * Convite que só premia quem indica soa a corrente, e quase ninguém manda.
+ *
+ * Fica invisível sem login configurado e sem código de convite — e o saldo não
+ * aparece pra quem é do plano pago, porque pago não tem limite.
  */
 function ConviteBloco({ acesso = {}, showToast }) {
   const [copiado, setCopiado] = useState(false);
@@ -1719,8 +1787,8 @@ function ConviteBloco({ acesso = {}, showToast }) {
   if (!codigo) return null;
 
   const link = linkDeConvite(codigo);
-  // Infinity = plano pago (sem limite); aí não há saldo nenhum pra mostrar.
-  const mostraSaldo = !acesso.pago && Number.isFinite(acesso.slotsRestantes);
+  const mostraSaldo = !acesso.pago && acesso.carregado;
+  const porConvite = acesso.slotsPorConvite || 2;
 
   async function copiar() {
     try {
@@ -1734,22 +1802,35 @@ function ConviteBloco({ acesso = {}, showToast }) {
 
   return (
     <>
+      {mostraSaldo && (
+        <>
+          <div className="drawer-section">{t("Seus sites")}</div>
+          <div className="conn-card conv-card">
+            <div className="conv-saldo">
+              <b>{t("Hoje, com a nossa IA: {n} de {total}", {
+                n: acesso.casaRestantesHoje, total: acesso.casaTotalDia
+              })}</b>
+              <span>{t("renova todo dia, sem precisar de chave")}</span>
+            </div>
+            <div className="conv-saldo">
+              <b>{t("Com a sua chave: {n} de {total}", {
+                n: acesso.propriosRestantes, total: acesso.propriosTotal
+              })}</b>
+              <span>{acesso.convitesPagos > 0
+                ? t("{q} convite(s) já premiado(s)", { q: acesso.convitesPagos })
+                : t("ganhe {n} por convite", { n: porConvite })}</span>
+            </div>
+          </div>
+        </>
+      )}
       <div className="drawer-section">{t("Convide e ganhe sites")}</div>
       <div className="conn-card conv-card">
-        {mostraSaldo && (
-          <div className="conv-saldo">
-            <b>{t("Você tem {restam} de {total} sites", { restam: acesso.slotsRestantes, total: acesso.slotsTotal })}</b>
-            {acesso.convitesCreditados > 0 && (
-              <span>{t("ganhou {ganhos} convidando", { ganhos: acesso.convitesCreditados })}</span>
-            )}
-          </div>
-        )}
         <div className="conv-link">
           <input className="text" readOnly value={link} onFocus={e => e.target.select()} aria-label={t("Seu link de convite")} />
           <button className="btn sm primary" onClick={copiar}>{copiado ? t("Copiado!") : t("Copiar")}</button>
         </div>
         <p className="conv-expl">
-          {t("Quem entra pelo seu link já começa com um site a mais — e você ganha mais um quando essa pessoa criar o primeiro site dela.")}
+          {t("Quem entra pelo seu link já começa com um site a mais. E quando essa pessoa criar o primeiro site dela, você ganha {n} sites para criar com a sua própria chave de IA.", { n: porConvite })}
         </p>
       </div>
     </>

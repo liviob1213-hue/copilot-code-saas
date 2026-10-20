@@ -5,6 +5,7 @@ import Login from "./Login.jsx";
 import Admin from "./Admin.jsx";
 import { authConfigurada, sessaoAtual, aoMudarSessao } from "./core/auth.js";
 import { guardarConviteDaUrl } from "./core/plano.js";
+import { ligarChaveDaCasa } from "./core/casa.js";
 import "./styles.css";
 
 import * as store from "./core/storage.js";
@@ -20,6 +21,12 @@ const MODELO_RUIM = m => /vision|experimental|preview|(^|[-_])exp([-_]|$)|-exp\b
 async function boot() {
   installProxy(GITHUB_OAUTH.workerUrl);
   await store.ensureDefaults();
+
+  // Liga a "chave da casa" no cerebro: quem nao tem chave de IA propria passa a
+  // poder gerar usando as nossas gratuitas, dentro do slot do dia. Enquanto o
+  // plano nao for lido (ou se nao houver login), ela fica desligada sozinha —
+  // ver src/core/casa.js.
+  ligarChaveDaCasa();
 
   // Chegou por link de convite? Guarda o codigo antes de qualquer coisa — o
   // cadastro acontece noutra tela e, pelo Google, ate noutro site.
