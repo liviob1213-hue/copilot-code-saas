@@ -7,7 +7,7 @@ import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, publicarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
-import { carregarPlano, motivoDoBloqueio, linkDeConvite } from "./core/plano.js";
+import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink } from "./core/plano.js";
 import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, startVercelLoginWeb, githubConfigurado, supabaseConfigurado, vercelConfigurado } from "./core/oauth-web.js";
@@ -62,9 +62,14 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   const lang = useIdioma();   // re-renderiza tudo ao trocar o idioma
   useEffect(() => { document.title = t("Copilot Code — crie sites, apps e SaaS com IA"); }, [lang]);
   // Lê o plano assim que a sessão existe (e de novo se a pessoa trocar de conta).
+  // Antes disso, registra o convite: quem chegou por um link de alguém ganha um
+  // site a mais, e a leitura do plano logo abaixo já mostra esse site a mais.
   useEffect(() => {
     let vivo = true;
-    carregarPlano(sessao).then(p => { if (vivo) setAcesso(p); });
+    registrarConviteDoLink(sessao)
+      .catch(() => null)
+      .then(() => carregarPlano(sessao))
+      .then(p => { if (vivo) setAcesso(p); });
     return () => { vivo = false; };
   }, [sessao]);
   const [view, setView] = useState("home");
@@ -95,6 +100,15 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   useEffect(() => {
     if (window.innerWidth > 820) { try { localStorage.setItem("copilot:sideOpen", sideOpen ? "1" : "0"); } catch { /* ok */ } }
   }, [sideOpen]);
+  // Escreveu a ideia na pagina de vendas? Ela chega aqui pelo navegador (chave
+  // "copilot:ideia") e vai direto pro campo, pra ninguem ver tela em branco
+  // depois de ja ter contado o que quer. Limpa na hora: e de uma vez so.
+  useEffect(() => {
+    try {
+      const ideia = localStorage.getItem("copilot:ideia");
+      if (ideia) { setInput(ideia); localStorage.removeItem("copilot:ideia"); }
+    } catch { /* navegador sem localStorage: comeca com o campo vazio */ }
+  }, []);
   const [mobileView, setMobileView] = useState("chat");   // mobile: "chat" | "preview"
   const [repo, setRepo] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -865,7 +879,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       {/* onMudou: a cada chave salva/ligada o seletor precisa saber NA HORA. Antes
           só o onClose atualizava, então salvar a chave e abrir o seletor sem
           fechar o painel mostrava "sem chave" num serviço que já tinha chave. */}
-      {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase} sessao={sessao}
+      {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase} sessao={sessao} acesso={acesso}
         onMudou={() => { refreshConn(); loadModelsCache(); }}
         onClose={() => { setConnOpen(false); refreshConn(); loadModelsCache(); }} showToast={showToast} />}
       {tutsOpen && <Tutoriais onClose={() => setTutsOpen(false)} />}
@@ -1558,7 +1572,7 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
 function ConnRow({ icon, name, sub, subOff, children }) {
   return (<div className="conn-row"><div className="conn-ic">{icon}</div><div className="conn-main"><div className="conn-name">{name}</div><div className={"conn-sub" + (subOff ? " off" : "")}>{sub}</div></div><div className="conn-act">{children}</div></div>);
 }
-function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, sessao = null, onMudou = () => {} }) {
+function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, sessao = null, acesso = {}, onMudou = () => {} }) {
   const [secrets, setSecrets] = useState(null);
   const [gh, setGh] = useState({});
   const [sb, setSb] = useState({});
@@ -1635,6 +1649,9 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, ses
               </>
             );
           })()}
+          {/* Convite logo depois da conta: e sobre a conta, e e aqui que a
+              pessoa olha quando quer saber quantos sites ainda tem. */}
+          {authConfigurada() && sessao && <ConviteBloco acesso={acesso} showToast={showToast} />}
           <div className="drawer-section">{t("Serviços")}</div>
           <div className="conn-card">
             <ConnRow icon={<Gh />} name="GitHub" sub={gh.login ? `@${gh.login}` : t("desconectado")} subOff={!gh.login}>
@@ -1680,6 +1697,60 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, ses
           <button className="btn wide" onClick={() => setShowKeys(v => !v)}>{showKeys ? t("Ocultar chaves de IA") : t("Configurar chaves de IA")}</button>
           {showKeys && <AiProviders showToast={showToast} onMudou={onMudou} />}
         </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * "Convide e ganhe sites" — dentro do painel de Conexões, embaixo da conta.
+ *
+ * O PRÊMIO É DOS DOIS LADOS, e isso é de propósito: quem compartilha o link
+ * não está pedindo favor, está dando um presente (a pessoa convidada já entra
+ * com um site a mais). Convite que só premia quem indica soa a corrente, e
+ * quase ninguém manda.
+ *
+ * Fica invisível sem login configurado e sem código de convite — e o saldo de
+ * sites não aparece para quem é do plano pago, porque pago não tem limite.
+ */
+function ConviteBloco({ acesso = {}, showToast }) {
+  const [copiado, setCopiado] = useState(false);
+  const codigo = acesso.codigoConvite || "";
+  if (!codigo) return null;
+
+  const link = linkDeConvite(codigo);
+  // Infinity = plano pago (sem limite); aí não há saldo nenhum pra mostrar.
+  const mostraSaldo = !acesso.pago && Number.isFinite(acesso.slotsRestantes);
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2200);
+    } catch {
+      showToast?.(t("Não consegui copiar sozinho. Toque no link, selecione tudo e copie."), true);
+    }
+  }
+
+  return (
+    <>
+      <div className="drawer-section">{t("Convide e ganhe sites")}</div>
+      <div className="conn-card conv-card">
+        {mostraSaldo && (
+          <div className="conv-saldo">
+            <b>{t("Você tem {restam} de {total} sites", { restam: acesso.slotsRestantes, total: acesso.slotsTotal })}</b>
+            {acesso.convitesCreditados > 0 && (
+              <span>{t("ganhou {ganhos} convidando", { ganhos: acesso.convitesCreditados })}</span>
+            )}
+          </div>
+        )}
+        <div className="conv-link">
+          <input className="text" readOnly value={link} onFocus={e => e.target.select()} aria-label={t("Seu link de convite")} />
+          <button className="btn sm primary" onClick={copiar}>{copiado ? t("Copiado!") : t("Copiar")}</button>
+        </div>
+        <p className="conv-expl">
+          {t("Quem entra pelo seu link já começa com um site a mais — e você ganha mais um quando essa pessoa criar o primeiro site dela.")}
+        </p>
       </div>
     </>
   );

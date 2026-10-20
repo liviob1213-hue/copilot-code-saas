@@ -145,6 +145,44 @@ export function limparConviteGuardado() {
   try { localStorage.removeItem("copilot:convite"); } catch { /* ignora */ }
 }
 
+/**
+ * Avisa o servidor que esta pessoa entrou por um link de convite.
+ *
+ * Roda depois do login, uma vez: o codigo ficou guardado no navegador desde a
+ * chegada pelo link. Quem decide se o convite vale e o servidor (/api/convite)
+ * — aqui a gente so entrega o codigo junto com o token que prova quem esta
+ * pedindo.
+ *
+ * NUNCA LANCA E NUNCA ATRAPALHA: se der qualquer problema, a pessoa entra
+ * normalmente, so sem o bonus do convite. E se o problema foi de rede ou de
+ * sessao, o codigo fica guardado e tentamos de novo na proxima abertura.
+ */
+export async function registrarConviteDoLink(sessao) {
+  const codigo = conviteGuardado();
+  if (!codigo || !authConfigurada()) return null;
+
+  const token = sessao?.access_token;
+  if (!token) return null;
+
+  try {
+    const r = await fetch("/api/convite", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ codigo })
+    });
+
+    // Servidor respondeu "aceitei" ou "recusei"? Assunto encerrado: tira o
+    // codigo do navegador para nao ficar tentando a cada abertura do app. Só
+    // 401 (sessao) e 5xx (deu errado agora) merecem outra tentativa depois.
+    if (r.status !== 401 && r.status < 500) limparConviteGuardado();
+
+    const dados = await r.json().catch(() => ({}));
+    return dados?.ok ? dados : null;
+  } catch {
+    return null;   // sem internet: o codigo continua guardado
+  }
+}
+
 /** Mensagem pronta para quando a pessoa esbarra num limite. */
 export function motivoDoBloqueio(p, tipo) {
   if (!p || p.semLogin || p.pago) return "";

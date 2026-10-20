@@ -120,6 +120,46 @@ h1{
 .trust span{display:inline-flex;align-items:center;gap:7px}
 .trust svg{flex:none;color:var(--ok)}
 
+/* ---------- campo de digitar a ideia (copia do campo do app) ----------
+   Quem ja chegou decidido nao devia ter que procurar um botao: escreve a ideia
+   aqui mesmo. O visual e o mesmo do app (.composer em src/styles.css) de
+   proposito — a pessoa reconhece o campo quando a ferramenta abre. */
+.ideia{max-width:720px;margin:0 auto 26px;text-align:left}
+.ideia-box{
+  position:relative;border:1px solid var(--edge);border-radius:var(--r-xl);
+  background:linear-gradient(180deg,rgba(22,22,32,.82),rgba(14,14,21,.86));
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  padding:16px 16px 12px;
+  box-shadow:0 44px 100px -42px rgba(0,0,0,.95),inset 0 1px 0 rgba(255,255,255,.045);
+  transition:border-color .25s var(--ease),box-shadow .3s var(--ease);
+}
+.ideia-box:focus-within{
+  border-color:rgba(251,113,133,.55);
+  box-shadow:0 26px 70px -28px rgba(239,68,68,.85),inset 0 1px 0 rgba(255,255,255,.06);
+}
+.ideia-box textarea{
+  width:100%;background:transparent;border:0;resize:none;outline:none;
+  color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.6;
+  padding:4px 4px 14px;
+}
+.ideia-box textarea::placeholder{color:var(--ink-faint)}
+.ideia-row{display:flex;align-items:center;gap:12px}
+.ideia-dica{flex:1;min-width:0;font-size:12.5px;color:var(--ink-faint);line-height:1.5}
+.ideia-enviar{
+  width:44px;height:44px;flex:none;border:0;border-radius:var(--r-sm);cursor:pointer;
+  background:var(--grad);color:#fff;display:grid;place-items:center;
+  box-shadow:0 10px 26px -12px rgba(239,68,68,1);
+  transition:transform .14s var(--ease),filter .2s;
+}
+.ideia-enviar:hover{transform:translateY(-1px) scale(1.04);filter:brightness(1.08)}
+.ideia-enviar:active{transform:scale(.95)}
+.ideia-sob{margin-top:13px;font-size:13.5px;color:var(--ink-faint);text-align:center}
+@media(max-width:520px){
+  .ideia-box{padding:14px 14px 11px;border-radius:var(--r-lg)}
+  .ideia-box textarea{font-size:15.5px}
+  .ideia-dica{font-size:12px}
+}
+
 /* ---------- moldura de navegador para os prints ---------- */
 .shot{
   border-radius:var(--r-lg);overflow:hidden;
@@ -376,7 +416,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
       <a href="#planos">Planos</a>
       <a href="#faq">Dúvidas</a>
     </div>
-    <!-- TROQUE AQUI: link para abrir o app -->
+    <!-- abre o app (mesma origem, raiz do site) -->
     <a href="/" class="btn btn-primary">Começar grátis</a>
   </div>
 </nav>
@@ -391,8 +431,28 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
       abre página por página pra testar, conserta o que quebrou — e só então te mostra.
       Gostou? Um clique e está no ar.
     </p>
+    <!-- O campo vem ANTES dos botoes: quem ja esta decidido escreve a ideia
+         aqui e nao precisa de mais nada. Sem JavaScript o formulario leva pro
+         app do mesmo jeito (so nao leva o texto), por isso action="/" de
+         verdade e o campo sem "name" — assim nada do que a pessoa escreveu vai
+         pro endereco do site. -->
+    <form class="ideia" id="form-ideia" action="/" method="get">
+      <div class="ideia-box">
+        <textarea id="campo-ideia" rows="2" autocomplete="off"
+          placeholder="Descreva sua ideia, vamos dar vida a ela…"></textarea>
+        <div class="ideia-row">
+          <span class="ideia-dica">
+            Em português, do seu jeito. Ex.: "site da minha pizzaria com cardápio e pedido no WhatsApp".
+          </span>
+          <button type="submit" class="ideia-enviar" aria-label="Criar com essa ideia">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="ideia-sob">Grátis, sem cartão. Você continua de onde parou lá dentro.</div>
+    </form>
+
     <div class="hero-ctas">
-      <!-- TROQUE AQUI: link para abrir o app -->
       <a href="/" class="btn btn-primary btn-lg">Criar meu primeiro site grátis</a>
       <a href="#dentro" class="btn btn-ghost btn-lg">Ver por dentro</a>
     </div>
@@ -728,7 +788,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
           <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Prévia antes de publicar</span></li>
           <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Publica no seu GitHub e na Vercel</span></li>
         </ul>
-        <!-- TROQUE AQUI: link para abrir o app -->
+        <!-- abre o app (mesma origem, raiz do site) -->
         <a href="/" class="btn btn-ghost btn-block">Começar grátis</a>
         <div class="nota-honesta">
           Sendo honesto: as IAs gratuitas dão conta de sites simples e funcionais, mas não entregam
@@ -750,8 +810,8 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
           <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Modo automático com revezamento entre IAs</span></li>
           <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Suporte por e-mail</span></li>
         </ul>
-        <!-- TROQUE AQUI: link do checkout do plano mensal -->
-        <a href="#" class="btn btn-ghost btn-block">Assinar o mensal</a>
+        <!-- checkout do plano mensal (Kiwify) -->
+        <a href="https://pay.kiwify.com.br/5ikalLs" class="btn btn-ghost btn-block">Assinar o mensal</a>
       </div>
 
       <!-- ANUAL -->
@@ -768,8 +828,8 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
           <li><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span>Prioridade no suporte</span></li>
           <li class="bonus-li"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg><span><b style="color:#fdba74">BÔNUS: Lovable Copilot vitalício</b> — a extensão que edita projetos do Lovable, front e back. Vendida a R$ 97. Aqui é sua, pra sempre.</span></li>
         </ul>
-        <!-- TROQUE AQUI: link do checkout do plano anual -->
-        <a href="#" class="btn btn-primary btn-block">Quero o plano anual</a>
+        <!-- checkout do plano anual (Kiwify) -->
+        <a href="https://pay.kiwify.com.br/oPNhBLB" class="btn btn-primary btn-block">Quero o plano anual</a>
       </div>
     </div>
 
@@ -861,7 +921,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
       bloco de notas há meses. Se gostar do que vir, aí você decide.
     </p>
     <div class="hero-ctas rv">
-      <!-- TROQUE AQUI: link para abrir o app -->
+      <!-- abre o app (mesma origem, raiz do site) -->
       <a href="/" class="btn btn-primary btn-lg">Criar meu primeiro site grátis</a>
       <a href="#planos" class="btn btn-ghost btn-lg">Ver os planos</a>
     </div>
@@ -882,6 +942,44 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
 </footer>
 
 <script>
+  // ---------------------------------------------------------------------------
+  // O campo de digitar a ideia.
+  //
+  // A ideia escrita aqui e guardada no proprio navegador (chave
+  // "copilot:ideia") e o app, ao abrir, coloca ela no campo do chat e apaga a
+  // chave. Nao vai pelo endereco do site de proposito: o que a pessoa escreve
+  // e dela, nao tem por que aparecer na barra de enderecos nem no historico.
+  //
+  // Se este bloco falhar, o formulario continua sendo um formulario: ele leva
+  // pro app do mesmo jeito, so sem o texto.
+  // ---------------------------------------------------------------------------
+  (function () {
+    try {
+      var form = document.getElementById("form-ideia");
+      var campo = document.getElementById("campo-ideia");
+      if (!form || !campo) return;
+
+      function irParaOApp() {
+        var texto = (campo.value || "").trim();
+        try {
+          if (texto) localStorage.setItem("copilot:ideia", texto);
+        } catch (e) { /* navegador sem localStorage: segue sem o texto */ }
+        window.location.href = "/";
+      }
+
+      form.addEventListener("submit", function (e) { e.preventDefault(); irParaOApp(); });
+
+      // Enter envia (Shift+Enter pula linha), e Ctrl/Cmd+Enter tambem envia —
+      // e o atalho do campo dentro do app.
+      campo.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter") return;
+        if (e.shiftKey && !(e.ctrlKey || e.metaKey)) return;
+        e.preventDefault();
+        irParaOApp();
+      });
+    } catch (e) { /* o formulario sozinho ja leva pro app */ }
+  })();
+
   // Numa pagina de vendas, conteudo invisivel e venda perdida. Entao a animacao
   // de entrada so pode existir se tudo tambem funcionar sem ela: qualquer falha
   // aqui revela a pagina inteira em vez de deixa-la em branco.
