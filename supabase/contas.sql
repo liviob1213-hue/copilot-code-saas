@@ -47,12 +47,17 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 2. Gerador de codigo de convite (8 caracteres, facil de ler e digitar)
 -- ---------------------------------------------------------------------------
+-- NAO troque md5/random por gen_random_bytes: aquela vem da extensao pgcrypto,
+-- que no Supabase mora no esquema "extensions". Dentro do gatilho de cadastro o
+-- caminho de busca e restrito, a funcao nao seria encontrada, e o erro desfaz a
+-- criacao do usuario inteiro — ja aconteceu, e derrubou todo cadastro novo.
+-- md5, random e clock_timestamp sao do proprio Postgres e existem sempre.
 create or replace function public.gerar_codigo_convite()
 returns text
 language sql
 volatile
 as $$
-  select upper(substr(encode(gen_random_bytes(8), 'hex'), 1, 8));
+  select upper(substr(md5(random()::text || clock_timestamp()::text), 1, 8));
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -141,37 +146,48 @@ create or replace function public.ao_criar_usuario()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions, pg_temp
 as $$
 declare
   norm      text;
   pendente  public.acessos_pendentes%rowtype;
 begin
-  norm := public.normalizar_email(new.email);
+  -- REDE DE SEGURANCA, E ELA E OBRIGATORIA: este gatilho roda dentro da mesma
+  -- transacao que cria o usuario. Se ele estourar, o Postgres desfaz o
+  -- cadastro inteiro e a pessoa recebe "Database error saving new user" — ou
+  -- seja, um defeito aqui vira parada total de cadastro no app.
+  -- Perfil incompleto a gente conserta depois; cliente que nao conseguiu
+  -- entrar, nao.
+  begin
+    norm := public.normalizar_email(new.email);
 
-  insert into public.cotas (email_normalizado)
-  values (norm)
-  on conflict (email_normalizado) do nothing;
+    insert into public.cotas (email_normalizado)
+    values (norm)
+    on conflict (email_normalizado) do nothing;
 
-  -- Pagou antes de criar a conta? Entao ja entra com o plano pago.
-  select * into pendente
-  from public.acessos_pendentes
-  where email_normalizado = norm;
+    -- Pagou antes de criar a conta? Entao ja entra com o plano pago.
+    select * into pendente
+    from public.acessos_pendentes
+    where email_normalizado = norm;
 
-  insert into public.perfis (id, email, email_normalizado, plano, plano_expira_em, plano_origem)
-  values (
-    new.id,
-    new.email,
-    norm,
-    coalesce(pendente.plano, 'free'),
-    pendente.plano_expira_em,
-    pendente.origem
-  )
-  on conflict (id) do nothing;
+    insert into public.perfis (id, email, email_normalizado, plano, plano_expira_em, plano_origem)
+    values (
+      new.id,
+      new.email,
+      norm,
+      coalesce(pendente.plano, 'free'),
+      pendente.plano_expira_em,
+      pendente.origem
+    )
+    on conflict (id) do nothing;
 
-  if pendente.email_normalizado is not null then
-    delete from public.acessos_pendentes where email_normalizado = norm;
-  end if;
+    if pendente.email_normalizado is not null then
+      delete from public.acessos_pendentes where email_normalizado = norm;
+    end if;
+
+  exception when others then
+    raise warning 'ao_criar_usuario falhou para % — %', new.email, sqlerrm;
+  end;
 
   return new;
 end;
