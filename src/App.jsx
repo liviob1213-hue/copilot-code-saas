@@ -354,7 +354,10 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       return;
     }
 
-    if (!conn.github) { showToast(t("Conecte o GitHub primeiro (Conexões)."), true); setConnOpen(true); return; }
+    // So EDITAR precisa de GitHub (o projeto ja vive num repositorio). Criar do
+    // zero nao: a geracao e a previa acontecem inteiras aqui no navegador, e o
+    // GitHub so entra quando a pessoa aperta Publicar.
+    if (repo && !conn.github) { showToast(t("Conecte o GitHub primeiro (Conexões)."), true); setConnOpen(true); return; }
 
     // "desfaz/reverte/volta a versão anterior" → restaura o commit anterior (sem IA).
     if (repo && /\b(desfaz|desfa[çc]|revert|revers|undo|volta?r?\s+(a|pra|para)\s+(vers|anterior)|vers[aã]o\s+anterior)/i.test(userText)) {
@@ -513,6 +516,16 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   // Só aqui o projeto sai do navegador: cria o repositório e publica na Vercel.
   async function publicar() {
     if (!rascunho || publicando) return;
+    // É AQUI que o GitHub passa a ser necessário, e não na hora de criar: a
+    // pessoa já viu o projeto pronto, então agora a conexão tem um motivo
+    // visível. Avisamos antes de tentar, para ela não esperar uma publicação
+    // que já sabíamos que ia falhar.
+    if (!conn.github) {
+      pushMsg("assistant", t("Pra publicar eu preciso da sua conta do GitHub — é lá que o código do projeto fica guardado. Abri as Conexões pra você conectar; o projeto continua aqui, do jeitinho que está."));
+      showToast(t("Conecte o GitHub para publicar (Conexões)."), true);
+      setConnOpen(true);
+      return;
+    }
     setPublicando(true);
     flowRef.current = "sistema";
     startRun();

@@ -252,7 +252,11 @@ export async function gerarPlano({ userMessage, kind = "app", providerId = "" },
  * verdade, e publicar virou uma decisão — ver publicarProjeto() abaixo.
  */
 export async function criarProjeto({ userMessage, kind = "app", providerId = "", sessionId = null, embedImages = [] }, onEvent = () => {}) {
-  if (!(await temGithub())) throw new Error(t("Conecte o GitHub antes de criar um projeto (Conexões)."));
+  // De proposito SEM exigir GitHub: criar e so gerar arquivos e mostrar a
+  // previa, que roda inteira no navegador. Quem precisa de GitHub e
+  // publicarProjeto(). Pedir a conexao aqui obrigava a pessoa a entregar a
+  // conta dela antes de ver qualquer resultado — justamente o contrario do
+  // que a previa antes de publicar veio resolver.
 
   const convHistory = await historicoDaSessao(sessionId);
   const sb = await store.get("supabase");
