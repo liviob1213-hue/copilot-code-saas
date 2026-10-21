@@ -253,7 +253,14 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       // geração não encosta em repositório nenhum. Dizer o contrário fazia
       // parecer que o app estava publicando pelas costas da pessoa.
       { s: 70,  texto: t("Quase lá — ajustando os detalhes das telas…") },
-      { s: 110, texto: t("Montando a prévia pra você conferir antes de publicar…") }
+      // Daqui pra baixo NAO prometemos etapa nenhuma. A frase antiga dizia
+      // "Montando a prévia" aos 110s, mas isso era só o relógio: por baixo a IA
+      // muitas vezes ainda estava escrevendo, ou brigando com uma gratuita fora
+      // do ar. Quem lia aquilo e via 5 minutos passarem achava, com razão, que
+      // tinha travado. Agora o texto conta o que está acontecendo de verdade.
+      { s: 110, texto: t("Ainda escrevendo — projetos com várias telas levam alguns minutos…") },
+      { s: 170, texto: t("Demorando mais que o normal. As IAs gratuitas ficam lentas quando estão cheias; se alguma falhar, eu troco sozinho.") },
+      { s: 260, texto: t("Última tentativa. Se não der, eu aviso aqui e você pode mandar de novo ou escolher outra IA no seletor.") }
     ] : [
       { s: 0,   texto: t("Trabalhando no seu pedido…") },
       { s: 15,  texto: t("Aplicando as mudanças no projeto…") },

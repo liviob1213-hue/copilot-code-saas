@@ -816,7 +816,33 @@ export async function complete({ system, messages, tools, preferredProviderId = 
   let houvePermanente = false;    // chave ou modelo errado: insistir nao resolve
   let jaTentou = 0;               // quantos provedores ja tentaram antes deste
 
+  // PRAZO DO RODIZIO INTEIRO, e nao so de cada chamada.
+  //
+  // Cada provedor tem ate 5 minutos (ver timeoutMs la embaixo), prazo generoso
+  // de proposito: escrever um projeto leva minutos e cortar no meio ja nos
+  // custou geracoes perdidas. Só que sem um teto para a FILA, quatro IAs
+  // gratuitas lentas viram vinte minutos de tela parada — foi exatamente o que
+  // aconteceu: o app ficou 5 minutos "trabalhando" e nao entregou nada.
+  //
+  // Com o prazo total, um provedor lento ainda consegue terminar, mas a pessoa
+  // nunca espera mais do que isto para receber uma resposta — nem que seja a
+  // de que nao deu.
+  const PRAZO_DA_FILA = 8 * 60_000;
+  const fimDaFila = Date.now() + PRAZO_DA_FILA;
+
   for (const entry of attempts) {
+    const restante = fimDaFila - Date.now();
+    // Menos de 25s nao da pra escrever nada util: melhor parar e contar a
+    // verdade do que comecar uma tentativa que vai morrer pela metade.
+    if (restante < 25_000) {
+      errors.push(`tempo esgotado depois de ${Math.round(PRAZO_DA_FILA / 60000)} min tentando`);
+      onEvent({
+        type: "provider_skip",
+        provider: entry.provider.label,
+        reason: "tempo esgotado — as IAs da fila nao responderam a tempo"
+      });
+      break;
+    }
     const { provider, cfg, apiKey } = entry;
     let model = cfg.model || provider.defaultModel;
     // A partir do 2o provedor, pede para CONTINUAR a tarefa (nao recomecar).
@@ -874,7 +900,11 @@ export async function complete({ system, messages, tools, preferredProviderId = 
     // minutos em qualquer IA, e esperar nao e mais arriscado desde que
     // fetchComCorpo() passou a limitar TAMBEM a leitura do corpo — antes, um
     // corpo travado ignorava este prazo e prendia a tela para sempre.
-    const timeoutMs = ehRaciocinioOpenAI ? 360_000 : 300_000;
+    // Nunca passar do prazo da fila: se sobram 2 minutos, esta chamada tem 2
+    // minutos, e nao 5. Sem isso o teto de cima seria so decorativo — uma
+    // unica chamada lenta o estouraria sozinha.
+    const timeoutBase = ehRaciocinioOpenAI ? 360_000 : 300_000;
+    const timeoutMs = Math.min(timeoutBase, Math.max(25_000, fimDaFila - Date.now()));
     let res, bodyText;
     try {
       const req = buildRequest(provider, cfg, apiKey, { system: systemUsado, messages: msgs, tools, model });
