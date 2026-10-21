@@ -335,9 +335,27 @@ async function handleCasa(request, env) {
       continue;
     }
 
-    const vaiTentarOutra = i < chaves.length - 1 &&
-      (upstream.status === 429 || upstream.status === 401 || upstream.status === 403);
-    if (vaiTentarOutra) { ultima = upstream; continue; }
+    // 429 = limite da chave; 401/403 = chave recusada; 408 e 5xx = o servico
+    // tropecou. Em todos esses casos a chave SEGUINTE tem chance real de passar.
+    //
+    // O 5xx entrou aqui depois de um prejuizo concreto: os modelos ":free" do
+    // OpenRouter vivem lotados e devolvem 503. Como o 503 nao estava na lista,
+    // o revezamento parava na primeira chave — ou seja, cadastrar cinco chaves
+    // nao adiantava nada justamente no erro mais comum.
+    const vaiTentarOutra = i < chaves.length - 1 && (
+      upstream.status === 429 ||
+      upstream.status === 401 ||
+      upstream.status === 403 ||
+      upstream.status === 408 ||
+      upstream.status >= 500
+    );
+    if (vaiTentarOutra) {
+      // Larga o corpo da tentativa anterior antes de trocar, senao fica
+      // conexao pendurada a cada chave que falha.
+      if (ultima instanceof Response) { try { ultima.body?.cancel(); } catch { /* ja fechado */ } }
+      ultima = upstream;
+      continue;
+    }
 
     const out = new Response(upstream.body, {
       status: upstream.status,

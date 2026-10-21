@@ -277,6 +277,34 @@ ok(r.status === 200, "openrouter: 429 na 1a chave, a 2a assume");
 ok(chamadas.length === 2 && chamadas[0] === "Bearer chave_or_1" && chamadas[1] === "Bearer chave_or_2",
   "as chaves sao tentadas em ordem", JSON.stringify(chamadas));
 
+// --- 503: o erro mais comum do OpenRouter gratuito tambem reveza -----------
+// Antes, o revezamento so acontecia em 429/401/403. Como os modelos ":free"
+// devolvem 503 quando a fila deles lota, cadastrar varias chaves nao adiantava
+// nada justamente no caso que mais acontece.
+chamadas = [];
+globalThis.fetch = async (url, init = {}) => {
+  chamadas.push(new Headers(init.headers || {}).get("authorization"));
+  return chamadas.length === 1
+    ? new Response("no instances available", { status: 503 })
+    : new Response(JSON.stringify({ choices: [] }), { status: 200, headers: { "content-type": "application/json" } });
+};
+passe = assinarPasse({ usuarioId: "u1", provedor: "openrouter", pago: false });
+r = await worker.fetch(pedidoCasa(passe, { modelo: "cohere/north-mini-code:free", corpo: {} }), ENV_CASA);
+ok(r.status === 200, "openrouter: 503 na 1a chave, a 2a assume");
+ok(chamadas.length === 2, "o 503 faz trocar de chave", JSON.stringify(chamadas));
+
+// --- se TODAS as chaves falharem, o erro real chega ao app ----------------
+// O app precisa do motivo verdadeiro para decidir trocar de PROVEDOR; se
+// mascarassemos tudo como erro generico, o rodizio ficaria cego.
+chamadas = [];
+globalThis.fetch = async (url, init = {}) => {
+  chamadas.push(new Headers(init.headers || {}).get("authorization"));
+  return new Response("no instances available", { status: 503 });
+};
+r = await worker.fetch(pedidoCasa(passe, { modelo: "cohere/north-mini-code:free", corpo: {} }), ENV_CASA);
+ok(r.status === 503, "todas as chaves fora: devolve o 503 de verdade");
+ok(chamadas.length === 2, "tentou as duas antes de desistir", JSON.stringify(chamadas));
+
 // --- /status conta as chaves da casa sem mostrar nenhuma -------------------
 b = await (await worker.fetch(req(BASE + "/status"), { ...ENV, ...ENV_CASA })).json();
 ok(b.segredos.passe_ia === true, "/status diz que o passe esta configurado");
