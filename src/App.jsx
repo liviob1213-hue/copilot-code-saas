@@ -422,8 +422,17 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       const tipoPedido = modo || detectarTipo(userText);
       const bloqueio = motivoDoBloqueio(acesso, tipoPedido === "app" ? "app" : "site", conn.iaPropria === true);
       if (bloqueio) {
+        // setView ANTES de empurrar as mensagens, e isto nao e detalhe: a home
+        // nao desenha a conversa. Sem esta linha o pedido era aceito, o campo
+        // limpava e a pessoa ficava olhando para a mesma tela sem explicacao
+        // nenhuma — aconteceu com uma cliente de verdade, que achou que o
+        // sistema tinha engolido o pedido dela.
+        setView("workspace");
         pushMsg("user", userText, images.length ? images : undefined);
         pushMsg("assistant", bloqueio);
+        // O aviso tambem vai de toast: se a pessoa estiver com a conversa
+        // rolada para cima, a mensagem nova pode nascer fora do campo de visao.
+        showToast(bloqueio, true);
         setInput("");
         return;
       }
