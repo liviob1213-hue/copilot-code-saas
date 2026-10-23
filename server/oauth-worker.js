@@ -186,6 +186,11 @@ __name(trocaVercel, "trocaVercel");
 //   IA_CASA_OPENROUTER_KEY
 //   IA_CASA_GROQ_KEY
 //   IA_CASA_MISTRAL_KEY
+//   IA_CASA_DEEPSEEK_KEY   <- opcional, e a unica PAGA: reserva para quando as
+//                             gratuitas estiverem lotadas. Vazia = nao usada.
+//
+// Em todas elas da para colocar VARIAS chaves separadas por virgula: o Worker
+// tenta uma por uma quando a anterior responde 429, 401, 403 ou 5xx.
 // Cada uma aceita VARIAS chaves separadas por virgula: se a primeira estourar
 // o limite do minuto, o Worker tenta a seguinte sozinho.
 // =============================================================================
@@ -221,6 +226,19 @@ var CASA = {
     headers: /* @__PURE__ */ __name((chave) => ({ "content-type": "application/json", "authorization": "Bearer " + chave }), "hMistral"),
     // Os gratuitos: codestral, open-* e small. Fora disso, recusa.
     modeloOk: /^(codestral|open-|mistral-small|ministral)[a-z0-9.\-]*$/i
+  },
+  // A UNICA PAGA desta lista. Entra como reserva: quando as gratuitas estao
+  // lotadas, e melhor gastar centavos do que entregar erro para alguem que
+  // esta experimentando a ferramenta pela primeira vez.
+  // Deixe IA_CASA_DEEPSEEK_KEY vazia e ela simplesmente nao e usada.
+  deepseek: {
+    env: "IA_CASA_DEEPSEEK_KEY",
+    url: /* @__PURE__ */ __name(() => "https://api.deepseek.com/v1/chat/completions", "urlDeepseek"),
+    headers: /* @__PURE__ */ __name((chave) => ({ "content-type": "application/json", "authorization": "Bearer " + chave }), "hDeepseek"),
+    // Qualquer modelo deepseek MENOS os de visao: eles sao lentos e caros, e
+    // este projeto ja apanhou de timeout com eles. Como aqui quem paga e a
+    // casa, a trava impede um pedido com imagem de torrar o saldo.
+    modeloOk: /^deepseek-(?!.*vision)[a-z0-9.\-]+$/i
   }
 };
 
