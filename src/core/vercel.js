@@ -626,6 +626,17 @@ export async function deploy(owner, name, branch, onProgress = () => {}, supabas
     await setEnv(project.id, "VITE_SUPABASE_ANON_KEY", supabase.anonKey);
   }
 
+  // Chaves que a pessoa colou no chat e que precisam existir NO BUILD (hoje so
+  // as de mapa, que sao feitas para o navegador). Chave de IA nao passa por
+  // aqui: aquela vai para os segredos do Supabase, fora do alcance de quem
+  // abre o site.
+  if (opcoes.envExtra && Object.keys(opcoes.envExtra).length) {
+    onProgress("configurando as chaves do projeto");
+    for (const [chave, valor] of Object.entries(opcoes.envExtra)) {
+      await setEnv(project.id, chave, valor);
+    }
+  }
+
   onProgress("enviando para a Vercel");
   // files (e NAO gitSource): o conteudo vai no proprio corpo da requisicao. A
   // especificacao da Vercel e explicita — "Required for non-git deployments.

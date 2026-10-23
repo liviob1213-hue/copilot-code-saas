@@ -11,6 +11,7 @@ import { cancelarIA, comecarIA } from "./core/net.js";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
 import { marcarProjetoNovo, consumirUsouCasa } from "./core/casa.js";
+import { detectarCapacidade, perguntaDeEscolha, lerEscolha, pedidoDaChave, capacidadePorId, opcaoPorId } from "./core/servicos-externos.js";
 import { listModels, healthCheck } from "./core/providers.js";
 import * as history from "./core/history.js";
 import { startGithubLoginWeb, startSupabaseLoginWeb, startVercelLoginWeb, githubConfigurado, supabaseConfigurado, vercelConfigurado } from "./core/oauth-web.js";
@@ -136,6 +137,15 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   // Projeto gerado e AINDA NÃO publicado: { files, nome, brief, kind }. É o que
   // alimenta a prévia de verdade e o botão Publicar.
   const [rascunho, setRascunho] = useState(null);
+  // Conversa guiada de chave externa: a IA pergunta qual serviço, a pessoa
+  // responde, e só então pedimos o token. Sem isso, um "gerador de vídeo"
+  // era publicado bonito e sem funcionar, e a pessoa não descobria por quê.
+  // { fase: "escolhendo" | "esperandoChave", capacidade, opcao }
+  const [guia, setGuia] = useState(null);
+  // Chaves que vao NO APP (so mapa). As de IA nunca passam por aqui: elas vao
+  // direto pros segredos do Supabase em guardarChaveExterna().
+  const [chavesExternas, setChavesExternas] = useState({});
+  const resolvidasRef = useRef([]);
   const [rotaPrevia, setRotaPrevia] = useState("/");
   const [publicando, setPublicando] = useState(false);
   // Largura da conversa, em %. Fica no navegador pra não ter que reajustar
@@ -305,6 +315,37 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   async function run(userText, { hardening = false, images = [], planoAprovado = false } = {}) {
     if (!userText.trim()) return;
     if (busy) { showToast(t("Ainda estou trabalhando no pedido anterior — espere terminar ou recarregue a página."), true); return; }
+
+    // ---- conversa guiada da chave externa -----------------------------------
+    // REGRA DE OURO AQUI: nunca prender a pessoa na pergunta. Se o que ela
+    // escreveu não for uma resposta, a gente larga o assunto e trata como
+    // pedido normal. Um app que insiste "responda 1 ou 2" quando a pessoa quer
+    // mudar a cor de um botão é pior do que não ter perguntado nada.
+    if (guia?.fase === "escolhendo") {
+      const cap = capacidadePorId(guia.capacidade);
+      const escolha = cap ? lerEscolha(cap, userText) : null;
+      if (escolha) {
+        setView("workspace");
+        pushMsg("user", userText);
+        setGuia({ fase: "esperandoChave", capacidade: cap.id, opcao: escolha.id });
+        pushMsg("assistant", pedidoDaChave(cap, escolha));
+        setInput("");
+        return;
+      }
+      setGuia(null);   // não era resposta: segue o fluxo normal
+    }
+
+    if (guia?.fase === "esperandoChave") {
+      const cap = capacidadePorId(guia.capacidade);
+      const op = opcaoPorId(guia.capacidade, guia.opcao);
+      const valor = op ? extrairChaveDoTexto(userText, op) : null;
+      if (valor && cap && op) {
+        await guardarChaveExterna(cap, op, valor);
+        setInput("");
+        return;
+      }
+      setGuia(null);   // não era a chave: segue o fluxo normal
+    }
 
     // A pessoa colou uma chave (ex.: Google Maps)? Manda direto pro Supabase como
     // secret, sem passar pela geração de código — e sem mostrar a chave no chat.
@@ -502,6 +543,19 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       pushMsg("assistant", r.resumo || (repo
         ? t("Pronto — alteração salva.")
         : t("Projeto montado. Confira a prévia ao lado e clique em Publicar quando estiver bom.")));
+
+      // O projeto precisa de uma IA de fora (vídeo, imagem, voz)? Então a
+      // conversa NÃO acaba aqui. Publicar um gerador de vídeo sem chave entrega
+      // um app que abre bonito e não faz nada — e a pessoa desiste achando que
+      // a ferramenta é ruim, sem nunca descobrir o que faltava.
+      // Perguntamos DEPOIS de mostrar a prévia, de propósito: ela já viu o
+      // projeto de pé, então entende pra que serve a chave que estou pedindo.
+      const cap = detectarCapacidade(r.files, resolvidasRef.current);
+      if (cap) {
+        setGuia({ fase: "escolhendo", capacidade: cap.id });
+        pushMsg("assistant", perguntaDeEscolha(cap));
+      }
+
       refreshHistory(); loadVercelProjects();
     } catch (e) {
       endRun();
@@ -543,6 +597,50 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
    * Aqui o erro vira mensagem, vira aviso e destrava o botão. Pode ser que um
    * pedido falhe; o que não pode é falhar calado.
    */
+  /**
+   * A pessoa colou a chave que pedimos. Guarda no lugar CERTO.
+   *
+   * Chave de mapa é feita para o navegador (se protege por domínio autorizado),
+   * então vai no app. Chave de IA, não: no navegador ela fica legível para
+   * qualquer visitante, e quem paga a conta é o dono do app. Essa vai para os
+   * segredos do Supabase, onde só a Edge Function alcança.
+   */
+  async function guardarChaveExterna(cap, op, valor) {
+    setView("workspace");
+    pushMsg("user", t("(colei minha chave do {label})", { label: op.label }));
+
+    if (cap.noNavegador) {
+      // Mapa: o caminho já existente cuida disso (põe no app e republica).
+      setGuia(null);
+      resolvidasRef.current = [...resolvidasRef.current, cap.id];
+      pushMsg("assistant", t("Anotei sua chave do {label}. Ela entra no app quando você publicar.", { label: op.label }));
+      setChavesExternas(c => ({ ...c, [op.envFront]: valor }));
+      return;
+    }
+
+    const sb = await store.get("supabase");
+    if (!sb.projectRef) {
+      // Sem Supabase não há onde guardar com segurança. Não guardamos no
+      // navegador "pra adiantar": seria entregar a chave dela ao mundo.
+      pushMsg("assistant", t("Pra guardar essa chave com segurança eu preciso do seu Supabase ligado — é lá que ela fica, fora do alcance de quem abre o site. Abri as Conexões: escolha um projeto Supabase e me mande a chave de novo."));
+      setConnOpen(true);
+      return;
+    }
+
+    setBusy(true); flowRef.current = "sistema"; startRun();
+    try {
+      await sbmgmt.setSecrets({ [op.segredo]: valor });
+      endRun();
+      setGuia(null);
+      resolvidasRef.current = [...resolvidasRef.current, cap.id];
+      pushMsg("assistant", t("Guardei sua chave do {label} nos segredos do seu Supabase (variável {nome}). Ela não aparece no site nem no código — só a função de servidor enxerga.", { label: op.label, nome: op.segredo }));
+    } catch (e) {
+      endRun();
+      pushMsg("error", t("Não consegui guardar a chave: ") + e.message);
+      showToast(e.message, true);
+    } finally { setBusy(false); }
+  }
+
   /** O botão de parar. Interrompe a IA sem recarregar a página. */
   function cancelarPedido() {
     cancelarIA();
@@ -608,7 +706,8 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     try {
       const r = await publicarProjeto({
         files: rascunho.files, nome: rascunho.nome, brief: rascunho.brief,
-        providerId, sessionId: sessionRef.current
+        providerId, sessionId: sessionRef.current,
+        envExtra: Object.keys(chavesExternas).length ? chavesExternas : null
       }, onEvent);
       endRun();
       setRepo(r.repo);
@@ -1354,6 +1453,27 @@ function detectarTipo(texto) {
   if (/\b(app|application|aplicaci[óo]n|platform|plataforma|dashboard|panel|crm|erp|store|shop|tienda|booking|reservas|inventory|finance|members?)\b/.test(t)) return "app";
   if (/\b(sitio|website|web\s*page)\b/.test(t)) return "site";
   return "app";
+}
+
+/**
+ * A pessoa colou a chave que a gente pediu?
+ *
+ * Quando o serviço tem prefixo conhecido (sk-, r8_, AIza…) exigimos ele: é o
+ * que impede tratar um "pode ser a 1 mesmo" como se fosse uma chave. Sem
+ * prefixo, aceitamos um texto longo sem espaço, que é a cara de um token.
+ */
+function extrairChaveDoTexto(texto, opcao) {
+  const t = String(texto || "").trim();
+  if (!t) return null;
+  if (opcao.prefixo) {
+    const esc = opcao.prefixo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const m = t.match(new RegExp(esc + "[A-Za-z0-9_\\-]{12,}"));
+    return m ? m[0] : null;
+  }
+  // Sem prefixo conhecido: texto longo e sem espaço tem cara de token. O piso
+  // de 24 caracteres é o que separa uma chave de um "pode ser a 1 mesmo".
+  const m = t.match(/[A-Za-z0-9_\-:.]{24,}/);
+  return m ? m[0] : null;
 }
 
 function detectarSegredo(texto) {

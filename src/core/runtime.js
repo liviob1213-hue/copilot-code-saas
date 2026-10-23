@@ -293,7 +293,7 @@ export async function criarProjeto({ userMessage, kind = "app", providerId = "",
  * PUBLICA o que já foi gerado: cria o repositório, sobe os arquivos e manda
  * para a Vercel. Só roda quando a pessoa clica em Publicar.
  */
-export async function publicarProjeto({ files, nome, brief, providerId = "", sessionId = null, deploy = true }, onEvent = () => {}) {
+export async function publicarProjeto({ files, nome, brief, providerId = "", sessionId = null, deploy = true, envExtra = null }, onEvent = () => {}) {
   if (!(await temGithub())) throw new Error(t("Conecte o GitHub antes de publicar (Conexões)."));
   if (!files || !Object.keys(files).length) throw new Error(t("Não há projeto para publicar."));
 
@@ -319,7 +319,7 @@ export async function publicarProjeto({ files, nome, brief, providerId = "", ses
       // Vercel chegou a receber a versao do repositorio recem-criado (so o
       // README) e o site abria em 404.
       const dep = await vercel.deploy(repo.owner, repo.name, repo.branch, p => onEvent({ type: "deploy", ...p }), null,
-        { commitSha: repo.commit?.sha || null });
+        { commitSha: repo.commit?.sha || null, envExtra });
       url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || null);
       if (url) {
         const urls = await store.get("previewUrls");
