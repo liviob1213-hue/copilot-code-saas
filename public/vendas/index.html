@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Copilot Code — sua ideia no ar hoje, sem programador</title>
+<title>Prumo Code — sua ideia no ar hoje, sem programador</title>
 <meta name="description" content="Descreva o site ou app que voce quer. A IA escreve o codigo, testa pagina por pagina e publica no ar. Comece gratis com IAs gratuitas, sem cartao." />
 <meta name="theme-color" content="#06060a" />
 <link rel="icon" type="image/png" href="/brand/logo.png" />
 
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Copilot Code — sua ideia no ar hoje, sem programador" />
+<meta property="og:title" content="Prumo Code — sua ideia no ar hoje, sem programador" />
 <meta property="og:description" content="Voce descreve. A IA cria, testa e publica. Comece gratis, sem cartao." />
 <meta property="og:image" content="/vendas/app-inicio.jpg" />
 
@@ -401,6 +401,43 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
   .rv{opacity:1;transform:none;transition:none}
   html{scroll-behavior:auto}
 }
+/* ---------- a conta no papel ---------- */
+.conta-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:start}
+@media(max-width:900px){.conta-grid{grid-template-columns:1fr;max-width:460px;margin:0 auto}}
+.conta-card{
+  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-xl);
+  padding:28px 26px;
+}
+.conta-card.destaque{
+  border-color:rgba(251,113,133,.5);
+  background:linear-gradient(180deg,rgba(239,68,68,.085),var(--panel) 42%);
+  box-shadow:0 30px 80px -42px rgba(239,68,68,.6);
+}
+@media(min-width:901px){.conta-card.destaque{transform:scale(1.035)}}
+.conta-tag{font-size:13px;font-weight:700;color:var(--ink-dim);letter-spacing:.01em;margin-bottom:12px}
+.conta-card.destaque .conta-tag{color:#fb7185}
+.conta-total{font-size:40px;font-weight:900;letter-spacing:-.04em;line-height:1;margin-bottom:22px}
+.conta-total span{font-size:15px;font-weight:600;color:var(--ink-faint);letter-spacing:0}
+.conta-lista{list-style:none;display:grid;gap:11px}
+.conta-lista li{font-size:14.5px;color:var(--ink-dim);padding-left:22px;position:relative;line-height:1.5}
+.conta-lista li::before{content:"•";position:absolute;left:4px;color:var(--ink-faint)}
+.conta-lista li.ruim::before{content:"×";color:#fb7185;font-weight:700}
+.conta-lista li.bom::before{content:"✓";color:var(--ok);font-weight:700}
+.conta-lista b{color:var(--ink);font-weight:650}
+.conta-mais{color:var(--ink-faint);margin:0 3px}
+.conta-est{
+  font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;
+  color:var(--ink-faint);border:1px solid var(--edge-hi);border-radius:999px;
+  padding:2px 7px;margin-left:5px;white-space:nowrap;
+}
+.conta-nota{
+  max-width:720px;margin:34px auto 0;text-align:center;
+  font-size:13.5px;color:var(--ink-faint);line-height:1.6;
+}
+.conta-chave{
+  max-width:680px;margin:30px auto 0;text-align:center;
+  font-size:clamp(19px,2.6vw,26px);font-weight:800;letter-spacing:-.025em;line-height:1.4;
+}
 </style>
 <noscript><style>.rv{opacity:1!important;transform:none!important}</style></noscript>
 </head>
@@ -409,7 +446,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
 <!-- =========================== TOPO =========================== -->
 <nav class="nav">
   <div class="wrap nav-in">
-    <a href="#" class="logo"><img src="/brand/logo.png" alt="" /> Copilot Code</a>
+    <a href="#" class="logo"><img src="/brand/logo.png" alt="" /> Prumo Code</a>
     <div class="nav-links">
       <a href="#como">Como funciona</a>
       <a href="#dentro">Por dentro</a>
@@ -464,10 +501,10 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
 
     <div class="hero-shot rv">
       <div class="shot">
-        <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+        <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">prumocode.com</div></div>
         <!-- caminho absoluto: a pagina e servida em /vendas (sem barra no fim),
              entao caminho relativo cairia na raiz do site e quebraria -->
-        <img src="/vendas/app-inicio.jpg" alt="Tela inicial do Copilot Code" />
+        <img src="/vendas/app-inicio.jpg" alt="Tela inicial do Prumo Code" />
       </div>
     </div>
   </div>
@@ -524,7 +561,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
   <div class="wrap">
     <div class="sec-head rv">
       <div class="eyebrow">A virada</div>
-      <h2>O Copilot Code termina o serviço</h2>
+      <h2>O Prumo Code termina o serviço</h2>
       <p>Três coisas que ele faz e que mudam o jogo pra quem não programa.</p>
     </div>
 
@@ -593,7 +630,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
     <div class="galeria">
       <div class="gal-item rv">
         <div class="shot">
-          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">prumocode.com</div></div>
           <img src="/vendas/app-inicio.jpg" alt="Tela inicial: uma caixa para descrever a ideia" loading="lazy" />
         </div>
         <h4>Uma caixa e a sua ideia</h4>
@@ -602,7 +639,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
 
       <div class="gal-item rv">
         <div class="shot">
-          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">prumocode.com</div></div>
           <img src="/vendas/app-modelos.jpg" alt="Galeria de modelos prontos" loading="lazy" />
         </div>
         <h4>Modelos prontos pra começar</h4>
@@ -611,7 +648,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
 
       <div class="gal-item rv">
         <div class="shot">
-          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">prumocode.com</div></div>
           <img src="/vendas/app-ia.jpg" alt="Seletor de modelos de IA" loading="lazy" />
         </div>
         <h4>Você escolhe qual IA trabalha</h4>
@@ -620,7 +657,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
 
       <div class="gal-item rv">
         <div class="shot">
-          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">copilotcode.app</div></div>
+          <div class="shot-bar"><i></i><i></i><i></i><div class="shot-url">prumocode.com</div></div>
           <img src="/vendas/app-conexoes.jpg" alt="Painel de conexões e chaves de IA" loading="lazy" />
         </div>
         <h4>Suas chaves, suas contas</h4>
@@ -649,7 +686,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
           perguntar.
         </p>
         <p style="font-size:17.5px;color:var(--ink);font-weight:600;margin-bottom:26px">
-          O Copilot Code faz o contrário. Depois de escrever, ele mesmo vira o conferente do
+          O Prumo Code faz o contrário. Depois de escrever, ele mesmo vira o conferente do
           próprio trabalho.
         </p>
         <ul class="checks">
@@ -694,7 +731,7 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
       <div class="tab-row tab-head">
         <div>&nbsp;</div>
         <div>Ferramentas gringas</div>
-        <div class="mine">Copilot Code</div>
+        <div class="mine">Prumo Code</div>
       </div>
       <div class="tab-row">
         <div>Mensalidade</div>
@@ -727,6 +764,75 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
         <div class="mine" data-l="Aqui:">Os projetos continuam seus, no ar</div>
       </div>
     </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- =========================== A CONTA NO PAPEL ===========================
+     Nao citamos concorrente pelo nome nem dizemos o que a ferramenta dos
+     outros "nao consegue fazer": isso e contestavel e, numa pagina publica,
+     vira briga. O argumento estrutural abaixo e melhor justamente porque
+     ninguem consegue rebater: credito vence, saldo de API nao.
+     Os numeros de sites sao ESTIMATIVA e estao marcados como tal.
+     ======================================================================== -->
+<section id="conta">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="eyebrow">A conta no papel</div>
+      <h2>Faça as contas antes de assinar qualquer coisa</h2>
+      <p>Inclusive a nossa. É por isso que elas estão aqui, abertas.</p>
+    </div>
+
+    <div class="conta-grid">
+      <div class="conta-card rv">
+        <div class="conta-tag">O modelo de créditos</div>
+        <div class="conta-total">R$ 135<span>/mês</span></div>
+        <ul class="conta-lista">
+          <li><b>100 créditos</b> inclusos</li>
+          <li>Cada pedido à IA gasta crédito</li>
+          <li class="ruim">Acabou no meio do projeto? <b>Para tudo</b> até você comprar mais</li>
+          <li class="ruim">Virou o mês, <b>o que sobrou evapora</b></li>
+          <li class="ruim">Cancelou, perdeu o acesso</li>
+        </ul>
+      </div>
+
+      <div class="conta-card destaque rv">
+        <div class="conta-tag">Prumo Code + DeepSeek</div>
+        <div class="conta-total">R$ 58<span>/mês</span></div>
+        <ul class="conta-lista">
+          <li>R$ 47 da ferramenta <span class="conta-mais">+</span> R$ 11 que <b>você</b> põe na IA</li>
+          <li class="bom">Dá para uns <b>30 sites</b> <span class="conta-est">estimativa</span></li>
+          <li class="bom">Sobrou saldo? <b>Continua seu no mês que vem</b></li>
+          <li class="bom">Acabou? Recarrega R$ 5 e segue — <b>na hora</b></li>
+        </ul>
+      </div>
+
+      <div class="conta-card rv">
+        <div class="conta-tag">Prumo Code + Claude</div>
+        <div class="conta-total">R$ 82<span>/mês</span></div>
+        <ul class="conta-lista">
+          <li>R$ 47 da ferramenta <span class="conta-mais">+</span> R$ 35 que <b>você</b> põe na IA</li>
+          <li class="bom">Dá para uns <b>12 sites</b> <span class="conta-est">estimativa</span></li>
+          <li class="bom">A IA mais forte que existe para código</li>
+          <li class="bom">Mesmo saldo, mesma regra: <b>é seu</b></li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="conta-nota rv">
+      <b>Por que a estimativa:</b> um site completo consome cerca de 100 mil
+      tokens entre o que a IA lê e o que ela escreve. O número varia com o
+      tamanho do projeto e com quantas vezes você pede ajustes — por isso
+      falamos em “uns 30”, e não em “exatamente 30”. As contas foram feitas
+      pelo preço de tabela das IAs, no pior horário.
+    </p>
+
+    <p class="conta-chave rv">
+      A diferença que importa não é o preço.<br />
+      É que <span class="grad-text">o seu saldo de IA não vence</span> — e você
+      recarrega quando quiser, quanto quiser.
+    </p>
   </div>
 </section>
 
@@ -939,13 +1045,13 @@ footer{border-top:1px solid var(--edge);padding:44px 0;color:var(--ink-faint);fo
 <!-- =========================== RODAPÉ =========================== -->
 <footer>
   <div class="wrap foot-in">
-    <a href="#" class="logo" style="font-size:15.5px"><img src="/brand/logo.png" alt="" style="width:26px;height:26px" /> Copilot Code</a>
+    <a href="#" class="logo" style="font-size:15.5px"><img src="/brand/logo.png" alt="" style="width:26px;height:26px" /> Prumo Code</a>
     <div class="foot-links">
       <a href="#como">Como funciona</a>
       <a href="#planos">Planos</a>
       <a href="#faq">Dúvidas</a>
     </div>
-    <div>© <span id="ano"></span> Copilot Code</div>
+    <div>© <span id="ano"></span> Prumo Code</div>
   </div>
 </footer>
 

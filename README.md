@@ -1,6 +1,6 @@
-# Copilot Code — SaaS (MVP web)
+# Prumo Code — SaaS (MVP web)
 
-Versão **web** do Copilot Code: criar e editar projetos com IA **fora do Lovable**,
+Versão **web** do Prumo Code: criar e editar projetos com IA **fora do Lovable**,
 100% com suas próprias chaves (BYOK). Faz parte do ecossistema:
 
 - **SaaS (esta pasta)** → criar/editar projetos fora do Lovable.

@@ -2,7 +2,7 @@
 // Para adicionar um idioma: copie o bloco "en", traduza os valores e
 // registre o idioma em IDIOMAS (i18n.js).
 const en = {
-  "Copilot Code — crie sites, apps e SaaS com IA": "Copilot Code — build websites, apps and SaaS with AI",
+  "Prumo Code — crie sites, apps e SaaS com IA": "Prumo Code — build websites, apps and SaaS with AI",
   "GitHub conectado: @{login}": "GitHub connected: @{login}",
   "Supabase conectado.": "Supabase connected.",
   "Enviando seu pedido para a IA…": "Sending your request to the AI…",
@@ -329,7 +329,7 @@ const en = {
 };
 
 const es = {
-  "Copilot Code — crie sites, apps e SaaS com IA": "Copilot Code — crea sitios, apps y SaaS con IA",
+  "Prumo Code — crie sites, apps e SaaS com IA": "Prumo Code — crea sitios, apps y SaaS con IA",
   "GitHub conectado: @{login}": "GitHub conectado: @{login}",
   "Supabase conectado.": "Supabase conectado.",
   "Enviando seu pedido para a IA…": "Enviando tu pedido a la IA…",

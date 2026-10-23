@@ -48,7 +48,7 @@ afeta o funcionamento.
 
 | Campo | O que pôr |
 | --- | --- |
-| **Integration Name** | `Copilot Code` |
+| **Integration Name** | `Prumo Code` |
 | **URL Slug** | `copilot-code` ⭐ **anote este valor** |
 | **Developer** | seu nome |
 | **Contact email** | seu e-mail (não fica público) |
@@ -124,7 +124,7 @@ http://localhost:5173/
 - A Vercel **aceita localhost** aqui (está na documentação dela), então dá pra
   desenvolver e testar antes de ter domínio.
 - **Quando o app for pro ar num domínio:** o campo é um só. Aí você cria uma
-  **segunda integração** ("Copilot Code (dev)") com o localhost e deixa a
+  **segunda integração** ("Prumo Code (dev)") com o localhost e deixa a
   principal com o domínio — mesma solução que o `CONECTAR.md` sugere pro GitHub.
 
 #### API Scopes ⭐ — marque exatamente isto

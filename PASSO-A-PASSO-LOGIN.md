@@ -1,4 +1,4 @@
-# Ligar o login do Copilot Code — passo a passo
+# Ligar o login do Prumo Code — passo a passo
 
 A tela de entrada já está pronta e publicada. **Enquanto você não fizer os passos
 abaixo, o app continua funcionando como sempre, sem pedir login.** Ele só passa a
@@ -53,7 +53,7 @@ um **código de 6 números**, então precisamos trocar o texto do e-mail.
 
 ```html
 <h2>Seu código de acesso</h2>
-<p>Use este código para entrar no Copilot Code:</p>
+<p>Use este código para entrar no Prumo Code:</p>
 <p style="font-size:30px;letter-spacing:8px;font-weight:bold">{{ .Token }}</p>
 <p>O código vale por 1 hora. Se não foi você que pediu, pode ignorar este e-mail.</p>
 ```
@@ -103,7 +103,7 @@ Este é o passo mais longo, porque envolve o Google. Faça com calma.
    `copilot-code` → **Create**. Espere e selecione esse projeto.
 3. Menu (☰) → **APIs & Services** → **OAuth consent screen**:
    - **User Type:** **External** → **Create**
-   - **App name:** `Copilot Code`
+   - **App name:** `Prumo Code`
    - **User support email:** seu e-mail
    - **Developer contact:** seu e-mail
    - **Save and Continue** até o fim, e depois **Back to Dashboard**
@@ -114,7 +114,7 @@ Este é o passo mais longo, porque envolve o Google. Faça com calma.
 
 1. Menu → **APIs & Services** → **Credentials**.
 2. **+ Create Credentials** → **OAuth client ID**.
-3. **Application type:** **Web application**. Nome: `Copilot Code Web`.
+3. **Application type:** **Web application**. Nome: `Prumo Code Web`.
 4. Em **Authorized redirect URIs** → **+ ADD URI** → cole aqui **o endereço que
    você copiou no Passo 4a** (o que termina em `/auth/v1/callback`).
 5. **Create**. O Google mostra **Client ID** e **Client Secret** — copie os dois.

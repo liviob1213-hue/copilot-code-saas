@@ -1,12 +1,12 @@
 // ============================================================================
-// auth.js — contas de usuario DO PROPRIO Copilot Code
+// auth.js — contas de usuario DO PROPRIO Prumo Code
 // ----------------------------------------------------------------------------
 // CUIDADO PARA NAO CONFUNDIR COM O OUTRO SUPABASE. Existem dois aqui:
 //
 //   1. O Supabase que a PESSOA conecta (core/supabase-mgmt.js, chave em
 //      SECRETS.SUPABASE_URL): e o banco dos PROJETOS QUE ELA CRIA.
 //   2. Este: o Supabase do NOSSO app, onde ficam as contas de quem entra no
-//      Copilot Code. Os dois nunca se misturam.
+//      Prumo Code. Os dois nunca se misturam.
 //
 // A URL e a chave "anon" sao PUBLICAS por natureza — elas vao no navegador de
 // qualquer jeito e a seguranca real fica nas politicas (RLS) do Supabase. Por

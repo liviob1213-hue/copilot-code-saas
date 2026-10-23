@@ -1,5 +1,5 @@
 // ============================================================================
-// Login.jsx — entrada do Copilot Code
+// Login.jsx — entrada do Prumo Code
 // ----------------------------------------------------------------------------
 // Dois caminhos, o padrao das ferramentas de hoje: botao do Google, ou e-mail
 // com codigo de 6 digitos. NAO existe tela de cadastro separada de proposito —
@@ -67,7 +67,7 @@ export default function Login() {
       <div className="login-caixa">
         <div className="login-marca">
           <span className="login-orb"><IconRaio /></span>
-          <h1>Copilot Code</h1>
+          <h1>Prumo Code</h1>
           <p>{t("Crie sites, apps e SaaS conversando com a IA.")}</p>
         </div>
 

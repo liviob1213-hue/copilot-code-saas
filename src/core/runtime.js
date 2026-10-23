@@ -388,7 +388,7 @@ export async function editarProjeto({ repo, userMessage, providerId = "", deploy
 
   const ctx = {
     repo: { owner, name, branch },
-    saas: true,                       // projeto do Copilot Code (Vite + kit + Vercel)
+    saas: true,                       // projeto do Prumo Code (Vite + kit + Vercel)
     brief: repo.brief || "",          // pedido original: o "tema" do projeto
     lovable: null,
     lovableCloud: false,

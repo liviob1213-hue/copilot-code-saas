@@ -63,7 +63,7 @@ const PLANO_ATIVO = false;
 
 export default function App({ oauthResult, oauthError, sessao = null }) {
   const lang = useIdioma();   // re-renderiza tudo ao trocar o idioma
-  useEffect(() => { document.title = t("Copilot Code — crie sites, apps e SaaS com IA"); }, [lang]);
+  useEffect(() => { document.title = t("Prumo Code — crie sites, apps e SaaS com IA"); }, [lang]);
   // Lê o plano assim que a sessão existe (e de novo se a pessoa trocar de conta).
   // Antes disso, registra o convite: quem chegou por um link de alguém ganha um
   // site a mais, e a leitura do plano logo abaixo já mostra esse site a mais.
@@ -1138,7 +1138,7 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
     <aside className="sidebar">
       <div className="side-head">
         <div className="brand">
-          <span className="brand-mark"><img src="/brand/logo.png" alt="Copilot Code" className="brand-logo" /></span>
+          <span className="brand-mark"><img src="/brand/logo.png" alt="Prumo Code" className="brand-logo" /></span>
         </div>
         <button className="icon-btn ghosty side-collapse" onClick={onCollapse} title={t("Recolher menu")}><IconPanel /></button>
       </div>
@@ -1191,7 +1191,7 @@ function SideRail({ conn, ativo, onExpand, onNew, onProjetos, onConversas, onCon
   return (
     <aside className="rail">
       <button className="rail-btn" onClick={onExpand} data-tip={t("Expandir menu")}><IconPanel /></button>
-      <button className="rail-logo" onClick={onNew} data-tip="Copilot Code"><img src="/brand/logo.png" alt="Copilot Code" /></button>
+      <button className="rail-logo" onClick={onNew} data-tip="Prumo Code"><img src="/brand/logo.png" alt="Prumo Code" /></button>
       <button className="rail-btn rail-new" onClick={onNew} data-tip={t("Nova conversa")}><IconPlus /></button>
       <button className={"rail-btn" + (ativo === "inicio" ? " on" : "")} onClick={onNew} data-tip={t("Início")}><IconHome /></button>
       <button className={"rail-btn" + (ativo === "projetos" ? " on" : "")} onClick={onProjetos} data-tip={t("Projetos")}><IconGrid /></button>
@@ -1538,7 +1538,7 @@ function Bubble({ role, text, images }) {
     <div className={"bubble " + role}>
       <div className="bubble-head">
         {eu ? <span className="avatar me">{t("VC")}</span> : <span className="avatar ai"><img src="/brand/logo.png" alt="" /></span>}
-        {eu ? t("Você") : "Copilot Code"}
+        {eu ? t("Você") : "Prumo Code"}
       </div>
       {images && images.length > 0 && (
         <div className="bubble-imgs">
@@ -1898,7 +1898,7 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, ses
       <div className="drawer">
         <DrawerHead icon={<IconPlug />} titulo={t("Conexões")} onClose={onClose} />
         <div className="body">
-          {/* A conta do Copilot Code fica SEPARADA das conexoes. Juntar com o
+          {/* A conta do Prumo Code fica SEPARADA das conexoes. Juntar com o
               GitHub confundiria: sair de uma nao e sair da outra. */}
           {authConfigurada() && sessao && (() => {
             const u = dadosDoUsuario(sessao);

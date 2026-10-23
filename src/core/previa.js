@@ -149,7 +149,7 @@ addEventListener("unhandledrejection", e => contar("promessa", (e.reason && e.re
 
 // A PRÉVIA NÃO PODE SAIR DO SITE GERADO.
 // Este documento é um srcdoc: um href="/" resolve contra o endereço da PÁGINA
-// DE CIMA, então um clique levava o quadro para o próprio Copilot Code — a
+// DE CIMA, então um clique levava o quadro para o próprio Prumo Code — a
 // pessoa via o app dentro do preview e achava que tinha quebrado.
 // O bloqueio roda na fase de bolha e respeita quem já tratou o clique: os
 // <Link> do react-router chamam preventDefault antes, então continuam

@@ -1,9 +1,9 @@
 {
-  "name": "copilot-code-saas",
+  "name": "prumo-code",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Versao web (SaaS) do Copilot Code — criar e editar projetos. App standalone (core proprio em src/core).",
+  "description": "Versao web (SaaS) do Prumo Code — criar e editar projetos. App standalone (core proprio em src/core).",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
