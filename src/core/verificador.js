@@ -161,3 +161,47 @@ export function pedidoDeConserto(achados) {
     `Para cada nome: crie a variavel/funcao que falta (com valor inicial coerente com o uso), ou importe-a do arquivo certo, ` +
     `ou remova o trecho que depende dela. NAO reescreva outros arquivos.`;
 }
+
+/**
+ * Alguem ja IMPORTA este caminho?
+ *
+ * Serve para uma pergunta so: numa etapa de conserto, a IA pode CRIAR este
+ * arquivo, ou ela esta inventando tela que ninguem pediu?
+ *
+ * O conserto automatico so aceitava de volta arquivo que ja existia. A
+ * intencao era boa (impedir que a IA aproveitasse a deixa para inventar
+ * telas), mas isso se autossabotava: o verificador aponta "o nome X nao
+ * existe", a IA conserta CRIANDO o arquivo de X, e a correcao era jogada
+ * fora por ser arquivo novo. O projeto saia quebrado na primeira geracao e
+ * so arrumava quando a pessoa pedia conserto na mao.
+ *
+ * Com esta checagem, arquivo novo entra quando -- e somente quando -- algum
+ * arquivo que ja existe aponta para ele.
+ */
+export function ehImportadoPorAlguem(files, novoCaminho) {
+  const limpar = (c) => {
+    const partes = [];
+    for (const seg of String(c).split("/")) {
+      if (seg === "." || seg === "") continue;
+      if (seg === "..") partes.pop();
+      else partes.push(seg);
+    }
+    return partes.join("/");
+  };
+  const semExt = (c) => c.replace(/\.(jsx|tsx|js|ts)$/i, "");
+  const alvo = semExt(limpar(novoCaminho));
+
+  for (const [de, conteudo] of Object.entries(files)) {
+    if (!/\.(jsx|tsx|js|ts)$/i.test(de)) continue;
+    const dir = de.split("/").slice(0, -1).join("/");
+    const txt = String(conteudo);
+    for (const m of txt.matchAll(/(?:from|import)\s*["'](\.[^"']+)["']/g)) {
+      const bruto = m[1];
+      const resolvido = semExt(limpar(dir + "/" + bruto));
+      if (resolvido === alvo) return true;
+      // import de pasta: "./components/Cartao" podendo virar .../index
+      if (alvo === resolvido + "/index") return true;
+    }
+  }
+  return false;
+}

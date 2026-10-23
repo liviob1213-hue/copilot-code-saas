@@ -4,7 +4,7 @@ import { complete, streamComplete } from "./providers.js";
 import { t } from "../i18n.js";
 import { mergeStarter, STARTER_FILES } from "./starter-template.js";
 import { fetchComCorpo } from "./net.js";
-import { conferirProjeto, pedidoDeConserto } from "./verificador.js";
+import { conferirProjeto, pedidoDeConserto, ehImportadoPorAlguem } from "./verificador.js";
 import { testarProjeto, pedidoDeConsertoPorTeste } from "./teste-previa.js";
 
 /**
@@ -952,6 +952,7 @@ function nomesConhecidos(txt) {
  * recebe. Era a peca que faltava: antes o app nunca contava o erro para a IA,
  * entao ela "corrigia" no escuro e dizia que tinha resolvido.
  */
+
 async function rodarEConsertar(files, { systemBase, contexto, providerId }, onEvent) {
   if (typeof document === "undefined") return files;   // fora do navegador, nao da
   const doKit = new Set(Object.keys(STARTER_FILES));
@@ -991,7 +992,10 @@ async function rodarEConsertar(files, { systemBase, contexto, providerId }, onEv
       const corrigidos = normalizarCaminhos(parseFiles(resp.text || ""));
       let mudou = false;
       for (const [caminho, conteudo] of Object.entries(corrigidos)) {
-        if (files[caminho] === undefined || doKit.has(caminho)) continue;
+        if (doKit.has(caminho)) continue;
+        // Arquivo novo so entra se alguem ja apontar para ele: e o caso em que
+        // a tela quebrou JUSTAMENTE porque o arquivo nao foi escrito.
+        if (files[caminho] === undefined && !ehImportadoPorAlguem(files, caminho)) continue;
         files = { ...files, [caminho]: conteudo };
         mudou = true;
       }
@@ -1035,11 +1039,13 @@ async function conferirEConsertar(files, { systemBase, contexto, providerId }, o
       tools: [], preferredProviderId: providerId
     }, onEvent);
     const corrigidos = normalizarCaminhos(parseFiles(r.text || ""));
-    // So aceita de volta arquivo que ja existia: a IA nao pode aproveitar a
-    // deixa para inventar telas novas nesta etapa.
+    // A IA nao pode inventar tela nova aqui. Mas pode CRIAR o arquivo que
+    // esta faltando, quando algum arquivo existente ja importa aquele caminho
+    // — que e exatamente o defeito que este passe existe para consertar.
     const aplicados = [];
     for (const [caminho, conteudo] of Object.entries(corrigidos)) {
-      if (files[caminho] === undefined || doKit.has(caminho)) continue;
+      if (doKit.has(caminho)) continue;
+      if (files[caminho] === undefined && !ehImportadoPorAlguem(files, caminho)) continue;
       files = { ...files, [caminho]: conteudo };
       aplicados.push(caminho);
     }
