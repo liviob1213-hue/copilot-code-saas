@@ -62,6 +62,41 @@ export default async function handler(req, res) {
         banco[tabela] = error ? `ERRO: ${error.message}` : `ok (${count} linhas)`;
       }
 
+      // QUEM TEM ACESSO COMPLETO, conferido no banco de verdade.
+      //
+      // A promessa feita aos primeiros usuarios foi: quem ja estava aqui, e
+      // quem for liberado na mao, NAO entra na regra de slots. Quem garante
+      // isso e o plano ser diferente de 'free' sem data de vencimento — e
+      // quando isso vale, a trava da interface nem chega a ser consultada.
+      //
+      // Mostramos so a CONTAGEM por plano. Nenhum e-mail sai daqui.
+      const { data: todos, error: erroPlanos } = await sb
+        .from("perfis")
+        .select("plano, plano_expira_em");
+
+      if (erroPlanos) {
+        banco.acesso_completo = `ERRO: ${erroPlanos.message}`;
+      } else {
+        const agora = Date.now();
+        const porPlano = {};
+        let completos = 0;
+        let vencendo = 0;
+        for (const p of todos || []) {
+          const nome = p.plano || "free";
+          porPlano[nome] = (porPlano[nome] || 0) + 1;
+          if (nome === "free") continue;
+          if (!p.plano_expira_em) completos++;          // nao vence: acesso completo
+          else if (new Date(p.plano_expira_em).getTime() > agora) vencendo++;
+          else porPlano["(pago vencido)"] = (porPlano["(pago vencido)"] || 0) + 1;
+        }
+        banco.acesso_completo = {
+          por_plano: porPlano,
+          sem_slots_e_sem_vencimento: completos,
+          pagos_com_data_de_vencimento: vencendo,
+          explicacao: "sem_slots_e_sem_vencimento = contas que NUNCA caem na regra de slots (as que ja estavam no banco e as liberadas na mao)."
+        };
+      }
+
       // As funcoes de slot (supabase/slots.sql). Sem elas, o site gratis de
       // cada dia nao funciona — e o erro apareceria so na hora de gerar.
       const { data: lim, error: erroLim } = await sb.rpc("limites_dos_slots");
