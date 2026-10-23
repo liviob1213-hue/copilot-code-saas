@@ -448,8 +448,17 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     setBusy(true);
     if (!planoAprovado) pushMsg("user", hardening ? t("Blindar o projeto") : userText, images.length ? images : undefined);
     startRun();
-    if (!sessionRef.current) sessionRef.current = await history.createSession({ title: userText.slice(0, 48), kind });
-    await history.appendMessage(sessionRef.current, { role: "user", text: hardening ? t("Blindar o projeto") : userText });
+    // O histórico é conveniência: serve pra pessoa reabrir a conversa depois.
+    // Se ele falhar (armazenamento cheio, modo privado, dado antigo corrompido),
+    // isso NÃO pode impedir alguém de criar o projeto. Antes estes dois awaits
+    // ficavam fora do try de baixo: um tropeço aqui matava o run() inteiro em
+    // silêncio, com o botão de enviar travado.
+    try {
+      if (!sessionRef.current) sessionRef.current = await history.createSession({ title: userText.slice(0, 48), kind });
+      await history.appendMessage(sessionRef.current, { role: "user", text: hardening ? t("Blindar o projeto") : userText });
+    } catch (e) {
+      console.warn("[historico] nao consegui guardar a conversa:", e);
+    }
     try {
       const r = repo
         ? await editarProjeto({ repo, userMessage: userText, providerId, sessionId: sessionRef.current, embedImages: images }, onEvent)
@@ -510,25 +519,49 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     if (novos.length) setAttached(a => [...a, ...novos]);
   }
 
+  /**
+   * TODA chamada de run() passa por aqui.
+   *
+   * run() é async e era chamada sem .catch(). Qualquer erro fora do try interno
+   * virava uma "rejeição não tratada": o navegador engole, nada aparece na tela
+   * — e, como setBusy(true) já tinha rodado, o botão de enviar ficava
+   * desabilitado para sempre. Da cadeira de quem usa: "mandei o prompt, ele
+   * sumiu e não aconteceu nada", sem erro nenhum para contar o porquê.
+   *
+   * Aqui o erro vira mensagem, vira aviso e destrava o botão. Pode ser que um
+   * pedido falhe; o que não pode é falhar calado.
+   */
+  function dispararRun(texto, opcoes) {
+    run(texto, opcoes).catch(e => {
+      console.error("[run] falhou fora do try:", e);
+      const motivo = e?.message || String(e);
+      setView("workspace");
+      pushMsg("error", t("Algo deu errado antes de eu começar: ") + motivo);
+      showToast(motivo, true);
+      endRun();
+      setBusy(false);
+    });
+  }
+
   function handleSend() {
     const texto = input.trim();
     if (!texto && !attached.length) return;
     const imgs = attached.slice();
     setInput(""); setAttached([]);
-    run(texto || t("Use a imagem que enviei."), { images: imgs });
+    dispararRun(texto || t("Use a imagem que enviei."), { images: imgs });
   }
   function aprovarPlano(textoFinal) {
     if (!plano) return;
     const p = plano; setPlano(null);
     const texto = (textoFinal ?? p.texto).trim();
     const prompt = p.prompt + (texto ? `\n\n[PLANO APROVADO — siga este plano]\n${texto}` : "");
-    run(prompt, { images: p.images, planoAprovado: true });
+    dispararRun(prompt, { images: p.images, planoAprovado: true });
   }
   function recusarPlano() {
     setPlano(null);
     pushMsg("assistant", t("Plano descartado. Me diga o que mudar ou mande um novo pedido que eu monto outro plano."));
   }
-  function handleBlindar() { if (!repo) return showToast(t("Crie ou abra um projeto antes de blindar."), true); run(BLINDAR_PROMPT, { hardening: true }); }
+  function handleBlindar() { if (!repo) return showToast(t("Crie ou abra um projeto antes de blindar."), true); dispararRun(BLINDAR_PROMPT, { hardening: true }); }
   // Só aqui o projeto sai do navegador: cria o repositório e publica na Vercel.
   async function publicar() {
     if (!rascunho || publicando) return;
