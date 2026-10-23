@@ -1295,3 +1295,72 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
 
 /* Foto do Google no painel de Conexões */
 .acc-foto { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+
+/* ===========================================================================
+   SLOTS DESENHADOS (drawer de Projetos)
+   ---------------------------------------------------------------------------
+   Peça vazia = pode criar. Peça cheia = já gastou. A pessoa entende sem ler,
+   que é o ponto: "3 sites restantes" escrito no meio de um parágrafo some.
+   =========================================================================== */
+.slots-box {
+  background: var(--panel);
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+.slots-linha {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; padding: 9px 0;
+}
+.slots-linha + .slots-linha { border-top: 1px solid var(--hair); }
+.slots-cab { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.slots-cab strong { font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+.slots-cab span { font-size: 12px; color: var(--ink-faint); }
+.slots-fila { display: flex; gap: 6px; flex: none; }
+
+.slot-peca {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: grid; place-items: center; flex: none;
+  border: 1px solid var(--edge-hi);
+  transition: transform .2s var(--ease);
+}
+/* Livre: chama atenção, é a peça que a pessoa pode gastar agora. */
+.slot-peca.livre {
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 18px -8px rgba(239, 68, 68, .9);
+}
+.slot-peca.livre:hover { transform: translateY(-2px) scale(1.06); }
+/* Usada: fica quieta, mas continua visível — ver o que já gastou é parte da conta. */
+.slot-peca.usada { background: rgba(255,255,255,.04); color: var(--ink-faint); }
+.slot-peca.vazia {
+  background: transparent; border-style: dashed;
+  color: var(--ink-faint); font-size: 15px; line-height: 1;
+}
+
+.slots-cta {
+  width: 100%; margin-top: 14px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+  padding: 11px 16px; border-radius: var(--r-md);
+  background: var(--grad-soft); border: 1px solid rgba(251,113,133,.3);
+  color: var(--ink); font-size: 13.5px; font-weight: 650; cursor: pointer;
+  transition: border-color .2s, transform .2s var(--ease);
+}
+.slots-cta:hover { border-color: var(--brand); transform: translateY(-1px); }
+.slots-nota { margin: 9px 2px 0; font-size: 11.5px; color: var(--ink-faint); line-height: 1.45; }
+
+.slots-box.slots-pago { display: flex; align-items: center; gap: 14px; }
+.slots-pago .slots-coroa {
+  width: 38px; height: 38px; border-radius: var(--r-md); flex: none;
+  display: grid; place-items: center;
+  background: var(--grad); color: #fff; box-shadow: var(--glow);
+}
+.slots-pago strong { display: block; font-size: 14.5px; font-weight: 700; }
+.slots-pago span { font-size: 12.5px; color: var(--ink-dim); }
+
+@media (prefers-reduced-motion: reduce) {
+  .slot-peca, .slots-cta { transition: none; }
+  .slot-peca.livre:hover, .slots-cta:hover { transform: none; }
+}

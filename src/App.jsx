@@ -1008,7 +1008,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
         )}
       </div>
 
-      {projOpen && <ProjectsDrawer projects={vercelProjects} onReload={loadVercelProjects} onOpen={openProject} onClose={() => setProjOpen(false)} />}
+      {projOpen && <ProjectsDrawer projects={vercelProjects} onReload={loadVercelProjects} onOpen={openProject} onClose={() => setProjOpen(false)} acesso={acesso} onConvidar={() => { setProjOpen(false); abrirConexoes(); }} />}
       {histOpen && <HistoryDrawer sessions={sessions} onOpen={openSession}
         onDelete={async id => { await history.deleteSession(id); refreshHistory(); }}
         onClear={async () => { await history.clearAll(); refreshHistory(); }}
@@ -1637,7 +1637,80 @@ function ProjectThumb({ url }) {
   );
 }
 
-function ProjectsDrawer({ projects, onReload, onOpen, onClose }) {
+/**
+ * Os slots, desenhados.
+ *
+ * O número "3 sites restantes" não diz nada para quem não programa — some no
+ * meio do texto. Peça vazia e peça cheia a pessoa entende sem ler: ela vê o
+ * que tem, vê o que gastou e vê quanto falta, igual a vida/munição num jogo.
+ *
+ * Fica em Projetos de propósito: é a tela onde ela vem ver o que já criou, e
+ * portanto onde a pergunta "posso criar mais?" nasce sozinha.
+ */
+function SlotsDoPlano({ acesso, onConvidar }) {
+  if (!acesso || acesso.semLogin || !acesso.carregado) return null;
+
+  if (acesso.pago) {
+    return (
+      <div className="slots-box slots-pago">
+        <span className="slots-coroa"><IconGem /></span>
+        <div>
+          <strong>{t("Sites ilimitados")}</strong>
+          <span>{t("Seu plano não usa slots. Crie quantos quiser.")}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const casaTotal = Math.max(acesso.casaTotalDia || 0, acesso.casaRestantesHoje || 0);
+  const casaLivres = acesso.casaRestantesHoje || 0;
+  const propTotal = acesso.propriosTotal || 0;
+  const propLivres = acesso.propriosRestantes || 0;
+  const porConvite = acesso.slotsPorConvite || 2;
+
+  const pecas = (total, livres) => Array.from({ length: Math.max(total, 1) }, (_, i) => (
+    <span key={i} className={"slot-peca" + (i < livres ? " livre" : " usada")}
+      title={i < livres ? t("Pronto pra usar") : t("Já usado")}>
+      {i < livres ? <IconMaisFino /> : <IconCheckFino />}
+    </span>
+  ));
+
+  return (
+    <div className="slots-box">
+      <div className="slots-linha">
+        <div className="slots-cab">
+          <strong>{t("Site de hoje")}</strong>
+          <span>{t("feito com a nossa IA · renova todo dia")}</span>
+        </div>
+        <div className="slots-fila">{pecas(casaTotal, casaLivres)}</div>
+      </div>
+
+      <div className="slots-linha">
+        <div className="slots-cab">
+          <strong>{t("Com a sua chave")}</strong>
+          <span>{propTotal > 0
+            ? t("ganhos por indicação")
+            : t("você ainda não tem — convide alguém pra ganhar")}</span>
+        </div>
+        <div className="slots-fila">
+          {propTotal > 0
+            ? pecas(propTotal, propLivres)
+            : <span className="slot-peca vazia" title={t("Nenhum ainda")}>·</span>}
+        </div>
+      </div>
+
+      <button className="slots-cta" onClick={onConvidar}>
+        <IconGem />
+        <span>{t("Convide alguém e ganhe +{n} sites", { n: porConvite })}</span>
+      </button>
+      <p className="slots-nota">
+        {t("Quem entra pelo seu link já começa com um site a mais — e você ganha os seus quando essa pessoa criar o primeiro site dela.")}
+      </p>
+    </div>
+  );
+}
+
+function ProjectsDrawer({ projects, onReload, onOpen, onClose, acesso, onConvidar }) {
   useEffect(() => { onReload?.(); /* eslint-disable-next-line */ }, []);
   return (
     <>
@@ -1647,6 +1720,7 @@ function ProjectsDrawer({ projects, onReload, onOpen, onClose }) {
           <button className="btn sm ghost" onClick={onReload}><IconRefresh /> {t("Atualizar")}</button>
         </DrawerHead>
         <div className="body">
+          <SlotsDoPlano acesso={acesso} onConvidar={onConvidar} />
           <p className="hint" style={{ marginTop: 0 }}>{t("Seus projetos na Vercel. Clicar abre o projeto (puxa o repositório do GitHub ligado) para editar.")}</p>
           {projects === null ? <p className="hint">{t("carregando…")}</p>
             : projects.length === 0 ? (
@@ -2073,6 +2147,8 @@ const IconUndo = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><p
 const IconExternal = () => <svg viewBox="0 0 24 24" width="13" height="13" {...S}><path d="M14 4h6v6M20 4l-8 8" /><path d="M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" /></svg>;
 const IconLock = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S}><rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>;
 const IconShield = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><path d="M12 3l7.5 3v6c0 4.5-3.2 8-7.5 9.4C7.7 20 4.5 16.5 4.5 12V6z" /><path d="M9.3 12.2l1.9 1.9 3.6-3.7" /></svg>;
+const IconMaisFino = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S} strokeWidth="2.6"><path d="M12 6v12M6 12h12" /></svg>;
+const IconCheckFino = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S} strokeWidth="3"><path d="M20 6 9 17l-5-5" /></svg>;
 const IconArrowUp = () => <svg viewBox="0 0 24 24" width="17" height="17" {...S} strokeWidth="2.2"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></svg>;
 // Quadrado cheio: o simbolo universal de "parar". Fica no lugar da seta
 // enquanto a IA trabalha, entao o botao nunca some da onde a pessoa procura.

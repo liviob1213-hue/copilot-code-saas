@@ -55,27 +55,58 @@ export const VERCEL_OAUTH = {
 // Suba este numero SEMPRE que mudar modelo/provedor no catalogo: a migracao em
 // storage.js so roda quando ele muda, e e ela que troca um modelo salvo que nao
 // existe mais (ex.: "claude-sonnet-5" antigo, que fazia a Anthropic dar 400).
-export const CATALOG_VERSION = 15;
+export const CATALOG_VERSION = 16;
 
 // tier: "free" entra no rodizio automatico primeiro; "paid" so e usado no
 // automatico depois que TODAS as gratis se esgotarem (protege o saldo do cliente).
 // keyUrl: link "Obter chave" mostrado no card do provedor.
 export const PROVIDER_CATALOG = [
-  // ---- GRATIS (rodizio automatico, nesta ordem de prioridade) --------------
+  // ---- GRATIS (rodizio automatico, NESTA ORDEM) ----------------------------
+  //
+  // A ordem aqui vira a prioridade do rodizio, e ela foi escolhida com motivo:
+  //
+  //   1. Cerebras  -> roda em hardware proprio e responde MUITO mais rapido.
+  //                   No plano gratis velocidade e conversao: quem ve o site
+  //                   nascer em 1 minuto fica, quem espera 4 minutos fecha a aba.
+  //   2. Mistral   -> o unico que ja gerou site de verdade neste projeto. E a
+  //                   rede de seguranca com historico comprovado.
+  //   3. OpenRouter-> por ultimo entre os gratis: os modelos ":free" sao fila
+  //                   compartilhada do mundo inteiro e vivem devolvendo 503.
+  //   4. Gemini / Groq -> reservas extras.
+  //
+  // As PAGAS entram so depois de todas as gratis (ver tierRank em providers.js).
+
+  // ---- PAGAS (seletor manual; no automatico so entram apos as gratis) ------
   {
-    id: "gemini",
+    id: "cerebras",
     tier: "free",
-    contextBudget: 900000,
-    vision: true,
-    label: "Google Gemini",
-    kind: "gemini",
-    endpoint: "https://generativelanguage.googleapis.com/v1beta/models",
-    listEndpoint: "https://generativelanguage.googleapis.com/v1beta/models",
-    secretKey: "GEMINI_API_KEY",
-    keyUrl: "https://aistudio.google.com/apikey",
-    defaultModel: "gemini-flash-latest",
-    models: ["gemini-flash-latest", "gemini-flash-lite-latest"],
-    note: "Gratis. Contexto enorme, le o projeto inteiro e enxerga imagem."
+    contextBudget: 55000,
+    vision: false,
+    label: "Cerebras",
+    kind: "openai",
+    endpoint: "https://api.cerebras.ai/v1/chat/completions",
+    listEndpoint: "https://api.cerebras.ai/v1/models",
+    secretKey: "CEREBRAS_API_KEY",
+    keyUrl: "https://cloud.cerebras.ai",
+    defaultModel: "gpt-oss-120b",
+    models: ["gpt-oss-120b", "qwen-3.8-27b"],
+    note: "Gratis e MUITO rapida (hardware proprio). Boa primeira escolha."
+  },
+  {
+    id: "mistral",
+    tier: "free",
+    maxOutput: 16000,
+    contextBudget: 100000,
+    vision: false,
+    label: "Mistral",
+    kind: "openai",
+    endpoint: "https://api.mistral.ai/v1/chat/completions",
+    listEndpoint: "https://api.mistral.ai/v1/models",
+    secretKey: "MISTRAL_API_KEY",
+    keyUrl: "https://console.mistral.ai",
+    defaultModel: "codestral-latest",
+    models: ["codestral-latest"],
+    note: "Gratis. Codestral e forte em edicao de codigo."
   },
   {
     id: "openrouter",
@@ -93,20 +124,19 @@ export const PROVIDER_CATALOG = [
     note: "Gratis. Os modelos :free mudam de nome; se der 404, clique em Buscar e escolha um da lista."
   },
   {
-    id: "mistral",
+    id: "gemini",
     tier: "free",
-    maxOutput: 16000,
-    contextBudget: 100000,
-    vision: false,
-    label: "Mistral",
-    kind: "openai",
-    endpoint: "https://api.mistral.ai/v1/chat/completions",
-    listEndpoint: "https://api.mistral.ai/v1/models",
-    secretKey: "MISTRAL_API_KEY",
-    keyUrl: "https://console.mistral.ai",
-    defaultModel: "codestral-latest",
-    models: ["codestral-latest"],
-    note: "Gratis. Codestral e forte em edicao de codigo."
+    contextBudget: 900000,
+    vision: true,
+    label: "Google Gemini",
+    kind: "gemini",
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/models",
+    listEndpoint: "https://generativelanguage.googleapis.com/v1beta/models",
+    secretKey: "GEMINI_API_KEY",
+    keyUrl: "https://aistudio.google.com/apikey",
+    defaultModel: "gemini-flash-latest",
+    models: ["gemini-flash-latest", "gemini-flash-lite-latest"],
+    note: "Gratis. Contexto enorme, le o projeto inteiro e enxerga imagem."
   },
   {
     id: "groq",
@@ -127,8 +157,6 @@ export const PROVIDER_CATALOG = [
     models: ["openai/gpt-oss-20b"],
     note: "Gratis e rapidissimo, mas com limite baixo de tokens/min. Fica por ultimo no rodizio."
   },
-
-  // ---- PAGAS (seletor manual; no automatico so entram apos as gratis) ------
   {
     id: "anthropic",
     tier: "paid",

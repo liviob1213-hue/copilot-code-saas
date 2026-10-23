@@ -67,16 +67,33 @@ function pagasLiberadas() {
  */
 async function filaDoPlano() {
   const fila = await resolveQueue();
-  const semPagas = pagasLiberadas() ? fila : fila.filter(q => q.provider.tier !== "paid");
-  if (!casaLigada()) return semPagas;
+  const podePagas = pagasLiberadas();
 
   let daCasa = [];
-  try { daCasa = regrasDoPlano.provedoresDaCasa?.() || []; } catch { daCasa = []; }
-  if (!daCasa.length) return semPagas;
+  if (casaLigada()) {
+    try { daCasa = regrasDoPlano.provedoresDaCasa?.() || []; } catch { daCasa = []; }
+  }
 
   const resultado = [];
-  for (const q of semPagas) {
-    if (!daCasa.includes(q.provider.id)) { resultado.push(q); continue; }
+  for (const q of fila) {
+    const ehPaga = q.provider.tier === "paid";
+    const casaOferece = daCasa.includes(q.provider.id);
+
+    if (ehPaga && !podePagas) {
+      // DUAS COISAS DIFERENTES, e confundi-las deixava a reserva morta:
+      //
+      //   API paga com a chave DA PESSOA  -> fora. É isto que separa os planos.
+      //   API paga com a chave DA CASA    -> a conta é NOSSA, não dela. Quem
+      //                                      decide quem usa é o dono do app.
+      //
+      // Antes o filtro cortava as duas juntas, então uma reserva paga da casa
+      // (ex.: DeepSeek para quando as gratuitas lotam) nunca era oferecida
+      // justamente a quem ela existia para socorrer: o pessoal do plano grátis.
+      if (casaOferece) resultado.push({ ...q, hasKey: true, viaCasa: true });
+      continue;
+    }
+
+    if (!casaOferece) { resultado.push(q); continue; }
     const pelaCasa = { ...q, hasKey: true, viaCasa: true };
     if (!q.hasKey) { resultado.push(pelaCasa); continue; }
     resultado.push(pelaCasa, q);

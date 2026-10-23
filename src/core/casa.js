@@ -32,7 +32,10 @@ import { GITHUB_OAUTH } from "./config.js";
 import { registrarRegrasDoPlano } from "./providers.js";
 
 /** Os quatro servicos que a casa empresta (iguais aos de api/_lib.js). */
-export const PROVEDORES_DA_CASA = ["gemini", "openrouter", "groq", "mistral"];
+// A ordem de uso NAO vem daqui (vem do PROVIDER_CATALOG): esta lista so diz
+// QUAIS servicos a casa empresta. A deepseek e a unica paga -- entra como
+// reserva e so e alcancada depois que todas as gratis falharem.
+export const PROVEDORES_DA_CASA = ["cerebras", "mistral", "openrouter", "gemini", "groq", "deepseek"];
 
 // --- estado, atualizado pelo App a cada leitura do plano ---------------------
 let estado = {

@@ -182,10 +182,11 @@ __name(trocaVercel, "trocaVercel");
 //
 // VARIAVEIS DESTE WORKER (Cloudflare -> Settings -> Variables and Secrets):
 //   PASSE_IA_SEGREDO       <- o mesmo valor que esta na Vercel
-//   IA_CASA_GEMINI_KEY
-//   IA_CASA_OPENROUTER_KEY
-//   IA_CASA_GROQ_KEY
+//   IA_CASA_CEREBRAS_KEY   <- a mais rapida; e a primeira da fila
 //   IA_CASA_MISTRAL_KEY
+//   IA_CASA_OPENROUTER_KEY
+//   IA_CASA_GEMINI_KEY
+//   IA_CASA_GROQ_KEY
 //   IA_CASA_DEEPSEEK_KEY   <- opcional, e a unica PAGA: reserva para quando as
 //                             gratuitas estiverem lotadas. Vazia = nao usada.
 //
@@ -196,6 +197,15 @@ __name(trocaVercel, "trocaVercel");
 // =============================================================================
 
 var CASA = {
+  // Primeira da fila: responde em hardware proprio e e muito mais rapida. No
+  // plano gratis isso vale mais que preco — quem ve o site nascer rapido fica.
+  cerebras: {
+    env: "IA_CASA_CEREBRAS_KEY",
+    url: /* @__PURE__ */ __name(() => "https://api.cerebras.ai/v1/chat/completions", "urlCerebras"),
+    headers: /* @__PURE__ */ __name((chave) => ({ "content-type": "application/json", "authorization": "Bearer " + chave }), "hCerebras"),
+    // O catalogo compartilhado dela e curto; aceitamos os nomes dele.
+    modeloOk: /^(gpt-oss|qwen|llama)[a-z0-9._\-]*$/i
+  },
   gemini: {
     env: "IA_CASA_GEMINI_KEY",
     // Modelo vai no ENDERECO e a chave tambem (o Gemini e assim).
