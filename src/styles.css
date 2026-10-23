@@ -641,6 +641,24 @@ select.chip { -webkit-appearance: none; appearance: none; }
 .send:active:not(:disabled) { transform: scale(.95); }
 .send:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 
+/* Botão de PARAR: ocupa o lugar da seta enquanto a IA trabalha. Fica neutro,
+   e não vermelho-gradiente, porque parar não é a ação que queremos que a
+   pessoa sinta vontade de clicar — só precisa estar lá, óbvio, quando ela
+   decidir. O pulso devagar mostra que ainda tem coisa acontecendo. */
+.send.parar {
+  background: rgba(255, 255, 255, .10);
+  border: 1px solid var(--edge-hi);
+  color: var(--ink);
+  box-shadow: none;
+  animation: parar-pulso 1.8s ease-in-out infinite;
+}
+.send.parar:hover { background: rgba(251, 113, 133, .18); border-color: var(--brand); color: #fff; animation: none; }
+@keyframes parar-pulso {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, .35); }
+  50%      { box-shadow: 0 0 0 6px rgba(251, 113, 133, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .send.parar { animation: none; } }
+
 /* ============================================================
    Popovers
    ============================================================ */

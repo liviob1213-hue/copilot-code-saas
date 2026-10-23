@@ -6,6 +6,7 @@ import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, publicarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
+import { cancelarIA, comecarIA } from "./core/net.js";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
 import { marcarProjetoNovo, consumirUsouCasa } from "./core/casa.js";
@@ -500,6 +501,13 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       refreshHistory(); loadVercelProjects();
     } catch (e) {
       endRun();
+      // Cancelar nao e falha: quem mandou parar sabe o que aconteceu e nao
+      // precisa de tela vermelha nem de "dica" para consertar coisa nenhuma.
+      if (e?.name === "CanceladoPeloUsuario") {
+        pushMsg("assistant", t("Parei por aqui. Pode mandar outro pedido quando quiser."));
+        setBusy(false);
+        return;
+      }
       let msg = e.message;
       if (/recusaram|timeout|refus/i.test(msg)) {
         msg += "\n\n" + t("Dica: no seletor de IA escolha um modelo de CÓDIGO (ex.: DeepSeek → deepseek-v4-pro, ou Gemini). Evite modelos de visão/experimentais — eles travam. E deixe mais de um provedor ligado em Conexões pra ter reserva.");
@@ -531,8 +539,23 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
    * Aqui o erro vira mensagem, vira aviso e destrava o botão. Pode ser que um
    * pedido falhe; o que não pode é falhar calado.
    */
+  /** O botão de parar. Interrompe a IA sem recarregar a página. */
+  function cancelarPedido() {
+    cancelarIA();
+    showToast(t("Parando…"));
+  }
+
   function dispararRun(texto, opcoes) {
+    // Baixa a bandeira de um cancelamento anterior, senão o pedido novo
+    // nasceria já cancelado.
+    comecarIA();
     run(texto, opcoes).catch(e => {
+      if (e?.name === "CanceladoPeloUsuario") {
+        endRun();
+        pushMsg("assistant", t("Parei por aqui. Pode mandar outro pedido quando quiser."));
+        setBusy(false);
+        return;
+      }
       console.error("[run] falhou fora do try:", e);
       const motivo = e?.message || String(e);
       setView("workspace");
@@ -694,7 +717,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     <Composer
       big={view === "home"} repo={repo} busy={busy} input={input} setInput={setInput}
       inputRef={inputRef}
-      kind={kind} setKind={setKind} onSend={handleSend} onBlindar={handleBlindar}
+      kind={kind} setKind={setKind} onSend={handleSend} onCancel={cancelarPedido} onBlindar={handleBlindar}
       providerId={providerId} activeModel={activeModel} onPickModel={pickModel} modelsCache={modelsCache} modelHealth={modelHealth}
       estadoProvs={estadoProvs} podeApisPagas={acesso.podeApisPagas !== false}
       onPlanoPago={() => showToast(t("As IAs pagas (Claude, DeepSeek, xAI) fazem parte do plano Pro. No grátis dá para usar as quatro gratuitas."))}
@@ -1194,7 +1217,7 @@ function TplIcon({ ic }) {
 }
 
 /* ---------------- Composer (v0-style) ---------------- */
-function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, estadoProvs, podeApisPagas = true, onPlanoPago = () => {}, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
+function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onCancel = () => {}, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, estadoProvs, podeApisPagas = true, onPlanoPago = () => {}, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
   const [plus, setPlus] = useState(false);
   const fileRef = useRef(null);
   return (
@@ -1232,7 +1255,9 @@ function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, o
         <button className="chip" onClick={onBlindar} disabled={busy || !repo} title={t("Blindar contra vazamento de dados")}><IconShield /></button>
         <div className="spacer" />
         <ProjectPicker projects={projects} onLoad={onLoadProjects} onOpen={onOpenProject} onNew={onNew} />
-        <button className="send" onClick={onSend} disabled={busy} title={t("Enviar")}>{busy ? <span className="spin" /> : <IconArrowUp />}</button>
+        {busy
+          ? <button className="send parar" onClick={onCancel} title={t("Parar")} aria-label={t("Parar")}><IconParar /></button>
+          : <button className="send" onClick={onSend} title={t("Enviar")}><IconArrowUp /></button>}
       </div>
     </div>
   );
@@ -2049,6 +2074,9 @@ const IconExternal = () => <svg viewBox="0 0 24 24" width="13" height="13" {...S
 const IconLock = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S}><rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>;
 const IconShield = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><path d="M12 3l7.5 3v6c0 4.5-3.2 8-7.5 9.4C7.7 20 4.5 16.5 4.5 12V6z" /><path d="M9.3 12.2l1.9 1.9 3.6-3.7" /></svg>;
 const IconArrowUp = () => <svg viewBox="0 0 24 24" width="17" height="17" {...S} strokeWidth="2.2"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></svg>;
+// Quadrado cheio: o simbolo universal de "parar". Fica no lugar da seta
+// enquanto a IA trabalha, entao o botao nunca some da onde a pessoa procura.
+const IconParar = () => <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" /></svg>;
 const IconChevronDown = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S} strokeWidth="2.2"><path d="m6 9 6 6 6-6" /></svg>;
 const IconChevronLeft = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S} strokeWidth="2.2"><path d="m15 18-6-6 6-6" /></svg>;
 const IconMenu = () => <svg viewBox="0 0 24 24" width="16" height="16" {...S} strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>;

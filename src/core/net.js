@@ -82,15 +82,72 @@ export function installProxy(workerUrl) {
  * res.json() depois nao funciona (o corpo ja foi consumido) e, de qualquer
  * forma, seria a mesma leitura sem relogio que causou o travamento.
  */
-export async function fetchComCorpo(url, init, timeoutMs) {
+export async function fetchComCorpo(url, init, timeoutMs, { grupo = "" } = {}) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  if (grupo === "ia") emAndamentoIA.add(ctrl);
   try {
     const res = await fetch(url, { ...init, signal: ctrl.signal });
     const text = await res.text();
     return { res, text };
   } finally {
     clearTimeout(timer);
+    if (grupo === "ia") emAndamentoIA.delete(ctrl);
+  }
+}
+
+// ============================================================================
+// PARAR A IA NO MEIO
+// ----------------------------------------------------------------------------
+// Sem isto, quem mandou um pedido errado (ou caiu numa IA lenta) so tinha uma
+// saida: recarregar a pagina e perder a conversa. Esperar 8 minutos olhando
+// para uma tela que voce ja sabe que nao quer e a pior sensacao que o app
+// pode dar.
+//
+// Sao DUAS coisas, e as duas precisam existir:
+//   1. abortar as chamadas que estao no ar agora;
+//   2. levantar a bandeira de "foi cancelado", porque o rodizio de provedores
+//      trata erro de rede como "este falhou, tenta o proximo" — sem a bandeira,
+//      cancelar faria ele correr para a IA seguinte em vez de parar.
+// ============================================================================
+
+const emAndamentoIA = new Set();
+let canceladoIA = false;
+
+/** Comeca um trabalho novo de IA: baixa a bandeira do cancelamento anterior. */
+export function comecarIA() {
+  canceladoIA = false;
+}
+
+/**
+ * Para quem cria o proprio AbortController (o caminho de streaming) e mesmo
+ * assim precisa obedecer ao botao de cancelar.
+ */
+export function registrarCancelavelIA(ctrl) {
+  emAndamentoIA.add(ctrl);
+}
+
+export function soltarCancelavelIA(ctrl) {
+  emAndamentoIA.delete(ctrl);
+}
+
+/** Para tudo o que a IA esta fazendo agora. */
+export function cancelarIA() {
+  canceladoIA = true;
+  for (const c of emAndamentoIA) { try { c.abort(); } catch { /* ja terminou */ } }
+  emAndamentoIA.clear();
+}
+
+/** O rodizio consulta isto antes de tentar o proximo provedor. */
+export function iaFoiCancelada() {
+  return canceladoIA;
+}
+
+/** Erro de cancelamento: o app reconhece e mostra recado proprio, nao "falhou". */
+export class CanceladoPeloUsuario extends Error {
+  constructor() {
+    super("Cancelado por você.");
+    this.name = "CanceladoPeloUsuario";
   }
 }
 

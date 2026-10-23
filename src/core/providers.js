@@ -4,7 +4,10 @@ import { PROVIDER_CATALOG, COOLDOWN_MS } from "./config.js";
 import * as store from "./storage.js";
 // fetchComCorpo mora em net.js: o mesmo relogio unico que nasceu aqui agora
 // protege tambem github.js, vercel.js, supabase-mgmt.js e billing.js.
-import { fetchComCorpo } from "./net.js";
+import {
+  fetchComCorpo, iaFoiCancelada, CanceladoPeloUsuario,
+  registrarCancelavelIA, soltarCancelavelIA
+} from "./net.js";
 
 /**
  * Formato neutro de conversa usado internamente. E ele que permite trocar de
@@ -831,6 +834,11 @@ export async function complete({ system, messages, tools, preferredProviderId = 
   const fimDaFila = Date.now() + PRAZO_DA_FILA;
 
   for (const entry of attempts) {
+    // Cancelou? Entao PARA. Sem esta linha, abortar a chamada atual pareceria
+    // "este provedor falhou" e o rodizio correria para a IA seguinte — ou
+    // seja, o botao de cancelar nao cancelaria nada.
+    if (iaFoiCancelada()) throw new CanceladoPeloUsuario();
+
     const restante = fimDaFila - Date.now();
     // Menos de 25s nao da pra escrever nada util: melhor parar e contar a
     // verdade do que comecar uma tentativa que vai morrer pela metade.
@@ -926,8 +934,11 @@ export async function complete({ system, messages, tools, preferredProviderId = 
         method: "POST",
         headers: alvo.headers,
         body: JSON.stringify(alvo.body)
-      }, timeoutMs));
+      }, timeoutMs, { grupo: "ia" }));
     } catch (networkError) {
+      // O abort do cancelamento chega aqui disfarcado de erro de rede. Se nao
+      // separarmos os dois, cancelar vira "tenta o proximo provedor".
+      if (iaFoiCancelada()) throw new CanceladoPeloUsuario();
       houveTransitorio = true;
       const msg = networkError.name === "AbortError"
         ? `timeout: a API nao respondeu em ${Math.round(timeoutMs / 1000)}s`
@@ -1148,11 +1159,16 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
   // stream cada pedaco que chega ja e sinal de vida, entao o prazo so pega
   // quem realmente parou.
   const timeout = setTimeout(() => controller.abort(), 300_000);
+  // O botao de cancelar precisa alcancar o stream tambem, senao a IA continua
+  // escrevendo depois de a pessoa mandar parar.
+  registrarCancelavelIA(controller);
   let res;
   try {
     res = await fetch(alvo.url, { method: "POST", headers: alvo.headers, body: JSON.stringify(alvo.body), signal: controller.signal });
   } catch (e) {
     clearTimeout(timeout);
+    soltarCancelavelIA(controller);
+    if (iaFoiCancelada()) throw new CanceladoPeloUsuario();
     throw new Error("stream: rede/timeout");
   }
   if (!res.ok || !res.body) {
@@ -1160,6 +1176,7 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
     // prenderia a geracao aqui do mesmo jeito. Ver fetchComCorpo().
     const t = await res.text().catch(() => "");
     clearTimeout(timeout);
+    soltarCancelavelIA(controller);
     const err = new Error(`stream ${res.status}: ${errorDetail(t) || t.slice(0, 120)}`);
     err.status = res.status;
     throw err;
@@ -1207,6 +1224,7 @@ export async function streamComplete({ system, messages, tools = [], preferredPr
     motivoParada = "interrompido";
   } finally {
     clearTimeout(timeout);
+    soltarCancelavelIA(controller);
   }
 
   if (!full.trim()) throw new Error("stream vazio");
