@@ -151,6 +151,12 @@ function montar(s) {
     propriosUsados: Number(s.proprios_usados || 0),
     propriosRestantes,
     slotsGanhos: Number(s.slots_ganhos || 0),
+    // Ganhos HOJE: so entram no saldo amanha. Precisam aparecer na tela,
+    // senao o premio parece que nao veio e a pessoa abre chamado dizendo
+    // que o convite dela nao pagou.
+    slotsEsperando: Number(s.slots_esperando || 0),
+    ganhosNoMes: Number(s.ganhos_no_mes || 0),
+    tetoDoMes: Number(s.teto_do_mes || s.limites?.teto_slots_mes || 10),
     convitesPagos: Number(s.convites_pagos || 0),
 
     podeCriarSite: pago || casaNovoProjeto || propriosRestantes > 0,

@@ -1684,7 +1684,10 @@ function SlotsDoPlano({ acesso, onConvidar }) {
   const casaLivres = acesso.casaRestantesHoje || 0;
   const propTotal = acesso.propriosTotal || 0;
   const propLivres = acesso.propriosRestantes || 0;
-  const porConvite = acesso.slotsPorConvite || 2;
+  const porConvite = acesso.slotsPorConvite || 1;
+  const esperando = acesso.slotsEsperando || 0;
+  const noMes = acesso.ganhosNoMes || 0;
+  const tetoMes = acesso.tetoDoMes || 10;
 
   const pecas = (total, livres) => Array.from({ length: Math.max(total, 1) }, (_, i) => (
     <span key={i} className={"slot-peca" + (i < livres ? " livre" : " usada")}
@@ -1714,15 +1717,31 @@ function SlotsDoPlano({ acesso, onConvidar }) {
           {propTotal > 0
             ? pecas(propTotal, propLivres)
             : <span className="slot-peca vazia" title={t("Nenhum ainda")}>·</span>}
+          {/* Peças ganhas hoje: aparecem apagadas com um relógio. Esconder
+              faria o prêmio parecer que não veio. */}
+          {Array.from({ length: esperando }, (_, i) => (
+            <span key={"e" + i} className="slot-peca esperando" title={t("Liberado amanhã")}>
+              <IconRelogio />
+            </span>
+          ))}
         </div>
       </div>
+
+      {esperando > 0 && (
+        <p className="slots-espera">
+          {esperando === 1
+            ? t("1 site ganho hoje — ele libera amanhã.")
+            : t("{n} sites ganhos hoje — eles liberam amanhã.", { n: esperando })}
+        </p>
+      )}
 
       <button className="slots-cta" onClick={onConvidar}>
         <IconGem />
         <span>{t("Convide alguém e ganhe +{n} sites", { n: porConvite })}</span>
       </button>
       <p className="slots-nota">
-        {t("Quem entra pelo seu link já começa com um site a mais — e você ganha os seus quando essa pessoa criar o primeiro site dela.")}
+        {t("Quem entra pelo seu link já começa com um site a mais. Você ganha o seu quando essa pessoa criar o primeiro site dela — e ele fica disponível no dia seguinte.")}
+        {noMes > 0 && " " + t("Você já ganhou {a} de {b} sites possíveis neste mês.", { a: noMes, b: tetoMes })}
       </p>
     </div>
   );
@@ -2175,6 +2194,7 @@ const IconUndo = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><p
 const IconExternal = () => <svg viewBox="0 0 24 24" width="13" height="13" {...S}><path d="M14 4h6v6M20 4l-8 8" /><path d="M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" /></svg>;
 const IconLock = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S}><rect x="4" y="10" width="16" height="11" rx="2.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>;
 const IconShield = () => <svg viewBox="0 0 24 24" width="15" height="15" {...S}><path d="M12 3l7.5 3v6c0 4.5-3.2 8-7.5 9.4C7.7 20 4.5 16.5 4.5 12V6z" /><path d="M9.3 12.2l1.9 1.9 3.6-3.7" /></svg>;
+const IconRelogio = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S} strokeWidth="2.2"><circle cx="12" cy="12" r="9" /><path d="M12 7.5V12l3 2" /></svg>;
 const IconMaisFino = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S} strokeWidth="2.6"><path d="M12 6v12M6 12h12" /></svg>;
 const IconCheckFino = () => <svg viewBox="0 0 24 24" width="12" height="12" {...S} strokeWidth="3"><path d="M20 6 9 17l-5-5" /></svg>;
 const IconArrowUp = () => <svg viewBox="0 0 24 24" width="17" height="17" {...S} strokeWidth="2.2"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" /></svg>;

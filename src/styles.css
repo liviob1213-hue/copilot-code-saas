@@ -1374,3 +1374,12 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
   background: var(--grad-soft); border: 1px solid rgba(251,113,133,.35);
   color: #fda4af;
 }
+
+/* Peça ganha hoje: existe, mas ainda não dá pra usar. Fica visível de propósito
+   — esconder faria o prêmio do convite parecer que não chegou. */
+.slot-peca.esperando {
+  background: rgba(255,255,255,.03);
+  border-style: dashed;
+  color: var(--ink-faint);
+}
+.slots-espera { margin: 8px 2px 0; font-size: 11.5px; color: #fdba74; }
