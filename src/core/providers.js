@@ -66,6 +66,19 @@ function pagasLiberadas() {
  * termina, em vez de morrer com "acabou sua cota".
  */
 async function filaDoPlano() {
+  // Espera o plano ser lido ao menos UMA vez. Sem isto, um pedido disparado
+  // logo depois do login corria na frente da leitura: a casa ainda constava
+  // como indisponivel, nenhum provedor dela entrava na fila, e quem nao tem
+  // chave propria recebia "Nenhuma API de IA ativa" com a cota intacta.
+  // O teto existe para nunca prender a geracao se a leitura travar.
+  if (regrasDoPlano?.aguardarPronto) {
+    try {
+      await Promise.race([
+        regrasDoPlano.aguardarPronto(),
+        new Promise((r) => setTimeout(r, 5000))
+      ]);
+    } catch { /* segue com o que der */ }
+  }
   const fila = await resolveQueue();
   const podePagas = pagasLiberadas();
 

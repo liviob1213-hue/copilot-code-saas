@@ -61,6 +61,18 @@ let usouCasaNestaGeracao = false;
 // Quando a casa recusa ("acabou seu site de hoje"), nao vale perguntar de novo
 // a cada chamada: guardamos o recado e esperamos um tempinho.
 let bloqueioAte = 0;
+// Bloqueio POR SERVICO: um provedor mal configurado no Worker (ou fora do ar)
+// nao pode levar os outros junto.
+let bloqueioPorProvedor = {};
+
+// "Ja sei a resposta sobre esta pessoa?" -- diferente de "ela pode usar".
+// Enquanto o plano nao foi lido, disponivel e false por precaucao; se alguem
+// manda um pedido nesse instante (logo apos o login, por exemplo), a fila sai
+// sem nenhum provedor da casa e a pessoa ve "Nenhuma API de IA ativa" tendo
+// cota de sobra. Por isso quem monta a fila ESPERA por esta promessa.
+let avisarPronto;
+const promessaPronto = new Promise((r) => { avisarPronto = r; });
+let jaRespondido = false;
 let recadoDaCasa = "";
 
 const ESPERA_APOS_RECUSA_MS = 60 * 1000;
@@ -74,7 +86,9 @@ export function configurarCasa({ disponivel = false, permitePagas = true } = {})
   estado.permitePagas = Boolean(permitePagas);
   // Plano novo lido = recado antigo nao vale mais (pode ter virado o dia, ou a
   // pessoa pode ter acabado de assinar).
-  if (disponivel) { bloqueioAte = 0; recadoDaCasa = ""; }
+  if (disponivel) { bloqueioAte = 0; bloqueioPorProvedor = {}; recadoDaCasa = ""; }
+  // Mesmo "nao disponivel" e uma resposta: destrava quem estiver esperando.
+  if (!jaRespondido) { jaRespondido = true; avisarPronto(); }
 }
 
 /** Avisa que a proxima chamada de IA comeca um projeto novo. */
@@ -109,6 +123,7 @@ async function pedirPasse(provedorId) {
   if (!estado.disponivel || !authConfigurada()) return null;
   if (!PROVEDORES_DA_CASA.includes(provedorId)) return null;
   if (Date.now() < bloqueioAte) return null;
+  if (Date.now() < (bloqueioPorProvedor[provedorId] || 0)) return null;
 
   let token = "";
   try { token = (await sessaoAtual())?.access_token || ""; } catch { token = ""; }
@@ -125,10 +140,23 @@ async function pedirPasse(provedorId) {
     const dados = await r.json().catch(() => ({}));
 
     if (!r.ok || !dados?.ok) {
-      // Recusa (cota do dia, nao configurado) ou erro: guarda o recado e para
-      // de insistir por um minuto, pra nao bater no servidor a cada chamada.
+      // DUAS RECUSAS MUITO DIFERENTES, e trata-las igual derrubava o app
+      // inteiro para quem nao tem chave propria:
+      //
+      //   sobre a PESSOA  ("seu site de hoje acabou") -> nenhum provedor da
+      //                   casa vai adiantar. Para de perguntar por um minuto.
+      //
+      //   sobre UM SERVICO ("esse nao tem chave configurada", erro do
+      //                   servidor) -> os OUTROS continuam valendo. Bloquear a
+      //                   casa toda aqui apagava Mistral, Gemini e Groq por
+      //                   causa de um unico servico mal configurado, e a
+      //                   pessoa via "Nenhuma API de IA ativa" tendo cota.
+      const motivo = String(dados?.motivo || "");
+      const ehDaPessoa = /slot_do_dia|sem_cota|sem_perfil|casa_desligada|cota/i.test(motivo);
+
       recadoDaCasa = dados?.recado || dados?.erro || "";
-      bloqueioAte = Date.now() + ESPERA_APOS_RECUSA_MS;
+      if (ehDaPessoa) bloqueioAte = Date.now() + ESPERA_APOS_RECUSA_MS;
+      else bloqueioPorProvedor[provedorId] = Date.now() + ESPERA_APOS_RECUSA_MS;
       return null;
     }
 
@@ -176,6 +204,7 @@ async function prepararChamada(req, { provedorId, modelo }) {
 export function ligarChaveDaCasa() {
   registrarRegrasDoPlano({
     usaChaveDaCasa: () => estado.disponivel && Date.now() >= bloqueioAte,
+    aguardarPronto: () => promessaPronto,
     provedoresDaCasa: () => PROVEDORES_DA_CASA,
     permitePagas: () => estado.permitePagas,
     prepararCasa: prepararChamada,

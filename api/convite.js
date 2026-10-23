@@ -114,12 +114,25 @@ export default async function handler(req, res) {
   }
 
   // ---- grava o convite -----------------------------------------------------
-  const { error: e4 } = await sb
+  // O `.is("convidado_por", null)` é o que torna isto idempotente, e não é
+  // detalhe: se esta função rodar duas vezes (clique repetido, retentativa da
+  // rede, duas abas), a segunda não encontra linha para atualizar — e o bônus
+  // logo abaixo só é pago para quem DE FATO gravou o convite agora.
+  // Sem isso, cada repetição dava mais um site de graça.
+  const { data: gravados, error: e4 } = await sb
     .from("perfis")
     .update({ convidado_por: dono.id })
-    .eq("id", usuario.id);
+    .eq("id", usuario.id)
+    .is("convidado_por", null)
+    .select("id");
 
   if (e4) return json(res, 500, { erro: e4.message });
+
+  if (!gravados || !gravados.length) {
+    // Alguém chegou primeiro (ou foi a mesma chamada repetida). Convite já
+    // está registrado; nada de bônus de novo.
+    return json(res, 200, { ok: true, bonus: false, recado: "Convite já estava registrado." });
+  }
 
   // ---- o presente de boas-vindas: um site a mais ---------------------------
   // Vai pro MESMO lugar que os slots de convite (cotas.slots_ganhos): os dois
@@ -135,16 +148,20 @@ export default async function handler(req, res) {
       .eq("email_normalizado", meu.email_normalizado)
       .maybeSingle();
 
-    const { error: e5 } = await sb
-      .from("cotas")
-      .upsert(
-        {
-          email_normalizado: meu.email_normalizado,
-          slots_ganhos: Number(cota?.slots_ganhos || 0) + 1
-        },
-        { onConflict: "email_normalizado" }
-      );
-    bonus = !e5;
+    // UPDATE, e não upsert, de propósito: o upsert do PostgREST manda a linha
+    // inteira e devolve as colunas que não foram enviadas para o DEFAULT —
+    // aqui isso apagaria dia_casa, slots_casa_usados, chamadas_casa_hoje e
+    // sites_criados, ou seja, zeraria a cota do dia da pessoa sem querer.
+    if (!cota) {
+      await sb.from("cotas").insert({ email_normalizado: meu.email_normalizado, slots_ganhos: 1 });
+      bonus = true;
+    } else {
+      const { error: e5 } = await sb
+        .from("cotas")
+        .update({ slots_ganhos: Number(cota.slots_ganhos || 0) + 1, atualizado_em: new Date().toISOString() })
+        .eq("email_normalizado", meu.email_normalizado);
+      bonus = !e5;
+    }
   } catch {
     bonus = false;
   }
