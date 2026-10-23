@@ -6,6 +6,7 @@ import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
 import { criarProjeto, publicarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
+import { guardarRascunho, lerRascunho, apagarRascunho, idsComRascunho } from "./core/rascunhos.js";
 import { cancelarIA, comecarIA } from "./core/net.js";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
@@ -469,6 +470,9 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       // prévia rodando de verdade e esperamos a pessoa clicar em Publicar.
       if (!repo) {
         setRascunho({ files: r.files, nome: r.nome, brief: r.brief, kind: r.kind });
+        // Guarda junto da conversa. O slot ja foi gasto: sair da conversa e
+        // voltar NAO pode significar perder o projeto.
+        guardarRascunho(sessionRef.current, { files: r.files, nome: r.nome, brief: r.brief, kind: r.kind });
         setRotaPrevia("/");
         aplicarRotas(r.files?.["src/App.jsx"] || "");
         // SAIU UM PROJETO: anota no servidor. É isto que gasta o slot próprio e
@@ -608,6 +612,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       }, onEvent);
       endRun();
       setRepo(r.repo);
+      apagarRascunho(sessionRef.current);   // publicado: o rascunho nao serve mais
       setRascunho(null);               // a partir daqui o preview é o site no ar
       if (r.url) setPreviewUrl(r.url);
       pushMsg("assistant", r.url
@@ -673,6 +678,19 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     setRepo(r); setPreviewUrl(r?.url || null);
     setRota("/"); carregarRotas(s.repo);
     setMessages((s.messages || []).map(m => ({ role: m.role, text: m.text })));
+
+    // Projeto gerado e ainda nao publicado? Ele volta com a conversa, com a
+    // previa rodando. Antes disto o rascunho morava so na memoria da tela:
+    // sair e voltar apagava o projeto, e o slot ja tinha sido gasto.
+    const guardado = await lerRascunho(id);
+    if (guardado && !r) {
+      setRascunho({ files: guardado.files, nome: guardado.nome, brief: guardado.brief, kind: guardado.kind });
+      setRotaPrevia("/");
+      aplicarRotas(guardado.files?.["src/App.jsx"] || "");
+    } else {
+      setRascunho(null);
+    }
+
     setView("workspace");
   }
   async function openProject(p) {
@@ -1754,6 +1772,11 @@ function ProjectsDrawer({ projects, onReload, onOpen, onClose, acesso, onConvida
 
 function fmtData(ts) { try { return new Date(ts).toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); } catch { return ""; } }
 function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
+  // Quais conversas tem projeto gerado e ainda nao publicado. Sem esta marca
+  // a pessoa teria que abrir uma por uma para achar o site que ela fez —
+  // e o slot dela ja foi gasto nele.
+  const [comRascunho, setComRascunho] = useState([]);
+  useEffect(() => { idsComRascunho().then(setComRascunho).catch(() => {}); }, [sessions]);
   return (
     <>
       <div className="drawer-scrim" onClick={onClose} />
@@ -1775,7 +1798,12 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
                 <div key={s.id} className="hist-item">
                   <span className="proj-avatar"><IconChat /></span>
                   <div className="hist-main" onClick={() => onOpen(s.id)}>
-                    <div className="hist-title">{s.title}</div>
+                    <div className="hist-title">
+                      {s.title}
+                      {comRascunho.includes(s.id) && !s.repo && (
+                        <span className="hist-rascunho" title={t("Projeto pronto, esperando você publicar")}>{t("não publicado")}</span>
+                      )}
+                    </div>
                     <div className="hist-meta">{fmtData(s.updatedAt)}{s.repo ? ` · ${s.repo.owner}/${s.repo.name}` : ""}{s.count ? ` · ${s.count} ${t("msg")}` : ""}</div>
                   </div>
                   <button className="icon-btn" onClick={() => onDelete(s.id)} title={t("Apagar conversa")}><IconClose /></button>

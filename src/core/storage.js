@@ -63,6 +63,8 @@ const DEFAULTS = {
   // reabrir o projeto pela lista para sumir — e um "conserta isso" sem ele faz
   // a IA inventar um site generico, sem saber de que negocio o projeto e.
   briefs: {},
+  // Projeto gerado e ainda NAO publicado, por conversa (ver core/rascunhos.js).
+  rascunhos: {},
   projects: {},
   settings: {
     autoCommit: false,
