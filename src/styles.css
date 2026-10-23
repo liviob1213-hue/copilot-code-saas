@@ -1242,10 +1242,15 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
   animation: rise .28s var(--ease) both;
 }
 .login-marca { text-align: center; margin-bottom: 22px; }
+/* A logo tem forma e cor próprias: o quadrado com degradê que existia aqui
+   (feito para um ícone branco) virava uma caixa competindo com ela. Agora é só
+   a marca, com um brilho embaixo para não parecer colada no fundo preto. */
 .login-orb {
-  display: grid; place-items: center; width: 46px; height: 46px; margin: 0 auto 12px;
-  border-radius: 14px; color: #fff;
-  background: linear-gradient(135deg, #ef4444, #f97316); box-shadow: 0 12px 30px -12px rgba(239, 68, 68, .9);
+  display: grid; place-items: center; width: 60px; height: 60px; margin: 0 auto 14px;
+}
+.login-orb img {
+  width: 100%; height: 100%; object-fit: contain;
+  filter: drop-shadow(0 6px 18px rgba(239, 68, 68, .55));
 }
 .login-marca h1 { margin: 0; font-size: 21px; letter-spacing: -.02em; }
 .login-marca p { margin: 6px 0 0; font-size: 13px; color: var(--ink-faint); line-height: 1.45; }

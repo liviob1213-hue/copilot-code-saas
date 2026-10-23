@@ -66,7 +66,7 @@ export default function Login() {
     <div className="login-tela">
       <div className="login-caixa">
         <div className="login-marca">
-          <span className="login-orb"><IconRaio /></span>
+          <span className="login-orb"><img src="/brand/logo.png" alt="" /></span>
           <h1>Prumo Code</h1>
           <p>{t("Crie sites, apps e SaaS conversando com a IA.")}</p>
         </div>
@@ -139,11 +139,3 @@ function IconGoogle() {
   );
 }
 
-function IconRaio() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-    </svg>
-  );
-}
