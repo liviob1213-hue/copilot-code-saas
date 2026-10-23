@@ -593,7 +593,7 @@ export async function createRepoWithFiles({ name, description = "", privado = tr
     owner,
     repo: nomeLimpo,
     branch,
-    message: "projeto inicial criado pelo Lovable Copilot",
+    message: "projeto inicial criado pelo Prumo Code",
     files
   });
 
