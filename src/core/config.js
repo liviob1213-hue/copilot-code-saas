@@ -52,6 +52,10 @@ export const VERCEL_OAUTH = {
   slug: "copilot-code"
 };
 
+// A versao que aparece na tela, para o usuario. Mude SO AQUI: a barra lateral e
+// a tela de login leem desta constante, entao nunca ficam uma diferente da outra.
+export const VERSAO = "beta 1.1";
+
 // Suba este numero SEMPRE que mudar modelo/provedor no catalogo: a migracao em
 // storage.js so roda quando ele muda, e e ela que troca um modelo salvo que nao
 // existe mais (ex.: "claude-sonnet-5" antigo, que fazia a Anthropic dar 400).

@@ -3,7 +3,7 @@ import Aurora from "./Aurora.jsx";
 import Tutoriais from "./Tutoriais.jsx";
 import BorderGlow from "./BorderGlow.jsx";
 import * as store from "./core/storage.js";
-import { PROVIDER_CATALOG } from "./core/config.js";
+import { PROVIDER_CATALOG, VERSAO } from "./core/config.js";
 import { criarProjeto, publicarProjeto, editarProjeto, editarRascunho, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
 import { guardarRascunho, lerRascunho, apagarRascunho, idsComRascunho } from "./core/rascunhos.js";
@@ -1270,6 +1270,9 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
       <div className="side-head">
         <div className="brand">
           <span className="brand-mark"><img src="/brand/logo.png" alt="Prumo Code" className="brand-logo" /></span>
+          {/* Dizer que esta em beta e honestidade que protege: quem sabe que a
+              ferramenta e nova perdoa um tropeco; quem nao sabe, pede reembolso. */}
+          <span className="brand-versao" title={t("Versão da ferramenta")}>{VERSAO}</span>
         </div>
         <button className="icon-btn ghosty side-collapse" onClick={onCollapse} title={t("Recolher menu")}><IconPanel /></button>
       </div>

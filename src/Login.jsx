@@ -10,6 +10,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { t } from "./i18n.js";
 import { entrarComGoogle, enviarCodigo, confirmarCodigo } from "./core/auth.js";
+import { VERSAO } from "./core/config.js";
 
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -67,7 +68,7 @@ export default function Login() {
       <div className="login-caixa">
         <div className="login-marca">
           <span className="login-orb"><img src="/brand/logo.png" alt="" /></span>
-          <h1>Prumo Code</h1>
+          <h1>Prumo Code <span className="login-versao">{VERSAO}</span></h1>
           <p>{t("Crie sites, apps e SaaS conversando com a IA.")}</p>
         </div>
 
