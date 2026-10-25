@@ -4,7 +4,7 @@ import Tutoriais from "./Tutoriais.jsx";
 import BorderGlow from "./BorderGlow.jsx";
 import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG } from "./core/config.js";
-import { criarProjeto, publicarProjeto, editarProjeto, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
+import { criarProjeto, publicarProjeto, editarProjeto, editarRascunho, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
 import { guardarRascunho, lerRascunho, apagarRascunho, idsComRascunho } from "./core/rascunhos.js";
 import { cancelarIA, comecarIA } from "./core/net.js";
@@ -503,17 +503,37 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       console.warn("[historico] nao consegui guardar a conversa:", e);
     }
     try {
+      // TRES CAMINHOS, e confundi-los foi o que fazia a ferramenta parecer
+      // burra: sem repo E sem rascunho e que se cria do zero. Havendo rascunho,
+      // a pessoa esta AJUSTANDO o projeto que ela ve na tela — tratar isso como
+      // pedido novo gerava outro projeto a partir de "corrige a cor".
       const r = repo
         ? await editarProjeto({ repo, userMessage: userText, providerId, sessionId: sessionRef.current, embedImages: images }, onEvent)
-        : await criarProjeto({ userMessage: userText, kind: modo || detectarTipo(userText), providerId, sessionId: sessionRef.current, embedImages: images }, onEvent);
+        : rascunho
+          ? await editarRascunho({
+              files: rascunho.files, userMessage: userText, brief: rascunho.brief,
+              kind: rascunho.kind, providerId, sessionId: sessionRef.current, embedImages: images
+            }, onEvent)
+          : await criarProjeto({ userMessage: userText, kind: modo || detectarTipo(userText), providerId, sessionId: sessionRef.current, embedImages: images }, onEvent);
       endRun();
       // CRIAÇÃO: nada foi publicado ainda. Guardamos os arquivos, mostramos a
       // prévia rodando de verdade e esperamos a pessoa clicar em Publicar.
       if (!repo) {
-        setRascunho({ files: r.files, nome: r.nome, brief: r.brief, kind: r.kind });
+        // Edicao de rascunho nao traz nome/brief: eles sao do projeto, nao da
+        // alteracao. Perder o brief aqui faria a proxima edicao esquecer o tema.
+        const base = rascunho || {};
+        const atualizado = {
+          files: r.files,
+          nome: r.nome || base.nome,
+          brief: r.brief || base.brief,
+          kind: r.kind || base.kind
+        };
+        setRascunho(atualizado);
         // Guarda junto da conversa. O slot ja foi gasto: sair da conversa e
         // voltar NAO pode significar perder o projeto.
-        guardarRascunho(sessionRef.current, { files: r.files, nome: r.nome, brief: r.brief, kind: r.kind });
+        // Grava o MESCLADO, nao o cru: numa edicao a IA nao devolve nome nem
+        // brief, e salvar o cru apagaria o tema do projeto no disco.
+        guardarRascunho(sessionRef.current, atualizado);
         setRotaPrevia("/");
         aplicarRotas(r.files?.["src/App.jsx"] || "");
         // SAIU UM PROJETO: anota no servidor. É isto que gasta o slot próprio e

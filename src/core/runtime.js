@@ -369,6 +369,68 @@ async function lerArquivosDoProjeto(owner, name, branch) {
 }
 
 /**
+ * Editar um projeto que AINDA NAO FOI PUBLICADO.
+ *
+ * Isto faltava, e a falta era grave. Desde que publicar virou um botao, o
+ * estado normal de um projeto passou a ser "nao publicado" — e, sem repo, o
+ * app chamava criarProjeto() a cada mensagem seguinte. Ou seja: pedir "corrige
+ * a cor" gerava um projeto NOVO a partir dessas tres palavras.
+ *
+ * Era isso que fazia a ferramenta parecer burra: ela trocava a barbearia por
+ * outra, apagava a foto, virava um CRM. A IA nunca via o projeto, porque a
+ * gente nunca mandava.
+ *
+ * Aqui o caminho de edicao do gerador e usado como ele foi feito para ser:
+ * com os arquivos atuais em maos e o pedido ORIGINAL junto, para o "tema" do
+ * projeto nao se perder no meio de um ajuste pequeno.
+ */
+export async function editarRascunho(
+  { files, userMessage, brief = "", kind = "app", providerId = "", sessionId = null, embedImages = [] },
+  onEvent = () => {}
+) {
+  if (!files || !Object.keys(files).length) {
+    throw new Error(t("Não achei o projeto pra editar. Mande o pedido de novo que eu monto do zero."));
+  }
+
+  const convHistory = await historicoDaSessao(sessionId);
+  const sb = await store.get("supabase");
+  const supaCtx = sb.url ? { url: sb.url, anonKey: sb.anonKey } : {};
+
+  onEvent({ type: "status", text: t("Aplicando sua alteração no projeto…") });
+
+  const result = await gen.generateProject({
+    history: convHistory,
+    userMessage,
+    kind,
+    idiomaIA: instrucaoIdiomaIA(),
+    mode: "edit",
+    currentFiles: files,
+    brief,
+    providerId,
+    supabase: supaCtx,
+    embedImages,
+    images: embedImages
+  }, onEvent);
+
+  const novos = result.paginaUnica ? { "index.html": result.html } : result.files;
+  if (!novos || !Object.keys(novos).length) {
+    throw new Error(t("A IA não devolveu arquivos. Tente de novo ou troque de modelo."));
+  }
+
+  // MESCLA, nunca substitui: a IA costuma devolver so os arquivos que mexeu.
+  // Trocar o conjunto inteiro apagaria as telas que ela nao citou — que e
+  // exatamente o estrago que esta funcao veio impedir.
+  const finais = { ...files, ...novos };
+
+  return {
+    files: finais,
+    mexidos: Object.keys(novos),
+    resumo: result.resumo || t("Pronto — alteração aplicada. Confira a prévia ao lado."),
+    kind
+  };
+}
+
+/**
  * Edita um projeto existente com o AGENTE (igual à extensão): lê o mapa de
  * arquivos, abre só o que precisa e muda CIRURGICAMENTE (read_file/write_file/
  * commit_changes). Nada de regenerar o projeto inteiro — por isso é rápido,
