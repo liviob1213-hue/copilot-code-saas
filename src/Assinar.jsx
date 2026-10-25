@@ -130,3 +130,55 @@ export function FaixaAssinar({ acesso, onAssinar }) {
     </div>
   );
 }
+
+/**
+ * O cartão fixo na barra lateral, naquele espaço que ficava vazio.
+ *
+ * Para quem JÁ É PRO ele não vende nada — só diz o plano. Continuar
+ * oferecendo o que a pessoa acabou de comprar é a forma mais rápida de fazer
+ * um cliente bom se sentir tratado como alvo.
+ */
+export function CartaoPlano({ acesso, onAssinar }) {
+  if (!acesso || acesso.semLogin || !acesso.carregado) return null;
+
+  if (acesso.pago) {
+    return (
+      <div className="plano-card pago">
+        <span className="pc-selo"><IconCheque /></span>
+        <div className="pc-txt">
+          <strong>{t("Plano Pro")}</strong>
+          <span>{t("sites e apps sem limite")}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const hoje = acesso.casaRestantesHoje || 0;
+  const proprios = acesso.propriosRestantes || 0;
+  const total = hoje + proprios;
+
+  return (
+    <div className="plano-card">
+      <div className="pc-topo">
+        <strong>{t("Plano grátis")}</strong>
+        <span className={"pc-saldo" + (total === 0 ? " zerado" : "")}>
+          {total === 0
+            ? t("sem sites")
+            : t(total === 1 ? "{n} site" : "{n} sites", { n: total })}
+        </span>
+      </div>
+      <p className="pc-linha">
+        {total === 0
+          ? t("Amanhã você ganha outro. Ou assine e crie agora, sem limite.")
+          : t("No Pro: IAs pagas, apps e sites sem limite.")}
+      </p>
+      <button className="pc-cta" onClick={onAssinar}>{t("Ver planos")}</button>
+    </div>
+  );
+}
+
+const IconCheque = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);

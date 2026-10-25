@@ -8,7 +8,7 @@ import { criarProjeto, publicarProjeto, editarProjeto, editarRascunho, reconecta
 import { montarHtmlPrevia } from "./core/previa.js";
 import { guardarRascunho, lerRascunho, apagarRascunho, idsComRascunho } from "./core/rascunhos.js";
 import { cancelarIA, comecarIA } from "./core/net.js";
-import { ModalAssinar, FaixaAssinar } from "./Assinar.jsx";
+import { ModalAssinar, FaixaAssinar, CartaoPlano } from "./Assinar.jsx";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
 import { marcarProjetoNovo, consumirUsouCasa } from "./core/casa.js";
@@ -924,6 +924,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
             onNew={novoProjeto} onProjetos={abrirProjetos} onConversas={abrirConversas}
             onConexoes={abrirConexoes} onChaves={abrirChaves} onTutoriais={abrirTutoriais}
             onOpenProject={openProject} onCollapse={() => setSideOpen(false)}
+            acesso={acesso} onAssinar={() => abrirAssinar()}
           />
         : <SideRail
             conn={conn} ativo={sidebarAtivo} onExpand={() => setSideOpen(true)}
@@ -1263,7 +1264,7 @@ function Conta({ conn, onClick, compact = false }) {
   );
 }
 
-function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onConexoes, onChaves, onTutoriais, onOpenProject, onCollapse }) {
+function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onConexoes, onChaves, onTutoriais, onOpenProject, onCollapse, acesso, onAssinar }) {
   return (
     <aside className="sidebar">
       <div className="side-head">
@@ -1302,6 +1303,9 @@ function Sidebar({ conn, projects, ativo, onNew, onProjetos, onConversas, onCone
             </button>
           ))}
       </div>
+
+      {/* Ocupa o vazio que sobrava entre os projetos e o seletor de idioma. */}
+      <CartaoPlano acesso={acesso} onAssinar={onAssinar} />
 
       <div className="side-foot">
         <LangSelect />
