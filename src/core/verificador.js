@@ -205,3 +205,46 @@ export function ehImportadoPorAlguem(files, novoCaminho) {
   }
   return false;
 }
+
+/**
+ * Imports locais que apontam para arquivo que NAO existe.
+ *
+ * E o retrato exato do "criou quebrado": a IA escreve o App.jsx com as rotas,
+ * fecha os blocos direitinho, e para antes de escrever as paginas que ela
+ * mesma acabou de importar. O projeto parece completo (tem tela, os blocos
+ * fecharam) e abre em branco.
+ *
+ * O gerador usa isto para saber que a resposta ficou pela metade mesmo tendo
+ * "terminado" — e pedir a continuacao em vez de entregar assim.
+ */
+export function importesQuebrados(files) {
+  const limpar = (c) => {
+    const partes = [];
+    for (const seg of String(c).split("/")) {
+      if (seg === "." || seg === "") continue;
+      if (seg === "..") partes.pop();
+      else partes.push(seg);
+    }
+    return partes.join("/");
+  };
+  const semExt = (c) => c.replace(/\.(jsx|tsx|js|ts)$/i, "");
+
+  // Tudo que existe, sem extensao, para comparar sem depender dela.
+  const existentes = new Set(Object.keys(files || {}).map((c) => semExt(limpar(c))));
+
+  const faltando = new Set();
+  for (const [de, conteudo] of Object.entries(files || {})) {
+    if (!/\.(jsx|tsx|js|ts)$/i.test(de)) continue;
+    const dir = de.split("/").slice(0, -1).join("/");
+    for (const m of String(conteudo).matchAll(/(?:from|import)\s*["'](\.[^"']+)["']/g)) {
+      const alvo = semExt(limpar(dir + "/" + m[1]));
+      if (!alvo) continue;
+      // Import de pasta tambem vale pelo index.
+      if (existentes.has(alvo) || existentes.has(alvo + "/index")) continue;
+      // So nos interessa codigo; css/asset que falta nao deixa a tela branca.
+      if (/\.(css|scss|png|jpe?g|svg|webp|json)$/i.test(m[1])) continue;
+      faltando.add(alvo);
+    }
+  }
+  return [...faltando];
+}

@@ -12,7 +12,7 @@
 //                     deveria so consertar.
 // ===========================================================================
 
-import { ehImportadoPorAlguem } from "../src/core/verificador.js";
+import { ehImportadoPorAlguem, importesQuebrados } from "../src/core/verificador.js";
 
 const projeto = {
   "src/App.jsx":
@@ -46,5 +46,34 @@ for (const [caminho, esperado, porque] of casos) {
   console.log(`${ok ? "ok    " : "FALHOU"}  ${caminho.padEnd(28)} ${porque}`);
 }
 
+
+// ===========================================================================
+// importesQuebrados: o retrato do "criou quebrado"
+//
+// A IA escreve o App.jsx com as rotas, fecha os blocos direitinho e para antes
+// de escrever as páginas que ela mesma importou. O projeto PARECE completo
+// (tem tela, os blocos fecharam) e abre em branco. O gerador usa isto para
+// pedir a continuação em vez de entregar assim.
+// ===========================================================================
+const casosQuebrados = [
+  [{ "src/App.jsx": 'import H from "./pages/Home"; import S from "./pages/Sobre";',
+     "src/pages/Home.jsx": "x" },
+   ["src/pages/Sobre"], "página importada que nunca foi escrita"],
+  [{ "src/App.jsx": 'import H from "./pages/Home"', "src/pages/Home.jsx": "x" },
+   [], "projeto completo não acusa nada"],
+  [{ "src/App.jsx": 'import B from "./ui"', "src/ui/index.jsx": "x" },
+   [], "import de pasta resolve pelo index"],
+  [{ "src/App.jsx": 'import "./theme.css"' },
+   [], "css que falta não deixa a tela branca"],
+  [{ "src/App.jsx": 'import React from "react"' },
+   [], "pacote npm não é arquivo do projeto"]
+];
+
+for (const [files, esperado, porque] of casosQuebrados) {
+  const r = importesQuebrados(files);
+  const ok = JSON.stringify(r) === JSON.stringify(esperado);
+  if (!ok) falhas++;
+  console.log(`${ok ? "ok    " : "FALHOU"}  ${porque.padEnd(44)} ${JSON.stringify(r)}`);
+}
 console.log("\n" + (falhas ? `>>> ${falhas} FALHA(S) <<<` : ">>> TUDO CERTO <<<") + "\n");
 process.exit(falhas ? 1 : 0);

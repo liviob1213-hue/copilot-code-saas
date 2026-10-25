@@ -4,7 +4,7 @@ import { complete, streamComplete } from "./providers.js";
 import { t } from "../i18n.js";
 import { mergeStarter, STARTER_FILES } from "./starter-template.js";
 import { fetchComCorpo } from "./net.js";
-import { conferirProjeto, pedidoDeConserto, ehImportadoPorAlguem } from "./verificador.js";
+import { conferirProjeto, pedidoDeConserto, ehImportadoPorAlguem, importesQuebrados } from "./verificador.js";
 import { testarProjeto, pedidoDeConsertoPorTeste } from "./teste-previa.js";
 
 /**
@@ -1739,7 +1739,14 @@ Mudanca pedida: "${userMessage}"`;
     onEvent({ type: "continuacao", parte: voltas });
     const argsCont = {
       system: systemBase + contexto +
-            "\n\nCONTINUACAO: voce (ou outra IA) estava gerando um projeto React em blocos ===FILE: caminho=== ... ===END=== e a resposta FOI CORTADA. Continue EXATAMENTE de onde parou, SEM repetir nenhum caractere do que ja foi escrito e SEM comentarios nem introducao. Se parou no meio de um arquivo, termine aquele arquivo primeiro; depois gere os que ainda faltam (src/App.jsx com TODAS as rotas, src/theme.css, e as paginas em src/pages/ — uma por rota, cada uma completa). Feche cada bloco com ===END===. NAO reescreva blocos ja completos.",
+            "\n\nCONTINUACAO: voce (ou outra IA) estava gerando um projeto React em blocos ===FILE: caminho=== ... ===END=== e a resposta FOI CORTADA. Continue EXATAMENTE de onde parou, SEM repetir nenhum caractere do que ja foi escrito e SEM comentarios nem introducao. Se parou no meio de um arquivo, termine aquele arquivo primeiro; depois gere os que ainda faltam (src/App.jsx com TODAS as rotas, src/theme.css, e as paginas em src/pages/ — uma por rota, cada uma completa). Feche cada bloco com ===END===. NAO reescreva blocos ja completos." +
+            // Dizer QUAIS arquivos faltam vale mais do que pedir "continue":
+            // a IA para de adivinhar o que ficou pendente e escreve exatamente
+            // o que o projeto importa e não tem.
+            (importesQuebrados(files).length
+              ? "\n\nARQUIVOS QUE O PROJETO IMPORTA E QUE AINDA NAO EXISTEM (escreva TODOS, completos, cada um no seu bloco): " +
+                importesQuebrados(files).join(", ")
+              : ""),
       messages: [...messages, { role: "assistant", text: fullText }, { role: "user", text: "Continue de onde parou, sem repetir, ate fechar o ultimo ===END===." }],
       tools: [], preferredProviderId: providerId
     };
