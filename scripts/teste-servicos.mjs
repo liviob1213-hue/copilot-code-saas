@@ -24,17 +24,36 @@ function conferir(descricao, condicao, extra = "") {
 }
 
 // ---------------------------------------------------------------- detecção
-const projVideo = { "src/App.jsx": 'export default function App(){ /* gerar video com IA */ }' };
-const projImagem = { "src/pages/Gerar.jsx": 'const r = await fetch("/api/image-gen")' };
+// Detecção é por CHAMADA DE API DE VERDADE, nunca por palavra em português.
+const projVideo = { "src/App.jsx": 'await fetch("https://api.replicate.com/v1/predictions")' };
+const projImagem = { "src/pages/Gerar.jsx": 'await fetch("https://api.openai.com/v1/images/generations")' };
 const projSimples = { "src/App.jsx": 'export default function App(){ return <h1>Barbearia</h1> }' };
-const projComChave = { "src/App.jsx": 'const t = "r8_AbCdEf1234567890abcd"; // gerar video' };
+const projComChave = { "src/App.jsx": 'const t = "r8_AbCdEf1234567890abcd"; fetch("https://api.replicate.com/v1/x")' };
 
-conferir("acha a capacidade de vídeo", detectarCapacidade(projVideo)?.id === "video");
-conferir("acha a capacidade de imagem", detectarCapacidade(projImagem)?.id === "imagem");
+// --------------------------------------------------------------------------
+// O CASO QUE QUEBROU DE VERDADE, e que não pode voltar:
+// o gerador usa pollinations.ai (grátis, sem chave) para as imagens de
+// exemplo, e a URL dele traz "model=flux". A primeira versão tinha "flux" no
+// padrão de imagem — então TODO link na bio com foto passou a pedir uma chave
+// de IA que nunca foi necessária, no meio da conversa de quem só queria um
+// link na bio.
+// --------------------------------------------------------------------------
+const projPollinations = {
+  "src/App.jsx": '<img src={`https://image.pollinations.ai/prompt/${p}?width=800&model=flux&nologo=true`} />'
+};
+
+conferir("acha vídeo por chamada real de API", detectarCapacidade(projVideo)?.id === "video");
+conferir("acha imagem por chamada real de API", detectarCapacidade(projImagem)?.id === "imagem");
 conferir("site comum NÃO dispara pergunta", detectarCapacidade(projSimples) === null);
 conferir("não pergunta se a chave já está no código", detectarCapacidade(projComChave) === null);
+conferir("pollinations (grátis) NÃO pede chave", detectarCapacidade(projPollinations) === null);
+conferir("prosa em português NÃO dispara nada",
+  detectarCapacidade({ "a.jsx": '// aqui dá pra gerar imagem depois, e gerar video tambem' }) === null);
 conferir("não repergunta o que já foi resolvido",
-  detectarCapacidade(projVideo, ["video"]) === null);
+  detectarCapacidade(projVideo, ["video", "REPLICATE_API_TOKEN"]) === null);
+// A Replicate atende vídeo E imagem: dada a chave, nenhuma das duas pergunta.
+conferir("mesma chave não é pedida duas vezes",
+  detectarCapacidade(projVideo, ["REPLICATE_API_TOKEN"]) === null);
 conferir("projeto vazio não dispara nada", detectarCapacidade({}) === null);
 
 // ------------------------------------------------------------ ler a escolha

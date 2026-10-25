@@ -405,6 +405,12 @@ Valores em R$ (Intl.NumberFormat pt-BR). SEMEIE 3 meses de lancamentos plausivei
 export function detectarKit(texto) {
   const t = String(texto || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const regras = [
+    // ORDEM IMPORTA, e a regra e esta: o FORMATO que a pessoa nomeou ganha
+    // do TIPO DE NEGOCIO. "link na bio para barbearia" e um link na bio --
+    // mas o kit de agendamento tambem casa com "barbearia" e, por estar
+    // antes, sequestrava o pedido e entregava um app de agendamento.
+    ["link_bio", /\b(link\s*na\s*bio|linktree|bio\s*do\s*instagram)\b/],
+    ["portfolio", /\b(portfolio|portifolio)\b/],
     ["gerador_video", /\b(gera(dor|r)?|criar?|cria|faz|faca)\b[^.]{0,30}\bvideos?\b|\bvideo\s*(com|por)\s*ia\b|\btext[o]?\s*(para|pra|to)\s*video\b/],
     ["gerador_imagem", /\b(gera(dor|r)?|criar?|cria|faz|faca)\b[^.]{0,30}\b(imagens?|fotos?|artes?|logos?)\b[^.]{0,20}\b(ia|inteligencia)\b|\bimagens?\s*(com|por)\s*ia\b|\b(text[o]?\s*(para|pra|to)\s*imagem|ai image)\b/],
     ["chat_ia", /\b(chatbot|chat\s*bot|as?sistente\s*(virtual|de ia|com ia|con ia)?|ai\s*(chat\s*)?assistant|agente\s*de\s*(ia|atendimento|vendas)|atendimento\s*(com|por)\s*ia)\b/],
@@ -415,8 +421,6 @@ export function detectarKit(texto) {
     ["academia", /\b(academia|personal\s*trainer|crossfit|studio\s*fitness|treinos?\s*de\s*alunos)\b/],
     ["eventos", /\b(evento|ingressos?|inscricoes?\s*(do|para)\s*evento|congresso|workshop\s*presencial)\b/],
     ["quiz", /\b(quiz|funil\s*de\s*captura|questionario|teste\s*de\s*perfil)\b/],
-    ["link_bio", /\b(link\s*na\s*bio|linktree|bio\s*do\s*instagram)\b/],
-    ["portfolio", /\b(portfolio|portifolio)\b/],
     ["ecommerce", /\b(loja\s*(online|virtual)?|e-?commerce|catalogo\s*de\s*produtos|vender\s*produtos)\b/],
     ["crm", /\b(crm|funil\s*de\s*vendas|pipeline|kanban\s*de\s*vendas|leads?\s*e\s*clientes)\b/],
     ["financeiro", /\b(financeiro|financas|fluxo\s*de\s*caixa|controle\s*de\s*gastos|contas\s*a\s*pagar)\b/],

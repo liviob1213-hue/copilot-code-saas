@@ -25,14 +25,31 @@
 // ============================================================================
 
 /**
+ * Serviços GRATUITOS que não pedem chave. Se o projeto usa um destes, está
+ * resolvido — não existe nada a perguntar.
+ *
+ * O pollinations entra aqui porque o próprio gerador o usa para as imagens de
+ * exemplo. Foi ele que causou o primeiro defeito desta funcionalidade: o
+ * padrão de imagem incluía a palavra "flux" (o modelo que o pollinations usa),
+ * então TODO projeto com imagem de exemplo passava a pedir uma chave de IA que
+ * nunca foi necessária.
+ */
+const SEM_CHAVE = /pollinations\.ai|unsplash\.com|picsum\.photos|placehold|via\.placeholder/i;
+
+/**
  * O que o projeto precisa saber fazer, e com quem.
- * `padrao`: o que procuramos no código gerado para desconfiar da capacidade.
+ *
+ * `padrao` olha CHAMADA DE API DE VERDADE (endereço do serviço ou nome da
+ * variável de chave), e nunca palavra solta em português. Comentário e texto
+ * de tela falam de "gerar imagem" o tempo todo sem que isso signifique nada —
+ * foi assim que a primeira versão passou a interromper quem só queria um link
+ * na bio.
  */
 export const CAPACIDADES = [
   {
     id: "video",
     titulo: "gerar vídeo com IA",
-    padrao: /gerar?[_\s-]?v[ií]deo|text[_\s-]?to[_\s-]?video|video[_\s-]?gen|runway|luma|kling|pika|sora/i,
+    padrao: /api\.replicate\.com|fal\.run|api\.runwayml\.com|api\.lumalabs\.ai|REPLICATE_API_TOKEN|FAL_KEY/i,
     opcoes: [
       {
         id: "replicate", label: "Replicate",
@@ -51,7 +68,7 @@ export const CAPACIDADES = [
   {
     id: "imagem",
     titulo: "gerar imagem com IA",
-    padrao: /gerar?[_\s-]?imagem|text[_\s-]?to[_\s-]?image|image[_\s-]?gen|dall[_\s-]?e|midjourney|stable[_\s-]?diffusion|flux/i,
+    padrao: /api\.openai\.com\/v1\/images|api\.stability\.ai|api\.replicate\.com|fal\.run|STABILITY_API_KEY/i,
     opcoes: [
       {
         id: "openai", label: "OpenAI",
@@ -76,7 +93,7 @@ export const CAPACIDADES = [
   {
     id: "voz",
     titulo: "gerar voz ou narração",
-    padrao: /text[_\s-]?to[_\s-]?speech|narra[çc][ãa]o|s[ií]ntese[_\s-]?de[_\s-]?voz|elevenlabs|\btts\b|locu[çc][ãa]o/i,
+    padrao: /api\.elevenlabs\.io|api\.openai\.com\/v1\/audio|ELEVENLABS_API_KEY/i,
     opcoes: [
       {
         id: "elevenlabs", label: "ElevenLabs",
@@ -95,7 +112,7 @@ export const CAPACIDADES = [
   {
     id: "texto",
     titulo: "escrever ou responder com IA",
-    padrao: /chat[_\s-]?completions|\bchatbot\b|assistente[_\s-]?de[_\s-]?ia|gerar?[_\s-]?texto|resumir[_\s-]?com[_\s-]?ia|anthropic|openai|gemini/i,
+    padrao: /api\.openai\.com\/v1\/chat|api\.anthropic\.com|generativelanguage\.googleapis\.com|OPENAI_API_KEY|ANTHROPIC_API_KEY/i,
     opcoes: [
       {
         id: "openai", label: "OpenAI",
@@ -163,8 +180,16 @@ export function detectarCapacidade(files, jaResolvidas = []) {
   const codigo = Object.values(files || {}).join("\n");
   if (!codigo.trim()) return null;
 
+  // Usa servico gratuito (pollinations, unsplash…)? Entao nao ha chave a pedir.
+  const soGratis = SEM_CHAVE.test(codigo);
+
   for (const cap of CAPACIDADES) {
     if (jaResolvidas.includes(cap.id)) continue;
+    // O MESMO servico atende mais de uma capacidade (a Replicate faz video e
+    // imagem). Se a chave dele ja foi dada, nao ha o que perguntar de novo —
+    // senao a pessoa e interrompida duas vezes pela mesma chave.
+    if (cap.opcoes.some((o) => jaResolvidas.includes(o.segredo))) continue;
+    if (cap.id === "imagem" && soGratis) continue;
     if (!cap.padrao.test(codigo)) continue;
 
     // Já tem chave de verdade no código? Então não precisa perguntar nada.

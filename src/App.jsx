@@ -612,7 +612,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     if (cap.noNavegador) {
       // Mapa: o caminho já existente cuida disso (põe no app e republica).
       setGuia(null);
-      resolvidasRef.current = [...resolvidasRef.current, cap.id];
+      resolvidasRef.current = [...resolvidasRef.current, cap.id, op.segredo];
       pushMsg("assistant", t("Anotei sua chave do {label}. Ela entra no app quando você publicar.", { label: op.label }));
       setChavesExternas(c => ({ ...c, [op.envFront]: valor }));
       return;
@@ -632,7 +632,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       await sbmgmt.setSecrets({ [op.segredo]: valor });
       endRun();
       setGuia(null);
-      resolvidasRef.current = [...resolvidasRef.current, cap.id];
+      resolvidasRef.current = [...resolvidasRef.current, cap.id, op.segredo];
       pushMsg("assistant", t("Guardei sua chave do {label} nos segredos do seu Supabase (variável {nome}). Ela não aparece no site nem no código — só a função de servidor enxerga.", { label: op.label, nome: op.segredo }));
     } catch (e) {
       endRun();
@@ -1445,6 +1445,11 @@ function fileToDataUrl(file) {
 // (3) "site/website" = SITE; (4) padrão = APP (a maioria dos pedidos é sistema).
 function detectarTipo(texto) {
   const t = String(texto || "").toLowerCase();
+  // LINK NA BIO vem ANTES de tudo, e de propósito: ele é sempre um site de uma
+  // página, mesmo quando a pessoa cita um negócio ou pede um botão de agendar.
+  // Sem esta linha, "link na bio pra barbearia com agendamento" casava com a
+  // lista de app ("agendamento") e virava um sistema inteiro no lugar do link.
+  if (/\b(link\s*(na|in|da)\s*bio|linktree|bio\s*link|p[áa]gina\s+de\s+links)\b/.test(t)) return "site";
   if (/\b(landing|landing\s*page|p[áa]gina\s+de\s+vendas|p[áa]gina\s+de\s+captura|one[\s-]?page|portf[óo]lio|institucional|p[áa]gina\s+de\s+lan[çc]amento)\b/.test(t)) return "site";
   if (/\b(app|aplicativo|aplica[çc][ãa]o|micro[\s-]?saas|saas|sistema|plataforma|dashboard|painel|crm|erp|[áa]rea\s+de\s+membros|membros|curso|agendamento|delivery|card[áa]pio|e-?commerce|loja|estoque|financeiro|gest[ãa]o|controle|agenda)\b/.test(t)) return "app";
   if (/\b(site|website|p[áa]gina\s+web)\b/.test(t)) return "site";
