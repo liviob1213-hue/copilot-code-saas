@@ -80,7 +80,13 @@ export function ModalAssinar({ aberto, motivo, onFechar }) {
   return (
     <>
       <div className="drawer-scrim" onClick={onFechar} />
-      <div className="assinar-modal" role="dialog" aria-modal="true">
+      {/* A CAMADA e quem centraliza, com flex. Antes o proprio painel se
+          centralizava por translate(-50%,-50%) -- e a animacao de entrada
+          (@keyframes rise) termina em "transform: none", apagando justamente
+          esse translate. O painel ficava com o canto no meio da tela e a base
+          pra fora. Com flex, a animacao pode mexer no transform a vontade. */}
+      <div className="assinar-camada" onClick={onFechar}>
+      <div className="assinar-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <button className="assinar-x" onClick={onFechar} aria-label={t("Fechar")}>×</button>
         <div className="assinar-topo">
           <img src="/brand/logo.png" alt="" />
@@ -92,6 +98,7 @@ export function ModalAssinar({ aberto, motivo, onFechar }) {
         <p className="assinar-rodape">
           {t("Amanhã você ganha um site novo de graça. Se preferir esperar, é só fechar aqui.")}
         </p>
+      </div>
       </div>
     </>
   );

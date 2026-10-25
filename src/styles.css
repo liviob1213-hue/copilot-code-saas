@@ -1428,9 +1428,14 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
    Interromper quem está no meio de um projeto é o jeito mais rápido de a
    pessoa associar a marca a incômodo.
    =========================================================================== */
+.assinar-camada {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px; /* nunca encosta na borda, nem em tela baixa */
+}
 .assinar-modal {
-  position: fixed; z-index: 60; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto;
+  position: relative;
+  width: min(460px, 100%); max-height: 100%; overflow-y: auto;
   background: var(--panel-solid); border: 1px solid rgba(251, 113, 133, .35);
   border-radius: var(--r-xl); padding: 26px 24px 20px;
   box-shadow: 0 40px 100px -40px rgba(0, 0, 0, .95), 0 0 0 1px rgba(255, 255, 255, .03);
