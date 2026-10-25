@@ -1419,3 +1419,75 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
    passos, que é o que importa enquanto ela espera. */
 .run-steps { max-height: none; overflow: visible; }
 .run-antes { opacity: .55; font-style: italic; }
+
+/* ===========================================================================
+   CONVITES PARA ASSINAR
+   ---------------------------------------------------------------------------
+   O modal só aparece para quem está TRAVADO, e sempre com saída visível.
+   A faixa só aparece para quem ainda pode trabalhar, e some por 1 dia.
+   Interromper quem está no meio de um projeto é o jeito mais rápido de a
+   pessoa associar a marca a incômodo.
+   =========================================================================== */
+.assinar-modal {
+  position: fixed; z-index: 60; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow-y: auto;
+  background: var(--panel-solid); border: 1px solid rgba(251, 113, 133, .35);
+  border-radius: var(--r-xl); padding: 26px 24px 20px;
+  box-shadow: 0 40px 100px -40px rgba(0, 0, 0, .95), 0 0 0 1px rgba(255, 255, 255, .03);
+  animation: rise .3s var(--ease) both;
+}
+.assinar-x {
+  position: absolute; top: 12px; right: 14px; width: 28px; height: 28px;
+  border: 0; background: none; color: var(--ink-faint); font-size: 22px;
+  line-height: 1; cursor: pointer; border-radius: 8px;
+}
+.assinar-x:hover { color: var(--ink); background: rgba(255, 255, 255, .06); }
+.assinar-topo { text-align: center; margin-bottom: 18px; }
+.assinar-topo img { width: 46px; height: 46px; object-fit: contain; margin-bottom: 10px; filter: drop-shadow(0 6px 18px rgba(239, 68, 68, .55)); }
+.assinar-topo h2 { margin: 0 0 6px; font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.assinar-topo p { margin: 0; font-size: 13.5px; color: var(--ink-dim); line-height: 1.5; }
+
+.assinar-lista { list-style: none; display: grid; gap: 9px; margin: 0 0 18px; padding: 0; }
+.assinar-lista li { display: flex; gap: 9px; align-items: flex-start; font-size: 13.5px; color: var(--ink-dim); }
+.assinar-lista svg { flex: none; margin-top: 3px; color: var(--ok); }
+
+.assinar-planos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.assinar-plano {
+  position: relative; display: flex; flex-direction: column; gap: 3px;
+  padding: 14px 13px; border-radius: var(--r-md); text-align: center;
+  border: 1px solid var(--edge); background: var(--glass); cursor: pointer;
+  transition: border-color .2s, transform .2s var(--ease);
+}
+.assinar-plano:hover { border-color: var(--edge-hi); transform: translateY(-2px); }
+.assinar-plano.destaque { border-color: rgba(251, 113, 133, .5); background: var(--grad-soft); }
+.ap-selo {
+  position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  background: var(--grad); color: #fff; font-size: 9.5px; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+  white-space: nowrap;
+}
+.ap-nome { font-size: 12px; font-weight: 700; color: var(--ink-dim); }
+.ap-preco { font-size: 24px; font-weight: 900; letter-spacing: -.03em; }
+.ap-preco small { font-size: 11.5px; font-weight: 600; color: var(--ink-faint); letter-spacing: 0; }
+.ap-obs { font-size: 10.5px; color: var(--ink-faint); }
+.assinar-rodape { margin: 16px 0 0; text-align: center; font-size: 11.5px; color: var(--ink-faint); line-height: 1.5; }
+
+.assinar-faixa {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 18px 10px; padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: var(--grad-soft); border: 1px solid rgba(251, 113, 133, .28);
+  animation: rise .4s var(--ease) both;
+}
+.af-texto { flex: 1; min-width: 0; font-size: 12px; color: var(--ink-dim); line-height: 1.45; }
+.af-texto b { color: var(--ink); font-weight: 650; }
+.af-cta {
+  flex: none; padding: 6px 13px; border-radius: 999px; cursor: pointer;
+  background: var(--grad); border: 0; color: #fff; font-size: 11.5px; font-weight: 700;
+}
+.af-cta:hover { filter: brightness(1.08); }
+.af-x { flex: none; border: 0; background: none; color: var(--ink-faint); font-size: 17px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.af-x:hover { color: var(--ink); }
+
+@media (max-width: 560px) { .assinar-planos { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .assinar-plano:hover { transform: none; } }

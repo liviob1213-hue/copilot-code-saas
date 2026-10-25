@@ -8,6 +8,7 @@ import { criarProjeto, publicarProjeto, editarProjeto, editarRascunho, reconecta
 import { montarHtmlPrevia } from "./core/previa.js";
 import { guardarRascunho, lerRascunho, apagarRascunho, idsComRascunho } from "./core/rascunhos.js";
 import { cancelarIA, comecarIA } from "./core/net.js";
+import { ModalAssinar, FaixaAssinar } from "./Assinar.jsx";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
 import { marcarProjetoNovo, consumirUsouCasa } from "./core/casa.js";
@@ -145,6 +146,11 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   // Chaves que vao NO APP (so mapa). As de IA nunca passam por aqui: elas vao
   // direto pros segredos do Supabase em guardarChaveExterna().
   const [chavesExternas, setChavesExternas] = useState({});
+  // Convite para assinar: { aberto, motivo }. O motivo muda o titulo, porque
+  // quem bateu no limite e quem quis uma IA paga chegam aqui por portas
+  // diferentes e precisam de respostas diferentes.
+  const [assinar, setAssinar] = useState({ aberto: false, motivo: "" });
+  const abrirAssinar = (motivo = "") => setAssinar({ aberto: true, motivo });
   const resolvidasRef = useRef([]);
   const [rotaPrevia, setRotaPrevia] = useState("/");
   const [publicando, setPublicando] = useState(false);
@@ -473,9 +479,12 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
         setView("workspace");
         pushMsg("user", userText, images.length ? images : undefined);
         pushMsg("assistant", bloqueio);
-        // O aviso tambem vai de toast: se a pessoa estiver com a conversa
-        // rolada para cima, a mensagem nova pode nascer fora do campo de visao.
-        showToast(bloqueio, true);
+        // Aqui a pessoa esta TRAVADA: nao tem o que fazer sem resolver. Entao
+        // o convite pode ocupar a tela -- diferente da faixa, que so aparece
+        // pra quem ainda pode trabalhar e nunca interrompe.
+        abrirAssinar(tipoPedido === "app"
+          ? t("Apps e SaaS são do plano Pro")
+          : t("Seus sites de hoje acabaram"));
         setInput("");
         return;
       }
@@ -857,7 +866,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       kind={kind} setKind={setKind} onSend={handleSend} onCancel={cancelarPedido} onBlindar={handleBlindar}
       providerId={providerId} activeModel={activeModel} onPickModel={pickModel} modelsCache={modelsCache} modelHealth={modelHealth}
       estadoProvs={estadoProvs} podeApisPagas={acesso.podeApisPagas !== false}
-      onPlanoPago={() => showToast(t("As IAs pagas (Claude, DeepSeek, xAI) fazem parte do plano Pro. No grátis dá para usar as quatro gratuitas."))}
+      onPlanoPago={() => abrirAssinar(t("Essa IA faz parte do plano Pro"))}
       attached={attached} onAddFiles={addFiles} onRemoveAttach={(i) => setAttached(a => a.filter((_, x) => x !== i))}
       projects={vercelProjects} onLoadProjects={loadVercelProjects} onOpenProject={openProject} onNew={novoProjeto}
       onPlusConexoes={() => { setKeysOpen(false); setConnOpen(true); }} onPlusChaves={() => { setKeysOpen(true); setConnOpen(true); }}
@@ -1055,6 +1064,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
                   ? <RunCard key={i} steps={m.steps} done={m.done} startedAt={m.startedAt} endedAt={m.endedAt} />
                   : <Bubble key={i} role={m.role} text={m.text} images={m.images} />)}
               </div>
+              <FaixaAssinar acesso={acesso} onAssinar={() => abrirAssinar()} />
 
               {plano && !busy && (
                 <PlanCard plano={plano} onAprovar={aprovarPlano} onRecusar={recusarPlano} />
@@ -1146,6 +1156,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       </div>
 
       {projOpen && <ProjectsDrawer projects={vercelProjects} onReload={loadVercelProjects} onOpen={openProject} onClose={() => setProjOpen(false)} acesso={acesso} onConvidar={() => { setProjOpen(false); abrirConexoes(); }} />}
+      <ModalAssinar aberto={assinar.aberto} motivo={assinar.motivo} onFechar={() => setAssinar({ aberto: false, motivo: "" })} />
       {histOpen && <HistoryDrawer sessions={sessions} onOpen={openSession}
         onDelete={async id => { await history.deleteSession(id); refreshHistory(); }}
         onClear={async () => { await history.clearAll(); refreshHistory(); }}
