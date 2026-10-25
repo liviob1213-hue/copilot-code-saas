@@ -1388,3 +1388,34 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
   color: var(--ink-faint);
 }
 .slots-espera { margin: 8px 2px 0; font-size: 11.5px; color: #fdba74; }
+
+/* ===========================================================================
+   MENSAGEM LONGA NÃO SEQUESTRA A TELA
+   ---------------------------------------------------------------------------
+   Um prompt colado empurrava a conversa da IA pra fora da tela, e a saída era
+   diminuir o zoom do navegador pra ver a ferramenta trabalhando. Agora ela
+   nasce dobrada, com "Ver tudo". O texto continua inteiro.
+   =========================================================================== */
+.bubble-body.dobrada {
+  max-height: 168px;
+  overflow: hidden;
+  position: relative;
+  /* Desbota o fim em vez de cortar seco: assim fica claro que tem mais texto. */
+  -webkit-mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 60%, transparent 100%);
+}
+.bubble-mais {
+  display: block; margin: 8px 0 0; padding: 4px 11px;
+  border-radius: 999px; cursor: pointer;
+  background: rgba(255, 255, 255, .07); border: 1px solid var(--edge-hi);
+  color: var(--ink-dim); font-size: 11.5px; font-weight: 600;
+  transition: color .2s, border-color .2s;
+}
+.bubble-mais:hover { color: var(--ink); border-color: var(--brand); }
+
+
+/* O cartão de trabalho não tem mais rolagem própria: rolagem dentro de rolagem
+   é o que fazia a pessoa perder a conversa de vista. Mostramos os últimos
+   passos, que é o que importa enquanto ela espera. */
+.run-steps { max-height: none; overflow: visible; }
+.run-antes { opacity: .55; font-style: italic; }

@@ -1676,9 +1676,25 @@ function PlanCard({ plano, onAprovar, onRecusar }) {
   );
 }
 
+// Acima disto a mensagem é dobrada. O número é por caracteres e não por
+// linhas de propósito: linha depende da largura da tela, e o problema que isto
+// resolve (um prompt colado empurrando a conversa pra fora da tela) acontece
+// em qualquer largura.
+const LIMITE_DOBRA = 420;
+
 function Bubble({ role, text, images }) {
   if (role === "system" || role === "error") return <div className={"note " + role}><span className="note-ic">{role === "error" ? <IconAlert /> : <IconInfo />}</span><span>{text}</span></div>;
   const eu = role === "user";
+
+  // Mensagem longa nasce DOBRADA, com um botão pra abrir.
+  //
+  // Antes ela ocupava a altura que quisesse: quem colava um prompt grande
+  // empurrava a conversa da IA pra baixo da tela e precisava diminuir o zoom
+  // do navegador pra ver a ferramenta trabalhando. O texto continua inteiro —
+  // só deixa de sequestrar a tela.
+  const longa = typeof text === "string" && text.length > LIMITE_DOBRA;
+  const [aberta, setAberta] = useState(false);
+
   return (
     <div className={"bubble " + role}>
       <div className="bubble-head">
@@ -1690,7 +1706,19 @@ function Bubble({ role, text, images }) {
           {images.map((src, i) => <img key={i} src={src} alt={t("imagem enviada")} />)}
         </div>
       )}
-      {text && <div className="bubble-body">{text}</div>}
+      {text && (
+        <>
+          <div className={"bubble-body" + (longa && !aberta ? " dobrada" : "")}>{text}</div>
+          {/* O botao fica FORA da caixa dobrada. Dentro, ele montava em cima da
+              ultima linha: a caixa esta cortada por altura, entao o texto passa
+              por baixo de qualquer espaco que a gente reserve la dentro. */}
+          {longa && (
+            <button className="bubble-mais" onClick={() => setAberta(v => !v)}>
+              {aberta ? t("Ver menos") : t("Ver tudo")}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -1733,14 +1761,35 @@ function RunCard({ steps = [], done, startedAt, endedAt }) {
       {open && (
         <div className="run-steps">
           {steps.length === 0 ? <div className="run-step cur"><span className="run-dot">▸</span> {t("preparando…")}</div>
-            : steps.map((s, i) => {
-                const atual = !done && i === steps.length - 1;
+            : (() => {
+                // So os ultimos passos. Antes a lista inteira ficava num quadro
+                // com rolagem propria -- rolagem dentro de rolagem, que fazia a
+                // pessoa perder a conversa de vista. O que interessa enquanto
+                // ela espera e o que esta acontecendo AGORA.
+                const TETO = 7;
+                const cortou = steps.length > TETO;
+                const vista = cortou ? steps.slice(-TETO) : steps;
+                const base = cortou ? steps.length - TETO : 0;
                 return (
-                  <div key={i} className={"run-step " + (atual ? "cur" : "done")}>
-                    <span className="run-dot">{atual ? "▸" : "•"}</span> {s}
-                  </div>
+                  <>
+                    {cortou && (
+                      <div className="run-step done run-antes">
+                        <span className="run-dot">•</span>
+                        {t("+{n} etapas antes desta", { n: base })}
+                      </div>
+                    )}
+                    {vista.map((s, i) => {
+                      const real = base + i;
+                      const atual = !done && real === steps.length - 1;
+                      return (
+                        <div key={real} className={"run-step " + (atual ? "cur" : "done")}>
+                          <span className="run-dot">{atual ? "▸" : "•"}</span> {s}
+                        </div>
+                      );
+                    })}
+                  </>
                 );
-              })}
+              })()}
         </div>
       )}
     </div>
