@@ -73,6 +73,11 @@ const DEFAULTS = {
     dryRunFirst: true
   },
   usage: [],
+  // Quanto custou CADA projeto: [{ quando, nome, tipo, usd, tokens, provedores }].
+  // Fica separado de `runtime` de proposito — runtime acumula o total de cada
+  // provedor desde sempre, e a pergunta que a pessoa faz e outra: "quanto me
+  // custou ESTE site?". Ver core/gasto.js.
+  gastos: [],
   limites: {},
   sessions: [],       // historico de conversas (ver core/history.js) — 100% local
   modelsCache: {},    // { [providerId]: [modelos] } — resultado do "Buscar" (compartilhado)

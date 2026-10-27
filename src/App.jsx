@@ -12,6 +12,8 @@ import { ModalAssinar, FaixaAssinar, CartaoPlano, CardAssinarProvedor } from "./
 import { planoMaisBaratoCom } from "./core/planos.js";
 import TrocarImagem from "./TrocarImagem.jsx";
 import { trocarImagem } from "./core/trocar-imagem.js";
+import { comecarMedicao, fecharMedicao, anotarGasto } from "./core/gasto.js";
+import PainelGastos from "./Gastos.jsx";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
 import { marcarProjetoNovo, consumirUsouCasa } from "./core/casa.js";
@@ -167,6 +169,8 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   const [imgParaTrocar, setImgParaTrocar] = useState(null);
   // Sobe 1 a cada troca manual, só para remontar o iframe da prévia.
   const [previaSeq, setPreviaSeq] = useState(0);
+  // Sobe 1 a cada gasto anotado, para o painel de saldo se atualizar sozinho.
+  const [gastoSeq, setGastoSeq] = useState(0);
   const [publicando, setPublicando] = useState(false);
   // Largura da conversa, em %. Fica no navegador pra não ter que reajustar
   // toda vez. Guardada direto no localStorage (não é dado de projeto).
@@ -525,6 +529,9 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     } catch (e) {
       console.warn("[historico] nao consegui guardar a conversa:", e);
     }
+    // Foto do gasto ANTES do pedido. A diferença no fim é o que este projeto
+    // consumiu de IA — ver core/gasto.js.
+    const medicao = await comecarMedicao();
     try {
       // TRES CAMINHOS, e confundi-los foi o que fazia a ferramenta parecer
       // burra: sem repo E sem rascunho e que se cria do zero. Havendo rascunho,
@@ -539,6 +546,16 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
             }, onEvent)
           : await criarProjeto({ userMessage: userText, kind: modo || detectarTipo(userText), providerId, sessionId: sessionRef.current, embedImages: images }, onEvent);
       endRun();
+
+      // Anota o custo deste pedido. "criar" é só quando o projeto nasce: a
+      // média por projeto misturada com ajustes responderia errado à pergunta
+      // "quanto me custa fazer um site?".
+      anotarGasto({
+        nome: r.nome || rascunho?.nome || repo?.name || userText.slice(0, 40),
+        tipo: r.kind || rascunho?.kind || modo || "",
+        acao: (repo || rascunho) ? "editar" : "criar",
+        medida: await fecharMedicao(medicao)
+      }).then(() => setGastoSeq(n => n + 1));
       // CRIAÇÃO: nada foi publicado ainda. Guardamos os arquivos, mostramos a
       // prévia rodando de verdade e esperamos a pessoa clicar em Publicar.
       if (!repo) {
@@ -1238,7 +1255,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
           só o onClose atualizava, então salvar a chave e abrir o seletor sem
           fechar o painel mostrava "sem chave" num serviço que já tinha chave. */}
       {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase} sessao={sessao} acesso={acesso}
-        onAssinar={abrirAssinar}
+        onAssinar={abrirAssinar} gastoSeq={gastoSeq}
         onMudou={() => { refreshConn(); loadModelsCache(); }}
         onClose={() => { setConnOpen(false); refreshConn(); loadModelsCache(); }} showToast={showToast} />}
       {tutsOpen && <Tutoriais onClose={() => setTutsOpen(false)} />}
@@ -2129,7 +2146,7 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
 function ConnRow({ icon, name, sub, subOff, children }) {
   return (<div className="conn-row"><div className="conn-ic">{icon}</div><div className="conn-main"><div className="conn-name">{name}</div><div className={"conn-sub" + (subOff ? " off" : "")}>{sub}</div></div><div className="conn-act">{children}</div></div>);
 }
-function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, sessao = null, acesso = {}, onAssinar = () => {}, onMudou = () => {} }) {
+function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, sessao = null, acesso = {}, onAssinar = () => {}, gastoSeq = 0, onMudou = () => {} }) {
   const [secrets, setSecrets] = useState(null);
   const [gh, setGh] = useState({});
   const [sb, setSb] = useState({});
@@ -2249,6 +2266,9 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, ses
           )}
 
           <p className="hint">{t("Token da Vercel:")} <a href="https://vercel.com/account/tokens" target="_blank" rel="noreferrer">vercel.com/account/tokens</a></p>
+
+          <div className="drawer-section">{t("Saldo e gastos")}</div>
+          <PainelGastos seq={gastoSeq} />
 
           <div className="drawer-section">{t("Chaves de IA (BYOK)")}</div>
           <button className="btn wide" onClick={() => setShowKeys(v => !v)}>{showKeys ? t("Ocultar chaves de IA") : t("Configurar chaves de IA")}</button>

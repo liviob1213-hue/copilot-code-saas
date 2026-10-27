@@ -1461,6 +1461,71 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
   box-shadow: 0 40px 100px -40px rgba(0, 0, 0, .95), 0 0 0 1px rgba(255, 255, 255, .03);
   animation: rise .3s var(--ease) both;
 }
+/* ---- Saldo das chaves e custo de cada projeto ------------------------ */
+.gastos-card {
+  margin-top: 10px; border: 1px solid var(--edge); border-radius: var(--r-md);
+  background: var(--glass); overflow: hidden;
+}
+.gc-bloco { padding: 13px 14px; }
+.gc-bloco + .gc-bloco { border-top: 1px solid var(--edge); }
+.gc-titulo {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 10px;
+}
+.gc-limpar {
+  border: 0; background: none; color: var(--ink-faint); cursor: pointer;
+  font-size: 10.5px; text-transform: none; letter-spacing: 0; text-decoration: underline;
+}
+.gc-limpar:hover { color: var(--ink); }
+
+.saldo-linha { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.sl-nome { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink-dim); }
+.sl-valor { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sl-valor.ok { color: var(--ink); }
+.sl-valor.carregando, .sl-valor.sem-chave, .sl-valor.erro {
+  font-size: 11.5px; font-weight: 500; color: var(--ink-faint);
+}
+.sl-refresh {
+  flex: none; border: 0; background: none; color: var(--ink-faint);
+  cursor: pointer; font-size: 13px; line-height: 1; padding: 2px 3px; border-radius: 5px;
+}
+.sl-refresh:hover { color: var(--ink); background: rgba(255, 255, 255, .06); }
+.sl-refresh:disabled { opacity: .4; cursor: default; }
+
+.gc-topo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.gc-num {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 9px 11px; border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, .035); border: 1px solid var(--edge);
+}
+.gc-num strong { font-size: 16px; font-weight: 800; letter-spacing: -.02em; }
+.gc-num span { font-size: 10.5px; color: var(--ink-faint); line-height: 1.35; }
+
+.gc-lista { display: flex; flex-direction: column; }
+.gc-item {
+  display: grid; grid-template-columns: auto 1fr auto auto auto;
+  align-items: center; gap: 8px; padding: 6px 0; font-size: 11.5px;
+  border-top: 1px solid rgba(255, 255, 255, .045);
+}
+.gc-item:first-child { border-top: 0; }
+.gc-acao {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 6px; border-radius: 999px; color: var(--ink-faint);
+  background: rgba(255, 255, 255, .06);
+}
+.gc-acao.criar { color: #fda4af; background: rgba(239, 68, 68, .14); }
+/* O nome do projeto pode ser longo; quem precisa caber sempre é o valor. */
+.gc-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-dim); }
+.gc-tok, .gc-quando { color: var(--ink-faint); font-size: 10.5px; white-space: nowrap; }
+.gc-usd { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gc-mais {
+  margin-top: 8px; border: 0; background: none; color: var(--ink-faint);
+  font-size: 11px; cursor: pointer; text-decoration: underline; padding: 0;
+}
+.gc-mais:hover { color: var(--ink); }
+.gc-vazio, .gc-nota { margin: 8px 0 0; font-size: 10.5px; color: var(--ink-faint); line-height: 1.5; }
+
 /* ---- Trocar foto na mão (sem IA) ------------------------------------- */
 /* Usa a mesma camada flex do modal de assinatura: centralizar por transform
    brigaria com a animação de entrada, que termina em "transform: none". */
