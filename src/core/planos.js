@@ -29,13 +29,14 @@
 /**
  * Os links de pagamento da Kiwify.
  *
- * >>> PARA O VICTOR: quando criar os produtos novos na Kiwify, cole os dois
- * links aqui embaixo. Enquanto estiverem vazios, os botoes do Basico e do Pro
- * levam a pessoa para a pagina de planos em vez de dar erro.
+ * Se um dia um link mudar, troque AQUI e tambem no bloco LINKS_KIWIFY da
+ * pagina de vendas (public/vendas/index.html) — `node scripts/teste-planos.mjs`
+ * reclama se os dois ficarem diferentes. Link vazio nao quebra nada: o botao
+ * passa a levar para a pagina de planos.
  */
 export const LINKS_KIWIFY = {
-  basico:  "",
-  pro:     "",
+  basico:  "https://pay.kiwify.com.br/Olo49sN",
+  pro:     "https://pay.kiwify.com.br/dkm49bU",
   premium: "https://pay.kiwify.com.br/5ikalLs",
   anual:   "https://pay.kiwify.com.br/oPNhBLB"
 };
