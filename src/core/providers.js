@@ -51,11 +51,25 @@ function pagasLiberadas() {
 }
 
 /**
+ * ESTA IA paga, no plano desta pessoa, pode?
+ *
+ * Nao basta perguntar "o plano e pago": existem tres niveis e cada um libera
+ * IAs diferentes (Basico -> DeepSeek; Pro -> Claude e xAI; Premium -> todas).
+ * Sem registro de plano (a extensao, por exemplo), tudo passa, como sempre.
+ */
+function pagaLiberada(id) {
+  try {
+    if (!regrasDoPlano?.permiteProvedorPago) return pagasLiberadas();
+    return regrasDoPlano.permiteProvedorPago(id) !== false;
+  } catch { return true; }
+}
+
+/**
  * A fila de provedores JA considerando o plano:
  *
- *   - tira as APIs PAGAS de quem nao tem direito a elas (plano gratis). A chave
- *     e da pessoa, mas quem nao paga nao escolhe modelo pago — e o que separa
- *     os planos;
+ *   - tira as APIs PAGAS que o plano DESTA pessoa nao cobre. A chave e dela,
+ *     mas qual IA paga ela pode ligar e o que separa os planos: o Basico cobre
+ *     a DeepSeek, o Pro o Claude e o xAI, o Premium todas;
  *   - marca com viaCasa os servicos gratuitos que a casa empresta. Eles contam
  *     como "tem chave", porque vai ter: a nossa, emprestada no servidor.
  *
@@ -80,7 +94,6 @@ async function filaDoPlano() {
     } catch { /* segue com o que der */ }
   }
   const fila = await resolveQueue();
-  const podePagas = pagasLiberadas();
 
   let daCasa = [];
   if (casaLigada()) {
@@ -92,7 +105,7 @@ async function filaDoPlano() {
     const ehPaga = q.provider.tier === "paid";
     const casaOferece = daCasa.includes(q.provider.id);
 
-    if (ehPaga && !podePagas) {
+    if (ehPaga && !pagaLiberada(q.provider.id)) {
       // DUAS COISAS DIFERENTES, e confundi-las deixava a reserva morta:
       //
       //   API paga com a chave DA PESSOA  -> fora. É isto que separa os planos.

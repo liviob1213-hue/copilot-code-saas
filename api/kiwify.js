@@ -9,8 +9,17 @@
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY
 //   KIWIFY_WEBHOOK_SECRET      <- o token que a Kiwify mostra ao criar o webhook
-//   KIWIFY_PRODUTO_MENSAL      <- (opcional) id do produto mensal
-//   KIWIFY_PRODUTO_ANUAL       <- (opcional) id do produto anual
+//
+// E o id de cada produto da Kiwify. Sao opcionais no sentido de que o codigo
+// nao quebra sem eles — mas COM TRES NIVEIS DE PLANO eles passam a importar de
+// verdade: e so por eles que da pra saber se a pessoa comprou o Basico (so
+// DeepSeek), o Pro (Claude e xAI) ou o Premium (tudo). Sem eles, qualquer
+// compra que o titulo nao denuncie entra como Premium.
+//   KIWIFY_PRODUTO_BASICO      <- id do produto Basico   (R$ 24,97/mes)
+//   KIWIFY_PRODUTO_PRO         <- id do produto Pro      (R$ 34,97/mes)
+//   KIWIFY_PRODUTO_PREMIUM     <- id do produto Premium  (R$ 47/mes)
+//   KIWIFY_PRODUTO_ANUAL       <- id do produto Premium anual (R$ 297/ano)
+//   KIWIFY_PRODUTO_MENSAL      <- nome antigo do Premium mensal; ainda vale
 //
 // ----------------------------------------------------------------------------
 // A PEGADINHA QUE DERRUBOU ISSO NA PRIMEIRA TENTATIVA:
@@ -201,9 +210,17 @@ function acharEmail(c) {
 }
 
 /**
- * Mensal ou anual? Primeiro tenta pelo id do produto (o jeito exato). Se voce
- * nao tiver preenchido os ids, cai na frequencia da assinatura — que funciona,
- * mas e chute informado. Preencha os ids quando puder.
+ * QUAL dos planos a pessoa comprou?
+ *
+ * Tres niveis mensais (basico, pro, premium) mais o premium anual. O jeito
+ * EXATO e pelo id do produto da Kiwify, cadastrado nas variaveis da Vercel —
+ * veja a lista no topo deste arquivo. Como cada nivel libera IAs diferentes,
+ * aqui nao da pra chutar pelo preco nem pela frequencia: sem os ids, o maximo
+ * que conseguimos dizer e se foi mensal ou anual.
+ *
+ * O NOME tambem serve de pista, e vale a pena: a Kiwify manda o titulo do
+ * produto, e quem chamou o produto de "Prumo Code Basico" ja disse o que
+ * vendeu. E so uma pista — o id, quando existe, sempre ganha.
  */
 function descobrirPlano(c) {
   const idProduto = String(
@@ -211,11 +228,31 @@ function descobrirPlano(c) {
     c?.product_id || ""
   ).trim();
 
-  const mensal = String(process.env.KIWIFY_PRODUTO_MENSAL || "").trim();
-  const anual  = String(process.env.KIWIFY_PRODUTO_ANUAL  || "").trim();
+  // id do produto -> nome do plano gravado no banco
+  const porId = [
+    [process.env.KIWIFY_PRODUTO_BASICO,  "basico"],
+    [process.env.KIWIFY_PRODUTO_PRO,     "pro"],
+    [process.env.KIWIFY_PRODUTO_PREMIUM, "premium"],
+    // Nome antigo da variavel do produto de R$ 47, de quando so havia um plano
+    // mensal. Continua valendo pra ninguem ter que mexer na Vercel.
+    [process.env.KIWIFY_PRODUTO_MENSAL,  "premium"],
+    [process.env.KIWIFY_PRODUTO_ANUAL,   "anual"]
+  ];
 
-  if (idProduto && anual  && idProduto === anual)  return "anual";
-  if (idProduto && mensal && idProduto === mensal) return "mensal";
+  for (const [cadastrado, plano] of porId) {
+    const v = String(cadastrado || "").trim();
+    if (v && idProduto && v === idProduto) return plano;
+  }
+
+  // Pista pelo titulo do produto.
+  const titulo = String(
+    c?.Product?.product_name || c?.Product?.name || c?.product?.name ||
+    c?.product_name || ""
+  ).toLowerCase();
+
+  if (/b[áa]sic/.test(titulo)) return "basico";
+  if (/premium/.test(titulo)) return /anual|ano|annual/.test(titulo) ? "anual" : "premium";
+  if (/\bpro\b/.test(titulo)) return "pro";
 
   const freq = String(
     c?.subscription?.plan?.frequency || c?.subscription?.frequency ||
@@ -223,12 +260,17 @@ function descobrirPlano(c) {
   ).toLowerCase();
 
   if (/year|anual|annual|12/.test(freq)) return "anual";
-  if (/month|mensal|monthly/.test(freq)) return "mensal";
 
-  // Nao deu pra saber: trata como mensal, que e o menor. Melhor dar de menos
-  // e corrigir na mao do que dar um ano para quem comprou um mes.
-  console.warn("[kiwify] nao identifiquei o plano, assumindo mensal. produto:", idProduto, "freq:", freq);
-  return "mensal";
+  // Nao deu pra saber qual nivel: entra como PREMIUM mensal.
+  //
+  // Por que o maior e nao o menor: o unico caso em que isto acontece e alguem
+  // que PAGOU e cujo produto nao esta cadastrado aqui. Dar o nivel de baixo
+  // faria essa pessoa abrir a ferramenta, nao achar a IA que ela comprou e
+  // pedir reembolso na hora. Dar demais custa alguns centavos e se corrige com
+  // uma linha de SQL; dar de menos custa o cliente. Cadastre os ids na Vercel
+  // para isto nunca precisar acontecer.
+  console.warn("[kiwify] nao identifiquei o nivel do plano, assumindo premium. produto:", idProduto, "titulo:", titulo, "freq:", freq);
+  return "premium";
 }
 
 /**

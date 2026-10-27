@@ -19,45 +19,94 @@
 
 import React, { useEffect, useState } from "react";
 import { t } from "./i18n.js";
+import { PLANOS, LINKS_KIWIFY, linkDoPlano, planoMaisBaratoCom } from "./core/planos.js";
 
-export const LINK_MENSAL = "https://pay.kiwify.com.br/5ikalLs";
-export const LINK_ANUAL = "https://pay.kiwify.com.br/oPNhBLB";
+export const LINK_MENSAL = LINKS_KIWIFY.premium;
+export const LINK_ANUAL = LINKS_KIWIFY.anual;
 
 const GUARDA_FAIXA = "prumo:faixaAssinar";
 
+const Cheque = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6 9 17l-5-5" /></svg>
+);
+
+/** O que vale em QUALQUER plano pago — o que os tres niveis tem em comum. */
 function Vantagens() {
   const itens = [
-    t("IAs pagas liberadas: Claude, GPT, Gemini Pro, DeepSeek"),
-    t("Apps e SaaS, não só sites"),
     t("Projetos sem limite de quantidade"),
+    t("Apps e SaaS, não só sites"),
+    t("As IAs gratuitas continuam inclusas"),
     t("Suporte por e-mail")
   ];
   return (
     <ul className="assinar-lista">
       {itens.map((x, i) => (
-        <li key={i}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6 9 17l-5-5" /></svg>
-          <span>{x}</span>
-        </li>
+        <li key={i}><Cheque /><span>{x}</span></li>
       ))}
     </ul>
   );
 }
 
-function Precos() {
+/** O que cada nivel libera de IA paga, em uma linha. */
+const O_QUE_LIBERA = {
+  basico: () => t("DeepSeek"),
+  pro: () => t("Claude e xAI Grok"),
+  premium: () => t("todas as IAs pagas"),
+  anual: () => t("todas as IAs pagas")
+};
+
+/**
+ * Os tres niveis mensais, lado a lado, mais o anual embaixo.
+ *
+ * `destaque` e o plano que fica em evidencia. Quando o convite nasce de uma IA
+ * especifica ("quero a DeepSeek"), ele aponta o plano MAIS BARATO que libera
+ * aquela IA — oferecer o de R$ 47 para quem so quer a DeepSeek e a forma mais
+ * rapida de ouvir "caro demais" e perder a venda inteira.
+ */
+function Precos({ destaque = "premium" }) {
+  const mensais = [PLANOS.basico, PLANOS.pro, PLANOS.premium];
   return (
-    <div className="assinar-planos">
-      <a className="assinar-plano" href={LINK_MENSAL} target="_blank" rel="noopener noreferrer">
-        <span className="ap-nome">{t("Mensal")}</span>
-        <span className="ap-preco">R$ 47<small>{t("/mês")}</small></span>
-        <span className="ap-obs">{t("cancela quando quiser")}</span>
+    <>
+      <div className="assinar-planos tres">
+        {mensais.map(p => (
+          <a key={p.id}
+             className={"assinar-plano" + (destaque === p.id ? " destaque" : "")}
+             href={linkDoPlano(p.id)} target="_blank" rel="noopener noreferrer">
+            {destaque === p.id && <span className="ap-selo">{t("para você")}</span>}
+            <span className="ap-nome">{t(p.nome)}</span>
+            <span className="ap-preco">R$ {p.preco}<small>{t("/mês")}</small></span>
+            <span className="ap-obs">{O_QUE_LIBERA[p.id]()}</span>
+          </a>
+        ))}
+      </div>
+      <a className="assinar-anual" href={linkDoPlano("anual")} target="_blank" rel="noopener noreferrer">
+        <span className="aa-nome">{t("Premium anual")} <b>R$ 297</b></span>
+        <span className="aa-obs">{t("sai a R$ 24,75 por mês, e vem com o Prumo Edit de bônus")}</span>
       </a>
-      <a className="assinar-plano destaque" href={LINK_ANUAL} target="_blank" rel="noopener noreferrer">
-        <span className="ap-selo">{t("melhor custo")}</span>
-        <span className="ap-nome">{t("Anual")}</span>
-        <span className="ap-preco">R$ 297<small>{t("/ano")}</small></span>
-        <span className="ap-obs">{t("sai a R$ 24,75 por mês")}</span>
-      </a>
+    </>
+  );
+}
+
+/**
+ * O convite que aparece DENTRO do campo de cada IA paga que o plano da pessoa
+ * nao cobre (tela de Chaves de IA).
+ *
+ * Ele diz o preco do plano certo para AQUELA IA. O campo da chave continua ali
+ * embaixo, funcionando: quem ja tem a chave pode colar hoje e ligar quando
+ * assinar, em vez de ter que voltar aqui depois.
+ */
+export function CardAssinarProvedor({ provedor, onAssinar = () => {} }) {
+  const plano = planoMaisBaratoCom(provedor.id);
+  return (
+    <div className="ia-tranca">
+      <div className="it-txt">
+        <strong>{t("{ia} faz parte do plano {plano}", { ia: provedor.label, plano: t(plano.nome) })}</strong>
+        <span>{t("R$ {preco} por mês. A chave continua sendo sua — o plano é o que libera o uso dela aqui.", { preco: plano.preco })}</span>
+      </div>
+      <button className="it-cta" onClick={() => onAssinar(
+        t("Para usar o {ia} aqui", { ia: provedor.label }),
+        plano.id
+      )}>{t("Assinar o {plano}", { plano: t(plano.nome) })}</button>
     </div>
   );
 }
@@ -67,7 +116,7 @@ function Precos() {
  * e sempre com uma saída visível — prender alguém numa tela de venda é o jeito
  * mais rápido de perder o cliente e ganhar um pedido de reembolso.
  */
-export function ModalAssinar({ aberto, motivo, onFechar }) {
+export function ModalAssinar({ aberto, motivo, destaque = "premium", onFechar }) {
   useEffect(() => {
     if (!aberto) return;
     const esc = (e) => { if (e.key === "Escape") onFechar(); };
@@ -91,10 +140,10 @@ export function ModalAssinar({ aberto, motivo, onFechar }) {
         <div className="assinar-topo">
           <img src="/brand/logo.png" alt="" />
           <h2>{motivo || t("Seus sites de hoje acabaram")}</h2>
-          <p>{t("No Pro você cria sem limite, com as IAs mais fortes — e continua usando a sua própria chave.")}</p>
+          <p>{t("Escolha o plano pela IA que você quer usar. Em todos eles você cria sem limite e continua usando a sua própria chave.")}</p>
         </div>
         <Vantagens />
-        <Precos />
+        <Precos destaque={destaque} />
         <p className="assinar-rodape">
           {t("Amanhã você ganha um site novo de graça. Se preferir esperar, é só fechar aqui.")}
         </p>
@@ -130,7 +179,7 @@ export function FaixaAssinar({ acesso, onAssinar }) {
     <div className="assinar-faixa">
       <span className="af-texto">
         {t("Você está no plano grátis.")}{" "}
-        <b>{t("No Pro: IAs pagas, apps e sites sem limite.")}</b>
+        <b>{t("A partir de R$ 24,97: IAs pagas, apps e sites sem limite.")}</b>
       </span>
       <button className="af-cta" onClick={onAssinar}>{t("Ver planos")}</button>
       <button className="af-x" onClick={fechar} aria-label={t("Agora não")}>×</button>
@@ -153,7 +202,7 @@ export function CartaoPlano({ acesso, onAssinar }) {
       <div className="plano-card pago">
         <span className="pc-selo"><IconCheque /></span>
         <div className="pc-txt">
-          <strong>{t("Plano Pro")}</strong>
+          <strong>{t("Plano {plano}", { plano: t(acesso.planoNome || "Premium") })}</strong>
           <span>{t("sites e apps sem limite")}</span>
         </div>
       </div>
@@ -177,7 +226,7 @@ export function CartaoPlano({ acesso, onAssinar }) {
       <p className="pc-linha">
         {total === 0
           ? t("Amanhã você ganha outro. Ou assine e crie agora, sem limite.")
-          : t("No Pro: IAs pagas, apps e sites sem limite.")}
+          : t("A partir de R$ 24,97: IAs pagas, apps e sites sem limite.")}
       </p>
       <button className="pc-cta" onClick={onAssinar}>{t("Ver planos")}</button>
     </div>

@@ -8,7 +8,8 @@ import { criarProjeto, publicarProjeto, editarProjeto, editarRascunho, reconecta
 import { montarHtmlPrevia } from "./core/previa.js";
 import { guardarRascunho, lerRascunho, apagarRascunho, idsComRascunho } from "./core/rascunhos.js";
 import { cancelarIA, comecarIA } from "./core/net.js";
-import { ModalAssinar, FaixaAssinar, CartaoPlano } from "./Assinar.jsx";
+import { ModalAssinar, FaixaAssinar, CartaoPlano, CardAssinarProvedor } from "./Assinar.jsx";
+import { planoMaisBaratoCom } from "./core/planos.js";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
 import { marcarProjetoNovo, consumirUsouCasa } from "./core/casa.js";
@@ -149,8 +150,10 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   // Convite para assinar: { aberto, motivo }. O motivo muda o titulo, porque
   // quem bateu no limite e quem quis uma IA paga chegam aqui por portas
   // diferentes e precisam de respostas diferentes.
-  const [assinar, setAssinar] = useState({ aberto: false, motivo: "" });
-  const abrirAssinar = (motivo = "") => setAssinar({ aberto: true, motivo });
+  // "destaque" e qual dos tres planos ja aparece em evidencia: quem clicou na
+  // DeepSeek deve ver o Basico destacado, nao o Premium.
+  const [assinar, setAssinar] = useState({ aberto: false, motivo: "", destaque: "premium" });
+  const abrirAssinar = (motivo = "", destaque = "premium") => setAssinar({ aberto: true, motivo, destaque });
   const resolvidasRef = useRef([]);
   const [rotaPrevia, setRotaPrevia] = useState("/");
   const [publicando, setPublicando] = useState(false);
@@ -865,8 +868,12 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       inputRef={inputRef}
       kind={kind} setKind={setKind} onSend={handleSend} onCancel={cancelarPedido} onBlindar={handleBlindar}
       providerId={providerId} activeModel={activeModel} onPickModel={pickModel} modelsCache={modelsCache} modelHealth={modelHealth}
-      estadoProvs={estadoProvs} podeApisPagas={acesso.podeApisPagas !== false}
-      onPlanoPago={() => abrirAssinar(t("Essa IA faz parte do plano Pro"))}
+      estadoProvs={estadoProvs}
+      liberaProvedor={(id) => (typeof acesso.liberaProvedor === "function" ? acesso.liberaProvedor(id) : acesso.podeApisPagas !== false)}
+      onPlanoPago={(pc, plano) => abrirAssinar(
+        t("Para usar o {ia} aqui", { ia: pc?.label || t("essa IA") }),
+        plano?.id || "premium"
+      )}
       attached={attached} onAddFiles={addFiles} onRemoveAttach={(i) => setAttached(a => a.filter((_, x) => x !== i))}
       projects={vercelProjects} onLoadProjects={loadVercelProjects} onOpenProject={openProject} onNew={novoProjeto}
       onPlusConexoes={() => { setKeysOpen(false); setConnOpen(true); }} onPlusChaves={() => { setKeysOpen(true); setConnOpen(true); }}
@@ -1157,7 +1164,8 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       </div>
 
       {projOpen && <ProjectsDrawer projects={vercelProjects} onReload={loadVercelProjects} onOpen={openProject} onClose={() => setProjOpen(false)} acesso={acesso} onConvidar={() => { setProjOpen(false); abrirConexoes(); }} />}
-      <ModalAssinar aberto={assinar.aberto} motivo={assinar.motivo} onFechar={() => setAssinar({ aberto: false, motivo: "" })} />
+      <ModalAssinar aberto={assinar.aberto} motivo={assinar.motivo} destaque={assinar.destaque}
+        onFechar={() => setAssinar({ aberto: false, motivo: "", destaque: "premium" })} />
       {histOpen && <HistoryDrawer sessions={sessions} onOpen={openSession}
         onDelete={async id => { await history.deleteSession(id); refreshHistory(); }}
         onClear={async () => { await history.clearAll(); refreshHistory(); }}
@@ -1166,6 +1174,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
           só o onClose atualizava, então salvar a chave e abrir o seletor sem
           fechar o painel mostrava "sem chave" num serviço que já tinha chave. */}
       {connOpen && <Connections repo={repo} startKeys={keysOpen} onSupabaseBound={aoLigarSupabase} sessao={sessao} acesso={acesso}
+        onAssinar={abrirAssinar}
         onMudou={() => { refreshConn(); loadModelsCache(); }}
         onClose={() => { setConnOpen(false); refreshConn(); loadModelsCache(); }} showToast={showToast} />}
       {tutsOpen && <Tutoriais onClose={() => setTutsOpen(false)} />}
@@ -1372,7 +1381,7 @@ function TplIcon({ ic }) {
 }
 
 /* ---------------- Composer (v0-style) ---------------- */
-function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onCancel = () => {}, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, estadoProvs, podeApisPagas = true, onPlanoPago = () => {}, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
+function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, onSend, onCancel = () => {}, onBlindar, providerId, activeModel, onPickModel, modelsCache, modelHealth, estadoProvs, liberaProvedor = () => true, onPlanoPago = () => {}, attached = [], onAddFiles, onRemoveAttach, projects, onLoadProjects, onOpenProject, onNew, onPlusConexoes, onPlusChaves, dica = "" }) {
   const [plus, setPlus] = useState(false);
   const fileRef = useRef(null);
   return (
@@ -1406,7 +1415,7 @@ function Composer({ big, repo, busy, input, setInput, inputRef, kind, setKind, o
             </div>
           </>)}
         </div>
-        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} estadoProvs={estadoProvs} onPlusChaves={onPlusChaves} podeApisPagas={podeApisPagas} onPlanoPago={onPlanoPago} />
+        <ModelPicker providerId={providerId} activeModel={activeModel} onPick={onPickModel} modelsCache={modelsCache} modelHealth={modelHealth} estadoProvs={estadoProvs} onPlusChaves={onPlusChaves} liberaProvedor={liberaProvedor} onPlanoPago={onPlanoPago} />
         <button className="chip" onClick={onBlindar} disabled={busy || !repo} title={t("Blindar contra vazamento de dados")}><IconShield /></button>
         <div className="spacer" />
         <ProjectPicker projects={projects} onLoad={onLoadProjects} onOpen={onOpenProject} onNew={onNew} />
@@ -1527,7 +1536,7 @@ function detectarSegredo(texto) {
   return null;
 }
 
-function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {}, estadoProvs = null, onPlusChaves = () => {}, podeApisPagas = true, onPlanoPago = () => {} }) {
+function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelHealth = {}, estadoProvs = null, onPlusChaves = () => {}, liberaProvedor = () => true, onPlanoPago = () => {} }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const label = providerId ? (activeModel || t("modelo")) : t("Automático");
@@ -1560,18 +1569,22 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelH
               // o clique leva direto pra tela de chaves. (estadoProvs null =
               // ainda carregando: não marca nada pra não piscar "sem chave".)
               const estado = estadoProvs ? (estadoProvs[pc.id] || "sem-chave") : "ok";
-              // IA paga no plano grátis: aparece, mas com etiqueta "Pro". Mesma
-              // razão de sempre — esconder não converte, mostrar bloqueado sim.
-              const soNoPago = pc.tier === "paid" && !podeApisPagas;
+              // IA paga fora do plano desta pessoa: aparece, mas com a etiqueta
+              // do plano que a libera ("Básico", "Pro", "Premium"). Mesma razão
+              // de sempre — esconder não converte, mostrar bloqueado sim. E a
+              // etiqueta já diz o preço de entrada, em vez de um "Pro" genérico
+              // que faria todo mundo imaginar o plano mais caro.
+              const soNoPago = pc.tier === "paid" && !liberaProvedor(pc.id);
+              const planoDaIa = soNoPago ? planoMaisBaratoCom(pc.id) : null;
               // Marcado = escolher aqui só daria erro. O clique leva à tela de
               // chaves, onde dá pra colar a chave, ligar o serviço ou testar.
               const marcado = soNoPago || estado !== "ok" || todosFalharam;
-              const etiqueta = soNoPago ? t("Pro")
+              const etiqueta = soNoPago ? t(planoDaIa.nome)
                 : estado === "sem-chave" ? t("sem chave")
                 : estado === "desligado" ? t("desligado")
                 : t("chave recusada");
               const dicaItem = soNoPago
-                ? t("As IAs pagas fazem parte do plano Pro.")
+                ? t("Faz parte do plano {plano} — R$ {preco} por mês.", { plano: t(planoDaIa.nome), preco: planoDaIa.preco })
                 : estado === "sem-chave"
                 ? t("Adicione a chave deste serviço para poder usá-lo")
                 : estado === "desligado"
@@ -1586,7 +1599,7 @@ function ModelPicker({ providerId, activeModel, onPick, modelsCache = {}, modelH
                       title={marcado ? dicaItem : ""}
                       onClick={() => {
                         setOpen(false);
-                        if (soNoPago) onPlanoPago();
+                        if (soNoPago) onPlanoPago(pc, planoDaIa);
                         else if (marcado) onPlusChaves();
                         else onPick(pc.id, m);
                       }}>
@@ -2052,7 +2065,7 @@ function HistoryDrawer({ sessions, onOpen, onDelete, onClear, onClose }) {
 function ConnRow({ icon, name, sub, subOff, children }) {
   return (<div className="conn-row"><div className="conn-ic">{icon}</div><div className="conn-main"><div className="conn-name">{name}</div><div className={"conn-sub" + (subOff ? " off" : "")}>{sub}</div></div><div className="conn-act">{children}</div></div>);
 }
-function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, sessao = null, acesso = {}, onMudou = () => {} }) {
+function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, sessao = null, acesso = {}, onAssinar = () => {}, onMudou = () => {} }) {
   const [secrets, setSecrets] = useState(null);
   const [gh, setGh] = useState({});
   const [sb, setSb] = useState({});
@@ -2175,7 +2188,7 @@ function Connections({ repo, startKeys, onClose, onSupabaseBound, showToast, ses
 
           <div className="drawer-section">{t("Chaves de IA (BYOK)")}</div>
           <button className="btn wide" onClick={() => setShowKeys(v => !v)}>{showKeys ? t("Ocultar chaves de IA") : t("Configurar chaves de IA")}</button>
-          {showKeys && <AiProviders showToast={showToast} onMudou={onMudou} />}
+          {showKeys && <AiProviders showToast={showToast} onMudou={onMudou} acesso={acesso} onAssinar={onAssinar} />}
         </div>
       </div>
     </>
@@ -2269,7 +2282,7 @@ const CORES_IA = {
   teamsoclo: "linear-gradient(135deg,#16a34a,#06b6d4)"
 };
 
-function AiProviders({ showToast, onMudou = () => {} }) {
+function AiProviders({ showToast, onMudou = () => {}, acesso = {}, onAssinar = () => {} }) {
   const [secrets, setSecrets] = useState(null);
   const [provs, setProvs] = useState([]);
   const [fetched, setFetched] = useState({});
@@ -2342,8 +2355,15 @@ function AiProviders({ showToast, onMudou = () => {} }) {
         const icone = m => testOn ? "…" : ({ ok: "✓", fail: "✕", retry: "…" })[H[m]?.status] || "";
         const primeiroDoTier = idx === 0 || tierDe(lista[idx - 1].id) !== tierDe(pc.id);
         const ultimoDoTier = idx === lista.length - 1 || tierDe(lista[idx + 1].id) !== tierDe(pc.id);
+        // Esta IA é paga e o plano desta pessoa não a cobre? Então o campo da
+        // chave fica, mas com o convite por cima: ela pode colar a chave hoje e
+        // só ligar quando assinar — e vê o preço exato do plano que libera ESTA
+        // IA, não o mais caro da lista.
+        const trancada = pc.tier === "paid" && acesso.carregado
+          && typeof acesso.liberaProvedor === "function"
+          && !acesso.liberaProvedor(pc.id);
         return (
-          <div className="ai-card" key={pc.id}>
+          <div className={"ai-card" + (trancada ? " trancada" : "")} key={pc.id}>
             <div className="ai-head">
               <span className="ai-order">
                 <button className="ord" disabled={primeiroDoTier} onClick={() => mover(pc.id, -1)} title={t("Subir")}>↑</button>
@@ -2357,6 +2377,7 @@ function AiProviders({ showToast, onMudou = () => {} }) {
               <span className={"pill " + (pc.tier === "free" ? "free" : "paid")}>{pc.tier === "free" ? t("grátis") : t("paga")}</span>
               {salva && <span className="pill on">{t("chave")} ✓</span>}
             </div>
+            {trancada && <CardAssinarProvedor provedor={pc} onAssinar={onAssinar} />}
             <div className="ai-row">
               <input className="text" type="password" placeholder={`${t("chave")} ${pc.label}`} value={drafts[pc.secretKey] ?? secrets[pc.secretKey] ?? ""} onChange={e => setDrafts(d => ({ ...d, [pc.secretKey]: e.target.value }))} />
               <button className="btn sm" onClick={() => salvarChave(pc)}>{t("Salvar")}</button>

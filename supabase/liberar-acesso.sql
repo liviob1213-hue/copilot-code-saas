@@ -25,8 +25,17 @@
 --  Isso nao e defeito, e a trava do plano.
 -- ===========================================================================
 
--- >>>>>>>>>>>>>>>>  TROQUE SO ESTA LINHA  <<<<<<<<<<<<<<<<
+-- >>>>>>>>>>>>>>>>  TROQUE ESTAS DUAS LINHAS  <<<<<<<<<<<<<<<<
 select set_config('prumo.email', 'email-da-pessoa@exemplo.com', false);
+
+-- QUAL PLANO dar. Escreva exatamente um destes:
+--
+--   'basico'   R$ 24,97/mes  -> libera a DeepSeek
+--   'pro'      R$ 34,97/mes  -> libera o Claude (e o gateway TeamSocLo) e o xAI
+--   'premium'  R$ 47/mes     -> libera TODAS as IAs pagas
+--   'anual'    R$ 297/ano    -> o Premium, com o bonus do Prumo Edit
+--   'free'                   -> tira o acesso pago
+select set_config('prumo.plano', 'premium', false);
 
 
 -- ---------------------------------------------------------------------------
@@ -34,8 +43,7 @@ select set_config('prumo.email', 'email-da-pessoa@exemplo.com', false);
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  -- 'anual' = acesso completo. Use 'mensal' ou 'free' se quiser outro.
-  v_plano text := 'anual';
+  v_plano text := coalesce(nullif(current_setting('prumo.plano', true), ''), 'premium');
   -- NULL = nunca vence. Para dar 12 meses: now() + interval '12 months'
   v_vence timestamptz := null;
 
@@ -45,6 +53,13 @@ declare
 begin
   if v_email is null or v_email = '' then
     raise exception 'Rode a linha do set_config junto: o e-mail nao chegou.';
+  end if;
+
+  -- Nome de plano errado (um "premiun" da vida) gravaria no banco um plano que
+  -- a ferramenta nao conhece. Como ela trata plano desconhecido como Premium,
+  -- o erro passaria despercebido ate alguem receber mais do que comprou.
+  if v_plano not in ('free', 'basico', 'pro', 'premium', 'anual') then
+    raise exception 'Plano "%" nao existe. Use free, basico, pro, premium ou anual.', v_plano;
   end if;
 
   v_norm := public.normalizar_email(v_email);

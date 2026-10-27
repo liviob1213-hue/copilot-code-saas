@@ -18,7 +18,9 @@
 
 import { usuarioDoToken, ehAdmin, definirPlanoPorEmail, json, normalizarEmail, supabaseAdmin } from "./_lib.js";
 
-const PLANOS = new Set(["free", "mensal", "anual"]);
+// Os niveis de hoje, mais "mensal", que e como estao gravados os clientes de
+// antes dos tres niveis (vale como Premium — ver src/core/planos.js).
+const PLANOS = new Set(["free", "basico", "pro", "premium", "mensal", "anual"]);
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return json(res, 405, { erro: "use POST" });
@@ -39,14 +41,14 @@ export default async function handler(req, res) {
   }
 
   const email = String(corpo?.email || "").trim();
-  const plano = String(corpo?.plano || "anual").trim();
+  const plano = String(corpo?.plano || "premium").trim().toLowerCase();
   const meses = Number(corpo?.meses || 0);
 
   if (!email || !email.includes("@")) {
     return json(res, 400, { erro: "Digite um e-mail válido." });
   }
   if (!PLANOS.has(plano)) {
-    return json(res, 400, { erro: "Plano inválido. Use free, mensal ou anual." });
+    return json(res, 400, { erro: "Plano inválido. Use free, basico, pro, premium ou anual." });
   }
 
   // meses = 0 significa "não vence" (acesso vitalício), que e o padrao de uma

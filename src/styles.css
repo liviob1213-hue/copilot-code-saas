@@ -1495,6 +1495,50 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
 .ap-preco { font-size: 24px; font-weight: 900; letter-spacing: -.03em; }
 .ap-preco small { font-size: 11.5px; font-weight: 600; color: var(--ink-faint); letter-spacing: 0; }
 .ap-obs { font-size: 10.5px; color: var(--ink-faint); }
+
+/* Tres niveis lado a lado. Com tres colunas o preco de 5 digitos (R$ 24,97)
+   nao cabe em 24px, entao ele encolhe — e nao quebra em duas linhas, que
+   deixaria os tres cards com alturas diferentes. */
+.assinar-planos.tres { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.assinar-planos.tres .assinar-plano { padding: 13px 8px; }
+.assinar-planos.tres .ap-preco { font-size: 19px; white-space: nowrap; }
+.assinar-planos.tres .ap-preco small { font-size: 10px; }
+.assinar-planos.tres .ap-obs { font-size: 10px; line-height: 1.35; }
+.assinar-planos.tres .ap-selo { font-size: 8.5px; padding: 2px 7px; }
+
+/* O anual como uma faixa embaixo, e nao como um quarto card: ele nao e um
+   nivel a mais, e o Premium pago por ano. */
+.assinar-anual {
+  display: flex; flex-direction: column; gap: 2px; margin-top: 10px;
+  padding: 10px 13px; border-radius: var(--r-md); cursor: pointer;
+  border: 1px dashed rgba(251, 113, 133, .45); background: var(--grad-soft);
+  transition: border-color .2s;
+}
+.assinar-anual:hover { border-color: rgba(251, 113, 133, .85); }
+.aa-nome { font-size: 12px; font-weight: 650; color: var(--ink-dim); }
+.aa-nome b { color: var(--ink); font-weight: 900; }
+.aa-obs { font-size: 10.5px; color: var(--ink-faint); line-height: 1.4; }
+
+/* Convite dentro do card de uma IA paga que o plano nao cobre (tela de
+   Chaves de IA). Fica ACIMA do campo da chave, nao por cima: a pessoa ainda
+   precisa poder colar a chave dela. */
+.ia-tranca {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 8px 0 2px; padding: 9px 11px; border-radius: var(--r-sm);
+  background: var(--grad-soft); border: 1px solid rgba(251, 113, 133, .3);
+}
+.it-txt { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 2px; }
+.it-txt strong { font-size: 12px; font-weight: 700; color: var(--ink); }
+.it-txt span { font-size: 11px; color: var(--ink-faint); line-height: 1.4; }
+.it-cta {
+  flex: none; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  background: var(--grad); border: 0; color: #fff; font-size: 11.5px; font-weight: 700;
+}
+.it-cta:hover { filter: brightness(1.08); }
+/* O card inteiro fica um pouco apagado, menos o convite: e o jeito de dizer
+   "isto aqui esta fora do seu plano" sem esconder nada. */
+.ai-card.trancada .ai-row, .ai-card.trancada .getkey, .ai-card.trancada .ai-health { opacity: .55; }
+.ai-card.trancada:hover .ai-row, .ai-card.trancada:hover .getkey { opacity: 1; }
 .assinar-rodape { margin: 16px 0 0; text-align: center; font-size: 11.5px; color: var(--ink-faint); line-height: 1.5; }
 
 .assinar-faixa {
@@ -1514,7 +1558,12 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
 .af-x { flex: none; border: 0; background: none; color: var(--ink-faint); font-size: 17px; line-height: 1; cursor: pointer; padding: 0 2px; }
 .af-x:hover { color: var(--ink); }
 
-@media (max-width: 560px) { .assinar-planos { grid-template-columns: 1fr; } }
+@media (max-width: 560px) {
+  .assinar-planos { grid-template-columns: 1fr; }
+  /* Os tres viram uma coluna so; com 320px de largura nao ha o que espremer. */
+  .assinar-planos.tres { grid-template-columns: 1fr; gap: 10px; }
+  .assinar-planos.tres .ap-preco { font-size: 24px; }
+}
 @media (prefers-reduced-motion: reduce) { .assinar-plano:hover { transform: none; } }
 
 /* Cartão de plano na barra lateral — ocupa o vazio acima do seletor de idioma.

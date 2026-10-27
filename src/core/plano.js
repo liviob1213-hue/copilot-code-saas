@@ -22,9 +22,12 @@
 //     - NAO cria apps/SaaS. App com IA gratuita nao fica bom, entao prometer
 //       isso no plano gratis so geraria decepcao.
 //
-//   Plano pago (mensal ou anual)
-//     - Sites e apps, sem limite de quantidade.
-//     - Pode usar APIs PAGAS (Claude, DeepSeek, xAI) com a chave dele.
+//   Planos pagos — tres niveis, e o que muda entre eles e QUAIS IAs PAGAS a
+//   pessoa pode ligar com a chave dela (a lista exata esta em planos.js):
+//     Basico  R$ 24,97 -> DeepSeek
+//     Pro     R$ 34,97 -> Claude e xAI Grok
+//     Premium R$ 47    -> todas as pagas
+//   Em TODOS eles: sites e apps sem limite de quantidade.
 //
 // ---------------------------------------------------------------------------
 // ATE ONDE A TRAVA SEGURA (seja honesto com isso)
@@ -47,15 +50,19 @@
 
 import { clienteContas, authConfigurada } from "./auth.js";
 import { configurarCasa } from "./casa.js";
+import { planoDe, planoLibera } from "./planos.js";
 
 /** O que vale quando nao ha login configurado: tudo liberado. */
 const TUDO_LIBERADO = Object.freeze({
   carregado: true,
   semLogin: true,
   plano: "ilimitado",
+  planoId: "premium",
+  planoNome: "Premium",
   pago: true,
   podeApps: true,
   podeApisPagas: true,
+  liberaProvedor: () => true,
   // chave da casa: desligada sem login (nao ha como saber de quem e a cota)
   casaDisponivel: false,
   casaNovoProjeto: false,
@@ -81,13 +88,13 @@ const TUDO_LIBERADO = Object.freeze({
  */
 export async function carregarPlano(sessao) {
   if (!authConfigurada() || !sessao?.user?.id) {
-    configurarCasa({ disponivel: false, permitePagas: true });
+    configurarCasa({ disponivel: false, permitePagas: true, permiteProvedorPago: () => true });
     return TUDO_LIBERADO;
   }
 
   const sb = clienteContas();
   if (!sb) {
-    configurarCasa({ disponivel: false, permitePagas: true });
+    configurarCasa({ disponivel: false, permitePagas: true, permiteProvedorPago: () => true });
     return TUDO_LIBERADO;
   }
 
@@ -99,13 +106,13 @@ export async function carregarPlano(sessao) {
     // funcionava antes dos slots) e deixamos o recado no console.
     if (error || !data?.ok) {
       if (error) console.warn("[plano] nao consegui ler o saldo de slots:", error.message);
-      configurarCasa({ disponivel: false, permitePagas: true });
+      configurarCasa({ disponivel: false, permitePagas: true, permiteProvedorPago: () => true });
       return TUDO_LIBERADO;
     }
 
     return montar(data);
   } catch {
-    configurarCasa({ disponivel: false, permitePagas: true });
+    configurarCasa({ disponivel: false, permitePagas: true, permiteProvedorPago: () => true });
     return TUDO_LIBERADO;
   }
 }
@@ -129,17 +136,25 @@ function montar(s) {
   const casaDisponivel = chamadasRestantes > 0;
   const casaNovoProjeto = casaRestantes > 0 && chamadasRestantes > 0;
 
+  const plano = planoDe(s.plano);
+
   const acesso = {
     carregado: true,
     semLogin: false,
     plano: s.plano || "free",
+    planoId: plano.id,
+    planoNome: plano.nome,
     pago,
     // Apps so no pago. No gratis a pessoa ve a opcao, mas com cadeado —
     // esconder nao converte, mostrar bloqueado converte.
-    podeApps: pago,
-    // API paga (Claude, DeepSeek, xAI) tambem so no pago, mesmo sendo a chave
-    // dela: e isso que separa os planos.
+    podeApps: pago && plano.podeApps,
+    // Tem acesso a ALGUMA IA paga? (serve so pra decidir se vale mostrar o
+    // convite generico; quem manda de verdade e o liberaProvedor abaixo)
     podeApisPagas: pago,
+    // A pergunta que importa agora que existem tres niveis: ESTA IA paga, no
+    // plano DESTA pessoa, pode? O Basico libera a DeepSeek e so; o Pro libera
+    // Claude e xAI; o Premium libera tudo.
+    liberaProvedor: (id) => pago && planoLibera(s.plano, id),
 
     casaDisponivel,
     casaNovoProjeto,
@@ -168,7 +183,11 @@ function montar(s) {
 
   // Liga/desliga a chave da casa no cerebro (providers.js). A partir daqui, uma
   // pessoa sem chave propria consegue gerar: a chamada vai pro servidor.
-  configurarCasa({ disponivel: casaDisponivel, permitePagas: pago });
+  configurarCasa({
+    disponivel: casaDisponivel,
+    permitePagas: pago,
+    permiteProvedorPago: (id) => pago && planoLibera(s.plano, id)
+  });
 
   return acesso;
 }
@@ -283,7 +302,7 @@ export function motivoDoBloqueio(p, tipo, temChavePropria = true) {
   if (!p || p.semLogin || p.pago) return "";
 
   if (tipo === "app") {
-    return "Criar apps e SaaS faz parte do plano Pro. No plano grátis dá para criar sites — e eles saem bem.";
+    return "Criar apps e SaaS faz parte dos planos pagos, a partir de R$ 24,97 por mês. No plano grátis dá para criar sites — e eles saem bem.";
   }
 
   // Ainda tem site do dia com a nossa IA: pode criar, sem conversa.
@@ -299,5 +318,5 @@ export function motivoDoBloqueio(p, tipo, temChavePropria = true) {
 
   return "Seu site de hoje com a nossa IA já foi usado — amanhã você ganha outro. "
     + `Para criar agora, convide alguém: cada pessoa que entrar pelo seu link e criar um site te dá ${p.slotsPorConvite || 2} sites. `
-    + "Ou assine o Pro e crie sem limite, com as IAs pagas.";
+    + "Ou assine a partir de R$ 24,97 por mês e crie sem limite, com as IAs pagas.";
 }

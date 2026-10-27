@@ -41,8 +41,11 @@ export const PROVEDORES_DA_CASA = ["cerebras", "mistral", "openrouter", "gemini"
 let estado = {
   // A pessoa pode usar a chave da casa agora? (tem login e ainda tem site do dia)
   disponivel: false,
-  // O plano dela deixa usar APIs PAGAS (Claude, DeepSeek, xAI)? So no plano pago.
+  // O plano dela deixa usar ALGUMA API paga? So no plano pago.
   permitePagas: true,
+  // E ESTA api paga em especial? Os tres niveis liberam IAs diferentes:
+  // Basico so a DeepSeek, Pro o Claude e o xAI, Premium todas.
+  permiteProvedorPago: () => true,
   // Endereco do Worker. O padrao e o mesmo do OAuth; /api/passe-ia pode mandar
   // outro (variavel CASA_WORKER_URL) se um dia o endereco mudar.
   ponte: ""
@@ -81,9 +84,14 @@ const ESPERA_APOS_RECUSA_MS = 60 * 1000;
  * O App chama isto sempre que le o plano (ver src/core/plano.js). E o que liga
  * e desliga a chave da casa na pratica.
  */
-export function configurarCasa({ disponivel = false, permitePagas = true } = {}) {
+export function configurarCasa({ disponivel = false, permitePagas = true, permiteProvedorPago } = {}) {
   estado.disponivel = Boolean(disponivel);
   estado.permitePagas = Boolean(permitePagas);
+  // Sem a funcao, vale o antigo "pagou, pode tudo" — assim um caminho que
+  // esqueca de passar isto libera demais, nunca de menos.
+  estado.permiteProvedorPago = typeof permiteProvedorPago === "function"
+    ? permiteProvedorPago
+    : () => Boolean(permitePagas);
   // Plano novo lido = recado antigo nao vale mais (pode ter virado o dia, ou a
   // pessoa pode ter acabado de assinar).
   if (disponivel) { bloqueioAte = 0; bloqueioPorProvedor = {}; recadoDaCasa = ""; }
@@ -207,6 +215,9 @@ export function ligarChaveDaCasa() {
     aguardarPronto: () => promessaPronto,
     provedoresDaCasa: () => PROVEDORES_DA_CASA,
     permitePagas: () => estado.permitePagas,
+    permiteProvedorPago: (id) => {
+      try { return estado.permiteProvedorPago(id) !== false; } catch { return true; }
+    },
     prepararCasa: prepararChamada,
     recado: () => recadoDaCasa
   });
