@@ -73,7 +73,7 @@ EDICAO NIVEL PROFISSIONAL (como um cirurgiao, nao um pintor que refaz o quadro):
 - "Remova/tire X" = apague X (e imports que ficarem sem uso). Nunca crie arquivo novo para remover algo.
 - "Adicione uma pagina/secao" = crie o componente seguindo o padrao dos arquivos vizinhos, ligue a ROTA no App e um link no menu.
 - "Melhore o visual/deixe profissional" = pode refazer o LAYOUT daquela parte, preservando textos e funcionalidade, com hierarquia tipografica, espacamento generoso, cards com sombra suave, estados de hover e responsivo mobile-first.
-- "Coloque imagens/fotos" = use https://picsum.photos/seed/PALAVRA/1200/800 (uma semente por imagem) com onError trocando para https://picsum.photos/1200/800?grayscale. NAO use image.pollinations.ai: so permite 1 imagem a cada 45s por IP e as demais voltam erro.
+- "Coloque imagens/fotos" = ATENCAO: nenhum servico gratuito entrega foto DO assunto pedido. O picsum.photos devolve foto ALEATORIA (a palavra na URL e so um identificador, nao uma busca), e o image.pollinations.ai hoje recusa a maioria dos pedidos. Entao: use no maximo 1-2 fotos, como textura sob um overlay da cor da marca, e resolva o resto com gradiente, CSS e SVG. URL https://picsum.photos/seed/PALAVRA/1200/800 com onError trocando para https://picsum.photos/1200/800?grayscale, e sempre data-foto-troca="o que deveria estar aqui" na <img>, que e como a pessoa troca pela foto dela depois.
 - Cadastros/edicoes em sistemas abrem em MODAL; listas tem estados de vazio/carregando; acoes dao feedback (toast simples feito com useState).
 - Aspas retas sempre (nunca aspas curvas); todo icone lucide usado no JSX precisa estar no import do topo do arquivo.` + _regrasTrabalho(ctx) + (ctx.idiomaIA || "");
 }
@@ -116,7 +116,7 @@ DIAGNOSTICO DE ERROS (quando a pessoa relatar um bug, uma tela quebrada, ou cola
 
 Se o pedido estiver ambiguo o bastante para gerar retrabalho, pergunte antes de editar.
 
-IMAGENS: quando a pessoa anexar uma foto e pedir para usa-la no site, use a ferramenta salvar_imagem para gravar o arquivo no repositorio, e depois aponte o src da tag <img> para o caminho retornado. NUNCA responda que "nao consigo salvar arquivos binarios" nem peca para a pessoa colocar a foto na pasta public na mao — voce consegue salvar, e e a ferramenta salvar_imagem que faz isso. Em projetos Vite, salve em public/ (o arquivo public/foto.jpg e servido como "/foto.jpg").
+IMAGENS: quando a pessoa anexa uma foto, ela JA ENTROU no projeto e o endereco dela vem escrito no proprio pedido, num bloco [FOTO ANEXADA PELA PESSOA]. Seu trabalho e so apontar o src da <img> para aquele endereco e commitar — nao ha upload pendente, nao ha nada para a pessoa fazer. NUNCA responda que "nao consigo salvar arquivos binarios", nunca peca para ela colocar a foto na pasta public na mao e nunca invente outro caminho. Isso vale mesmo que o seu modelo nao exiba a imagem: trocar um src nao exige enxergar a foto. E so diga que trocou depois de ter escrito o arquivo de verdade — responder "pronto, troquei" sem ter mexido em nada e o pior erro possivel aqui. (A ferramenta salvar_imagem continua existindo para casos em que voce queira um nome de arquivo especifico.)
 
 Quando a pessoa pedir para adicionar algo que ainda nao existe (uma pagina nova, uma secao, um componente): crie o arquivo. Nao responda que "nao encontrou" — se a pagina de vendas nao existe, o pedido e para criar uma. Antes de criar, olhe um arquivo parecido que ja exista (outra pagina, outro componente) para seguir o mesmo padrao de imports, estilo e estrutura, e lembre de ligar a pagina nova nas rotas (geralmente src/App.tsx) e num menu ou link, se fizer sentido.
 ${ctx.supabase?.connected && ctx.supabase?.projectRef ? `
@@ -180,6 +180,67 @@ BACKEND: nenhum Supabase esta conectado nesta extensao, entao VOCE (a IA) NAO co
 - Alternativa: se a pessoa preferir criar as tabelas na mao, ela pode pedir "me da o SQL das tabelas" que voce escreve o script SQL pronto (create table + colunas + RLS + policy) para ela colar no Supabase dela.`}`;
 }
 
+const EXT_POR_TIPO = {
+  "image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png",
+  "image/webp": ".webp", "image/gif": ".gif", "image/svg+xml": ".svg"
+};
+
+/**
+ * Da a cada foto anexada um endereco definitivo no projeto, ANTES de a IA
+ * responder qualquer coisa.
+ *
+ * O nome vem do CONTEUDO da imagem, nao do relogio: mandar a mesma foto duas
+ * vezes aponta para o mesmo arquivo (em vez de encher o repositorio de copias),
+ * e mandar uma foto diferente nunca sobrescreve a anterior, que pode estar em
+ * uso em outra tela.
+ */
+export function prepararAnexos(images) {
+  const lista = [];
+  for (const dataUrl of images || []) {
+    const m = String(dataUrl || "").match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) continue;
+    const ext = EXT_POR_TIPO[m[1].toLowerCase()] || ".jpg";
+    const caminho = `public/foto-${hashCurto(m[2])}${ext}`;
+    lista.push({
+      caminho,
+      // Em projeto Vite, o que esta em public/ e servido na raiz.
+      url: "/" + caminho.slice("public/".length),
+      base64: m[2]
+    });
+  }
+  return lista;
+}
+
+/** Hash simples e estavel. Nao precisa ser forte: so precisa nao colidir. */
+function hashCurto(texto) {
+  let h = 5381;
+  for (let i = 0; i < texto.length; i++) h = ((h * 33) ^ texto.charCodeAt(i)) >>> 0;
+  return h.toString(36).padStart(7, "0").slice(0, 7);
+}
+
+/**
+ * O recado que vai junto do pedido da pessoa.
+ *
+ * Ele e escrito para funcionar mesmo com um modelo que NAO enxerga a imagem:
+ * nao pede para descrever a foto, pede para apontar um src. E deixa explicito
+ * que nao existe upload pendente, porque a resposta errada mais comum era
+ * mandar a pessoa "subir a imagem para a pasta public".
+ */
+export function recadoDosAnexos(anexos) {
+  if (!anexos.length) return "";
+  const linhas = anexos.map((a, i) => `  ${i + 1}. ${a.url}`).join("\n");
+  return `\n\n[FOTO ANEXADA PELA PESSOA]
+Ela anexou ${anexos.length} foto(s), e elas JA ESTAO no projeto, nestes enderecos:
+${linhas}
+Para usar, basta apontar o src para o endereco acima — ex.: <img src="${anexos[0].url}" alt="..." />.
+REGRAS:
+- NAO peca para a pessoa subir, salvar ou enviar a imagem para lugar nenhum: ja esta la.
+- NAO invente outro caminho ("/public/foto.jpg", "./imagens/x.png"): use exatamente o endereco acima.
+- Voce NAO precisa enxergar a foto para fazer isso. Se o seu modelo nao exibe imagens, troque o src mesmo assim — e a troca que a pessoa pediu.
+- Se for para SUBSTITUIR uma imagem existente, troque o src dela e apague a URL antiga; nao deixe as duas.
+- So diga que trocou DEPOIS de realmente escrever o arquivo e commitar. Dizer "pronto, troquei" sem ter escrito nada e o erro mais grave que voce pode cometer aqui.`;
+}
+
 /**
  * Executa um pedido do inicio ao fim.
  * emit(evento) alimenta a interface em tempo real.
@@ -188,6 +249,28 @@ export async function runAgent({ ws, history, userMessage, images, ctx, devePara
   // As imagens anexadas ficam disponiveis para a ferramenta salvar_imagem, que
   // grava a foto no repositorio como arquivo de verdade.
   ws.imagensAnexadas = images || [];
+
+  // ---------------------------------------------------------------------
+  // A FOTO ANEXADA NAO PODE DEPENDER DE A IA ENXERGAR NEM DE ELA CHAMAR UMA
+  // FERRAMENTA.
+  //
+  // Era assim antes, e dava o defeito mais chato de todos: a pessoa anexava a
+  // foto, pedia para trocar, a IA respondia "pronto, troquei" e NADA mudava.
+  // Dois motivos, os dois fora do controle dela:
+  //   - o modelo escolhido pode nao enxergar imagem (DeepSeek usa um modelo de
+  //     visao separado, experimental, que nem sempre faz chamada de ferramenta);
+  //   - sem chamada de ferramenta, nenhum arquivo e gravado — mas o texto da
+  //     resposta continua dizendo que foi.
+  //
+  // Agora a conta e outra: o arquivo JA TEM endereco antes de a IA falar, e nos
+  // dizemos esse endereco a ela. O trabalho dela vira trocar uma string de src,
+  // que qualquer modelo de texto faz. O binario so entra no commit se alguem
+  // apontar para ele (ver commit_files em tools.js), entao uma foto mandada so
+  // para perguntar "por que essa tela esta assim?" nao vira lixo no repositorio.
+  // ---------------------------------------------------------------------
+  ws.anexosDisponiveis = prepararAnexos(images);
+  const avisoAnexos = recadoDosAnexos(ws.anexosDisponiveis);
+
   const system = systemPrompt(ctx);
 
   const historicoLimpo = sanitizeHistory(history);
@@ -213,7 +296,7 @@ export async function runAgent({ ws, history, userMessage, images, ctx, devePara
 
   const messages = [
     ...historicoLimpo,
-    { role: "user", text: userMessage + mapaInicial, images: images || [] }
+    { role: "user", text: userMessage + avisoAnexos + mapaInicial, images: images || [] }
   ];
   let steps = 0;
   let respostasVazias = 0;   // quantas vezes a IA voltou vazia (sem texto e sem acao)

@@ -10,6 +10,8 @@ import { guardarRascunho, lerRascunho, apagarRascunho, idsComRascunho } from "./
 import { cancelarIA, comecarIA } from "./core/net.js";
 import { ModalAssinar, FaixaAssinar, CartaoPlano, CardAssinarProvedor } from "./Assinar.jsx";
 import { planoMaisBaratoCom } from "./core/planos.js";
+import TrocarImagem from "./TrocarImagem.jsx";
+import { trocarImagem } from "./core/trocar-imagem.js";
 import { authConfigurada, dadosDoUsuario, sair as sairDaConta } from "./core/auth.js";
 import { carregarPlano, motivoDoBloqueio, linkDeConvite, registrarConviteDoLink, avisarProjetoCriado } from "./core/plano.js";
 import { marcarProjetoNovo, consumirUsouCasa } from "./core/casa.js";
@@ -139,6 +141,11 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   // Projeto gerado e AINDA NÃO publicado: { files, nome, brief, kind }. É o que
   // alimenta a prévia de verdade e o botão Publicar.
   const [rascunho, setRascunho] = useState(null);
+  // Espelho do rascunho para quem roda fora do ciclo do React — o ouvinte de
+  // mensagens da prévia é registrado UMA vez e enxergaria para sempre o
+  // rascunho que existia naquele instante (quase sempre null).
+  const rascunhoRef = useRef(null);
+  useEffect(() => { rascunhoRef.current = rascunho; }, [rascunho]);
   // Conversa guiada de chave externa: a IA pergunta qual serviço, a pessoa
   // responde, e só então pedimos o token. Sem isso, um "gerador de vídeo"
   // era publicado bonito e sem funcionar, e a pessoa não descobria por quê.
@@ -156,6 +163,10 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   const abrirAssinar = (motivo = "", destaque = "premium") => setAssinar({ aberto: true, motivo, destaque });
   const resolvidasRef = useRef([]);
   const [rotaPrevia, setRotaPrevia] = useState("/");
+  // A imagem em que a pessoa clicou dentro da prévia, esperando ser trocada.
+  const [imgParaTrocar, setImgParaTrocar] = useState(null);
+  // Sobe 1 a cada troca manual, só para remontar o iframe da prévia.
+  const [previaSeq, setPreviaSeq] = useState(0);
   const [publicando, setPublicando] = useState(false);
   // Largura da conversa, em %. Fica no navegador pra não ter que reajustar
   // toda vez. Guardada direto no localStorage (não é dado de projeto).
@@ -720,6 +731,46 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   }
   function handleBlindar() { if (!repo) return showToast(t("Crie ou abra um projeto antes de blindar."), true); dispararRun(BLINDAR_PROMPT, { hardening: true }); }
   // Só aqui o projeto sai do navegador: cria o repositório e publica na Vercel.
+  // ---------------------------------------------------------------------
+  // TROCAR FOTO NA MÃO
+  //
+  // A prévia avisa quando a pessoa clica numa imagem; aqui a gente abre a
+  // janela de troca. É uma operação de localizar-e-substituir no código do
+  // rascunho — sem IA, sem custo e sem espera. Só vale ANTES de publicar:
+  // depois disso o quadro mostra o site da Vercel, que é de outro endereço e
+  // cujo código não está mais aqui no navegador.
+  // ---------------------------------------------------------------------
+  useEffect(() => {
+    function aoReceber(ev) {
+      const d = ev.data;
+      if (!d || d.marca !== "painel" || d.tipo !== "trocar-imagem") return;
+      if (!rascunhoRef.current) return;
+      setImgParaTrocar({ src: d.src || "", alt: d.alt || "", pedido: d.pedido || "" });
+    }
+    window.addEventListener("message", aoReceber);
+    return () => window.removeEventListener("message", aoReceber);
+  }, []);
+
+  /**
+   * Faz a troca e devolve quantos lugares mudaram. Devolver o número é o que
+   * permite a janela dizer "não achei" em vez de fechar fingindo que deu certo.
+   */
+  function trocarImagemDoRascunho(de, para) {
+    const atual = rascunhoRef.current;
+    if (!atual) return { trocas: 0 };
+    const r = trocarImagem(atual.files, { de, para });
+    if (!r.trocas) return r;
+    const atualizado = { ...atual, files: r.files };
+    setRascunho(atualizado);
+    guardarRascunho(sessionRef.current, atualizado);
+    // Força a prévia a remontar com o arquivo novo.
+    setPreviaSeq(n => n + 1);
+    showToast(r.trocas === 1
+      ? t("Imagem trocada.")
+      : t("Imagem trocada em {n} lugares.", { n: r.trocas }));
+    return r;
+  }
+
   async function publicar() {
     if (!rascunho || publicando) return;
     // É AQUI que o GitHub passa a ser necessário, e não na hora de criar: a
@@ -1133,7 +1184,11 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
                       {publicando ? t("Publicando…") : t("Publicar")}
                     </button>
                   )}
-                  {rascunho && <button className="icon-btn" onClick={() => setRotaPrevia(r => r)} title={t("Recarregar a prévia")}><IconRefresh /></button>}
+                  {/* A troca manual de foto só existe enquanto o projeto é
+                      rascunho, então o aviso fica junto do botão de publicar —
+                      é o único lugar onde ela está disponível. */}
+                  {rascunho && <span className="dica-clique" title={t("Clique em qualquer foto da prévia para trocá-la por uma sua, sem gastar IA")}><IconImage /> {t("clique na foto pra trocar")}</span>}
+                  {rascunho && <button className="icon-btn" onClick={() => setPreviaSeq(n => n + 1)} title={t("Recarregar a prévia")}><IconRefresh /></button>}
                   {repo && <button className="icon-btn" onClick={desfazer} disabled={busy} title={t("Desfazer a última alteração")}><IconUndo /></button>}
                   {previewUrl && <button className="icon-btn" onClick={() => setPreviewUrl(previewUrl + (previewUrl.includes("?") ? "&" : "?") + "r=" + Date.now())} title={t("Recarregar")}><IconRefresh /></button>}
                   {previewUrl && <button className="btn sm" onClick={() => window.open(previewUrl, "_blank")} title={t("Abrir em nova aba")}>{t("Abrir")} <IconExternal /></button>}
@@ -1145,11 +1200,11 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
                     MemoryRouter, então a rota entra na montagem. */}
                 {rascunho ? (
                   <iframe
-                    key={rotaPrevia}
+                    key={rotaPrevia + ":" + previaSeq}
                     className="preview-frame"
                     title="previa"
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                    srcDoc={montarHtmlPrevia(rascunho.files, rotaPrevia, { marca: "painel" })}
+                    srcDoc={montarHtmlPrevia(rascunho.files, rotaPrevia, { marca: "painel", trocarImagens: true })}
                   />
                 ) : previewUrl ? <iframe className="preview-frame" src={previewUrl} title="preview" />
                   : <div className="preview-empty">
@@ -1164,6 +1219,15 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       </div>
 
       {projOpen && <ProjectsDrawer projects={vercelProjects} onReload={loadVercelProjects} onOpen={openProject} onClose={() => setProjOpen(false)} acesso={acesso} onConvidar={() => { setProjOpen(false); abrirConexoes(); }} />}
+      {imgParaTrocar && rascunho && (
+        <TrocarImagem
+          alvo={imgParaTrocar}
+          files={rascunho.files}
+          onTrocar={trocarImagemDoRascunho}
+          onFechar={() => setImgParaTrocar(null)}
+        />
+      )}
+
       <ModalAssinar aberto={assinar.aberto} motivo={assinar.motivo} destaque={assinar.destaque}
         onFechar={() => setAssinar({ aberto: false, motivo: "", destaque: "premium" })} />
       {histOpen && <HistoryDrawer sessions={sessions} onOpen={openSession}

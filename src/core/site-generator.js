@@ -80,6 +80,7 @@ PRINCÍPIO DE CONVERSÃO
 - Cada botão deve indicar o próximo passo: "Agendar meu horário", "Quero conhecer o plano", "Falar no WhatsApp" ou equivalente. Nunca use "Clique aqui" ou "Enviar".
 
 DIREÇÃO DE DESIGN
+- Antes de escrever o CSS, decida três coisas para ESTE negócio e anote-as num comentário no topo do <style>: a PALETA (e de onde ela vem, ex.: couro, navalha e dourado de barbearia), a TIPOGRAFIA (qual par e por que combina com o segmento) e o MOTIVO — um elemento visual repetido que só este segmento teria, feito em CSS/SVG: listras de poste de barbeiro, fio de navalha separando seções, tesoura em SVG no marcador de lista. Depois obedeça às três no site inteiro. Se a página funcionaria igual trocando o nome do negócio, o motivo não foi feito.
 - Escolha uma identidade visual coerente com o segmento e não repita automaticamente o visual preto com neon, o fundo creme com terracota ou o layout genérico de IA.
 - Defina variáveis CSS em :root para cores, tipografia, espaçamento, bordas e sombras. Use no máximo uma cor de destaque forte e mantenha contraste acessível.
 - Use uma fonte segura de sistema como base. Uma fonte externa pode ser aprimoramento opcional em <link>, mas a página deve ficar boa se ela falhar.
@@ -101,7 +102,8 @@ ESTRUTURA RECOMENDADA
 10. Para negócio local, inclua agendamento/contato como parte real da página: link de WhatsApp, telefone, formulário simples ou instruções claras. Não crie um botão apontando para um id inexistente.
 
 REGRAS CONTRA ERROS COMUNS
-- Não repita a mesma URL de imagem em vários cards. Se não houver imagens reais, use uma única imagem hero e complete o restante com gradientes, CSS e SVG; nunca use randomuser.me.
+- FOTOS: no máximo uma, no hero. Nenhum serviço gratuito entrega foto DO assunto pedido — o picsum.photos devolve uma foto aleatória, e a palavra na URL é só um identificador, não uma busca. Por isso a foto entra como textura, sob um overlay da cor da marca, e o resto do visual se faz com gradiente, CSS e SVG, que você controla. Marque a <img> com data-foto-troca="o que deveria estar aqui" — é por esse atributo que a pessoa troca pela foto dela depois.
+- Não repita a mesma URL de imagem em vários cards. Nunca use randomuser.me. Em depoimentos e equipe, use as iniciais num círculo com a cor da marca em vez de foto de pessoa.
 - Não use imagens como requisito para a página funcionar. Todo bloco visual deve ter fallback elegante se a imagem falhar.
 - Não crie links para #prices, #team, #booking ou qualquer âncora sem uma seção correspondente. Todo href interno precisa apontar para um id existente.
 - Não coloque o header fixo cobrindo o hero. Em telas pequenas, não empilhe logo, menu e CTA de forma desajeitada; use um header compacto e legível.
@@ -278,6 +280,26 @@ PADRAO DE HERO FORTE: fundo AuroraBackground + GlowSpot, titulo grande com UMA p
 
 PADRAO DE FUNDO: por padrao use fundo CLARO (claro, limpo, respiravel). So use fundo ESCURO/PRETO quando a pessoa PEDIR (palavras como escuro, dark, preto, black, neon, gamer, cyberpunk, noturno) OU o segmento claramente pedir (balada/night, estudio de games, algo "underground"). "Premium", "top", "sofisticado", "portfolio" NAO significam preto — premium claro e tao forte quanto escuro. Na duvida, claro.
 
+ANTES DE ESCREVER QUALQUER COMPONENTE — A CARA DO NEGOCIO:
+Escreva no topo de src/theme.css um comentario curto com TRES decisoes tomadas
+para ESTE negocio, e depois obedeca a elas no site inteiro:
+  /* PALETA: ... (de onde veio, ex.: couro, navalha e dourado de barbearia) */
+  /* TIPOGRAFIA: ... (qual display, por que combina com o segmento) */
+  /* MOTIVO: ... (o elemento visual repetido que so este segmento teria) */
+O MOTIVO e o que faz a pessoa reconhecer o negocio em 1 segundo, e ele e feito em
+CSS/SVG, nao em foto: listras diagonais de poste de barbeiro, fio de navalha como
+separador de secao, tesoura em SVG no marcador de lista, textura de couro em
+gradiente. Para uma padaria seria outro; para uma clinica, outro. Se o seu site
+funcionaria igual trocando o nome do negocio, voce NAO fez esta parte.
+
+NAO E SAAS SO PORQUE O KIT TEM EFEITO DE SAAS: DashboardMock, BrowserFrame,
+AuroraBackground, RadarRings, GradientText e StatCounter sao de produto digital.
+Num negocio de rua (barbearia, salao, padaria, oficina, restaurante, academia,
+pet shop) eles sao PROIBIDOS — a "prova visual" do hero vira o cartao de
+agendamento, a tabela de servicos com preco, o horario de funcionamento ou o
+mapa do bairro em texto. Usar painel de metricas numa barbearia e exatamente o
+que faz o site parecer "tudo menos uma barbearia".
+
 DIRECAO DE ESTILO (escolha a que combina com a marca): (a) SaaS/tech claro e limpo (PADRAO para a maioria); (b) elegante/servico (clinica, advocacia) sobrio e claro; (c) BOLD/loja/gamer — SO quando pedirem dark/neon/gamer: fundo escuro, UMA cor de destaque forte (neon), titulos GRANDES em CAIXA ALTA com a fonte display condensada (className "font-display font-black uppercase tracking-tight"), muito contraste; (d) EDITORIAL / PORTFOLIO / AGENCIA PREMIUM (estilo estudio cinematografico — para sofisticacao, portfolio, servico criativo): pode ser CLARO (fundo off-white/creme com texto quase preto e UM acento) OU escuro — so va no escuro se a pessoa pedir; o que faz o premium e a TIPOGRAFIA e o respiro, nao a cor do fundo. Titulos ENORMES misturando a display em CAIXA ALTA com UMA palavra/frase em SERIF ITALICA ("font-serif italic") pra contraste elegante (ex.: "EU ESCREVO CODIGO / para resolver."); eyebrows curtos em CAIXA ALTA com tracking largo no acento; MUITO respiro; ambiente sutil no fundo do Hero (RadarRings + GlowSpot — ajuste a cor pro fundo claro). Combine paleta (theme.css) e fontes ao segmento — NUNCA cara de template padrao.
 
 TIPOGRAFIA (o que mais separa "top" de amador): escala grande e intencional; Hero com titulo gigante (use clamp) na display; destaque 1 palavra/frase em "font-serif italic" pra contraste; eyebrows pequenos em CAIXA ALTA com tracking largo no acento; corpo em Inter com largura de leitura confortavel. A fonte serif (Instrument Serif) ja esta carregada e disponivel como "font-serif".
@@ -298,12 +320,34 @@ ESTRUTURA DA PAGINA (secoes como componentes, montadas na Home):
 1. Header enxuto (fixo): marca + 3-4 links ancora + CTA primario. No mobile vira um menu compacto.
 2. Hero de impacto: eyebrow especifico, titulo grande (para quem / qual resultado / por que agir agora), subtitulo, 2 CTAs (primario + secundario) e uma prova visual.
 
-IMAGENS (o site NAO pode ficar vazio/amador — use em hero, galeria, cards de servico/produto, equipe, depoimentos):
-- FOTOS: https://picsum.photos/seed/PALAVRA/LARGURA/ALTURA — uma PALAVRA (semente) diferente por imagem, sempre a mesma foto para a mesma semente. NAO use image.pollinations.ai: o servico so permite 1 imagem a cada 45 segundos por IP e devolve erro (402) em todas as outras, entao um site com varias fotos nasce quebrado.
-- SEMPRE com fallback, porque qualquer servico pode cair: onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://picsum.photos/LARGURA/ALTURA?grayscale"; }} + width, height, alt e loading="lazy" (no hero use loading="eager"). Coloque a <img> dentro de um container com fundo neutro (bg-muted) e aspect-ratio fixo, pra nao "pular" o layout enquanto carrega.
-- AVATARES/PESSOAS (depoimentos, equipe): https://i.pravatar.cc/160?img=NUMERO (1 a 70).
-- Diga no texto/README que sao imagens temporarias para a pessoa trocar pelas reais.
-- Nunca use logos/fotos de marcas reais nem personagens conhecidos — so imagens genericas. Mockups de UI (dashboard, telas do app) continue fazendo em CSS/SVG.
+IMAGENS — LEIA COM ATENCAO, E O ERRO MAIS COMUM:
+Nao existe servico gratuito que entregue uma foto DO ASSUNTO pedido. O
+picsum.photos devolve uma foto ALEATORIA: a palavra na URL e so um identificador,
+nao uma busca. Entao uma barbearia "com fotos" sai com paisagem, prato de comida
+e escritorio — e o site inteiro parece de outro negocio.
+Por isso a regra mudou:
+- NO MAXIMO 2 fotos de banco na pagina toda (normalmente so a do hero). O resto
+  do visual se faz com CSS, gradiente, padrao, SVG e tipografia, que voce
+  controla e que PODE ter a cara do segmento.
+- A foto que voce usar entra como TEXTURA, nunca como retrato do negocio: dentro
+  de um container com overlay da cor da marca por cima (gradiente + opacidade, ou
+  duotone com mix-blend-mode), nunca em tamanho grande e nitida como se fosse a
+  loja da pessoa. Assim ela compoe o clima em vez de mentir sobre o lugar.
+- URL: https://picsum.photos/seed/PALAVRA/LARGURA/ALTURA (uma semente por imagem).
+  Marque toda <img> de banco com data-foto-troca="descricao do que deveria estar
+  aqui" — ex.: data-foto-troca="fachada da barbearia". E por esse atributo que a
+  pessoa troca a foto pela dela depois, com um clique.
+- NAO use image.pollinations.ai: hoje ele recusa a maioria dos pedidos (402/503),
+  entao um site com varias fotos dele nasce quebrado.
+- Onde caberia uma foto de produto/servico e voce nao tem uma de verdade, prefira
+  um card com icone lucide grande, fundo em gradiente da paleta e tipografia —
+  fica melhor do que uma foto aleatoria, e e honesto.
+- SEMPRE com fallback: onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://picsum.photos/LARGURA/ALTURA?grayscale"; }} + width, height, alt e loading="lazy" (no hero use loading="eager"). Container com fundo neutro (bg-muted) e aspect-ratio fixo, pra nao "pular" enquanto carrega.
+- AVATARES/PESSOAS (depoimentos, equipe): NAO use foto. Use as iniciais do nome
+  num circulo com a cor da marca — some com o problema de "pessoa que nao existe"
+  e fica mais limpo.
+- Diga no texto/README que as fotos sao temporarias, para a pessoa trocar pelas reais.
+- Nunca use logos/fotos de marcas reais nem personagens conhecidos. Mockups de UI (dashboard, telas do app) continue fazendo em CSS/SVG.
 3. Faixa de confianca: numeros/credenciais/logos SO se fornecidos (nao invente selos, avaliacoes ou metricas).
 4. Beneficios (3-4) orientados a RESULTADO, com icones lucide-react — nunca 4 cards identicos em fila.
 5. Como funciona em 3 passos claros.
@@ -392,8 +436,8 @@ Valores em R$ (Intl.NumberFormat pt-BR). SEMEIE 3 meses de lancamentos plausivei
 - A IA responde via uma Supabase EDGE FUNCTION ("chat") que guarda a chave do modelo como secret (nunca no front). Sem Supabase/chave: modo DEMO com respostas pre-programadas por palavra-chave para o app funcionar na hora.
 - CONFIG do assistente: nome, persona, base de conhecimento (texto/FAQ que vai no system prompt), cor; e um WIDGET embutivel (botao flutuante) para colocar em outros sites.`,
   link_bio: `Este e um LINK NA BIO (estilo Linktree premium). Pagina unica mobile-first: avatar, nome, bio, icones sociais, botoes de link grandes com icone (WhatsApp, Instagram, loja, agenda), destaque de oferta, galeria/embed de video e rodape. Painel "/admin" para editar links (CRUD em modal, reordenar, ativar/desativar) e tema (cores, fundo com gradiente/foto). Dados em useStore "perfil" e "links".
-  OBRIGATORIO semear tudo preenchido (a pagina "/" ja aparece COMPLETA na primeira carga, sem passar pelo admin): useStore("perfil", { nome: "Mari Souza", usuario: "@marisouza", bio: "Criadora de conteudo | Dicas de estilo e lifestyle", avatar: <pollinations de retrato>, capa: <pollinations> }) e useStore("links", [ 6 a 8 botoes reais com { id: novoId(), titulo, url, icone (nome lucide: MessageCircle, Instagram, ShoppingBag, Youtube, Mail, Calendar), destaque?: boolean, ativo: true } ]) e 3 redes sociais e 2-3 produtos em destaque com foto. NUNCA deixe a "/" so com rodape — o conteudo principal (avatar, nome, bio, botoes) e o que mais aparece.`,
-  portfolio: `Este e um PORTFOLIO PROFISSIONAL (designer, fotografo, dev, arquiteto, agencia). Hero com nome e frase forte, sobre, especialidades, PROJETOS em grade com filtro por categoria e pagina de detalhe (galeria, desafio, solucao, resultado), depoimentos, clientes, contato (form + WhatsApp). Direcao editorial premium (tipografia grande, muito respiro, animacao de entrada nos cards). Painel "/admin" opcional para cadastrar projetos (useStore "projetos"). SEMEIE perfil preenchido e 6-8 projetos reais (titulo, categoria, foto pollinations, resultado) + 3 depoimentos, pra "/" nascer cheia.`,
+  OBRIGATORIO semear tudo preenchido (a pagina "/" ja aparece COMPLETA na primeira carga, sem passar pelo admin): useStore("perfil", { nome: "Mari Souza", usuario: "@marisouza", bio: "Criadora de conteudo | Dicas de estilo e lifestyle", avatar: "" (VAZIO de proposito: mostre as INICIAIS num circulo com a cor da marca — foto de banco de uma pessoa que nao existe e o que mais denuncia site feito por IA), capa: "" (use gradiente da paleta) }) e useStore("links", [ 6 a 8 botoes reais com { id: novoId(), titulo, url, icone (nome lucide: MessageCircle, Instagram, ShoppingBag, Youtube, Mail, Calendar), destaque?: boolean, ativo: true } ]) e 3 redes sociais e 2-3 produtos em destaque com foto. NUNCA deixe a "/" so com rodape — o conteudo principal (avatar, nome, bio, botoes) e o que mais aparece.`,
+  portfolio: `Este e um PORTFOLIO PROFISSIONAL (designer, fotografo, dev, arquiteto, agencia). Hero com nome e frase forte, sobre, especialidades, PROJETOS em grade com filtro por categoria e pagina de detalhe (galeria, desafio, solucao, resultado), depoimentos, clientes, contato (form + WhatsApp). Direcao editorial premium (tipografia grande, muito respiro, animacao de entrada nos cards). Painel "/admin" opcional para cadastrar projetos (useStore "projetos"). SEMEIE perfil preenchido e 6-8 projetos reais (titulo, categoria, capa em GRADIENTE da paleta com o titulo em tipografia grande — nao foto de banco, que sai aleatoria e nao tem nada a ver com o projeto, resultado) + 3 depoimentos, pra "/" nascer cheia.`,
   imobiliaria: `Este e um site/sistema de IMOBILIARIA (useStore "imoveis", "leads"). Busca com filtros (comprar/alugar, cidade, bairro, preco, quartos), grade de imoveis (foto, preco, area, quartos, vagas), pagina do imovel (galeria, caracteristicas, mapa por embed, botao WhatsApp/agendar visita que grava um lead), e "/admin" com IMOVEIS (CRUD em modal, destaque, status disponivel/vendido) e LEADS. SEMEIE 9 imoveis.`,
   academia: `Este e um sistema de ACADEMIA / PERSONAL / ESTUDIO FITNESS (useStore "alunos", "planos", "treinos", "checkins", "pagamentos"). Site publico com planos e aula experimental; painel com ALUNOS (ficha, plano, vencimento, status), TREINOS montados por aluno (exercicios, series, repeticoes), CHECK-IN, FINANCEIRO de mensalidades (pago/atrasado) e DASHBOARD (ativos, inadimplentes, check-ins do dia). Area do aluno ve o proprio treino.`,
   quiz: `Este e um QUIZ / FUNIL DE CAPTURA. Fluxo de perguntas uma por tela (barra de progresso, opcoes em cards grandes, animacao entre passos), resultado personalizado por pontuacao/perfil, captura de lead (nome, WhatsApp, email) antes do resultado e CTA final. Painel "/admin" para editar perguntas/resultados e ver os LEADS em tabela exportavel (CSV). Dados em useStore "quiz" e "leads". SEMEIE um quiz completo de exemplo (5-6 perguntas com opcoes e 3 perfis de resultado) pra funcionar na hora.`,
@@ -1507,7 +1551,7 @@ PADRAO DE PRODUTO PRONTO PRA VENDER (o que separa um app de verdade de um rascun
 - PERSISTENCIA: o que a pessoa cria NAO some ao recarregar (useStore de src/lib/useStore.js, ou Supabase se ligado).
 - ACESSIVEL: contraste bom, foco visivel (focus-visible:ring), botoes com aria-label quando so tem icone, alvos de toque >= 44px.
 - MOVIMENTO com proposito: transicoes de 150-300ms em hover/abrir modal; entrada suave dos cards; respeite prefers-reduced-motion.
-- Em apps com produtos/servicos/imoveis/pratos, use FOTOS: https://picsum.photos/seed/PALAVRA/800/600 (uma semente por item), com onError trocando para https://picsum.photos/800/600?grayscale. NAO use image.pollinations.ai (limite de 1 imagem a cada 45s por IP: as demais voltam erro).`;
+- Em apps com produtos/servicos/imoveis/pratos: a foto de banco e ALEATORIA (o picsum nao busca pela palavra, so a usa como identificador) e o pollinations hoje recusa a maioria dos pedidos. Entao prefira card com icone lucide grande + gradiente da paleta + tipografia, que combina com o item de verdade. Se usar foto mesmo assim: https://picsum.photos/seed/PALAVRA/800/600 (uma semente por item), onError trocando para https://picsum.photos/800/600?grayscale, e sempre data-foto-troca="o que deveria estar aqui" na <img>.`;
 
 // "Cortada" = algum arquivo ficou ABERTO (mais ===FILE: do que ===END===).
 // Antes exigiamos que o texto TERMINASSE em ===END===; num teste real a IA

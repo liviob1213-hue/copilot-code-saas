@@ -122,10 +122,10 @@ export function acharApp(files) {
  * HTML completo da previa, pronto para o srcdoc de um iframe.
  * A pagina avisa o resultado para a janela de cima por postMessage.
  */
-export function montarHtmlPrevia(files, rota = "/", { marca = "previa" } = {}) {
+export function montarHtmlPrevia(files, rota = "/", { marca = "previa", trocarImagens = false } = {}) {
   const { mods, avisos } = prepararModulos(files);
   const app = acharApp(files);
-  const dados = JSON.stringify({ mods, app, rota, marca, avisos, libs: BIBLIOTECAS, cdn: CDN })
+  const dados = JSON.stringify({ mods, app, rota, marca, avisos, trocarImagens, libs: BIBLIOTECAS, cdn: CDN })
     .replace(/</g, "\\u003c");   // nunca fechar o <script> por acidente
 
   return `<!doctype html>
@@ -165,6 +165,33 @@ addEventListener("click", (e) => {
 }, false);
 // Formulário sem onSubmit recarregaria o quadro pelo mesmo motivo.
 addEventListener("submit", (e) => { if (!e.defaultPrevented) e.preventDefault(); }, false);
+
+// TROCAR FOTO NO CLIQUE.
+// Só liga quando o painel pede (trocarImagens). O clique numa <img> avisa a
+// página de cima qual endereço está ali; quem abre a janela de troca e mexe
+// nos arquivos é ela. Aqui dentro nada é alterado: o quadro é um espelho do
+// código, e mudar só o espelho daria a impressão de que trocou — que é
+// exatamente o defeito que esta função veio consertar.
+if (D.trocarImagens) {
+  const estilo = document.createElement("style");
+  estilo.textContent = "img{cursor:pointer}img:hover{outline:3px solid #ef4444;outline-offset:2px}";
+  document.head.appendChild(estilo);
+  addEventListener("click", (e) => {
+    const img = e.target && e.target.closest && e.target.closest("img");
+    if (!img) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // getAttribute, e não .src: o .src vira endereço absoluto do srcdoc
+    // ("about:srcdoc/foto.jpg") e não acharia nada na busca pelo código.
+    parent.postMessage({
+      marca: D.marca, tipo: "trocar-imagem",
+      src: img.getAttribute("src") || "",
+      alt: img.getAttribute("alt") || "",
+      pedido: img.getAttribute("data-foto-troca") || "",
+      largura: img.naturalWidth || 0, altura: img.naturalHeight || 0
+    }, "*");
+  }, true);   // captura: pega o clique antes de qualquer handler do site
+}
 const avisar = (estado, extra = {}) => parent.postMessage({ marca: D.marca, rota: D.rota, estado, achados, ...extra }, "*");
 
 try {

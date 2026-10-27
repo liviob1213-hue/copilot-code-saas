@@ -1461,6 +1461,62 @@ button.url-bar.clicavel:hover { border-color: var(--edge-hi); background: var(--
   box-shadow: 0 40px 100px -40px rgba(0, 0, 0, .95), 0 0 0 1px rgba(255, 255, 255, .03);
   animation: rise .3s var(--ease) both;
 }
+/* ---- Trocar foto na mão (sem IA) ------------------------------------- */
+/* Usa a mesma camada flex do modal de assinatura: centralizar por transform
+   brigaria com a animação de entrada, que termina em "transform: none". */
+.troca-modal {
+  position: relative;
+  width: min(420px, 100%); max-height: 100%; overflow-y: auto;
+  background: var(--panel-solid); border: 1px solid var(--edge-hi);
+  border-radius: var(--r-xl); padding: 24px 22px 18px;
+  box-shadow: 0 40px 100px -40px rgba(0, 0, 0, .95);
+  animation: rise .22s var(--ease) both;
+}
+.troca-modal h2 { margin: 0 0 4px; font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
+.troca-sub { margin: 0 0 16px; font-size: 13px; color: var(--ink-dim); line-height: 1.5; }
+.troca-atual {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+  padding: 10px; border-radius: var(--r-sm);
+  background: var(--glass); border: 1px solid var(--edge);
+}
+.troca-atual img {
+  width: 76px; height: 56px; flex: none; object-fit: cover;
+  border-radius: 7px; background: rgba(255, 255, 255, .05);
+}
+.ta-info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ta-end { font-size: 11.5px; color: var(--ink-dim); word-break: break-all; line-height: 1.35; }
+.ta-onde { font-size: 11px; color: var(--ink-faint); }
+.troca-btn {
+  display: block; width: 100%; text-align: center; cursor: pointer;
+  padding: 11px 14px; border-radius: var(--r-sm); font-size: 13.5px; font-weight: 700;
+  border: 0; background: var(--grad); color: #fff;
+}
+.troca-btn:hover { filter: brightness(1.08); }
+.troca-btn.off { opacity: .6; pointer-events: none; }
+.troca-dica { margin: 7px 0 0; text-align: center; font-size: 11px; color: var(--ink-faint); }
+.troca-ou {
+  display: flex; align-items: center; gap: 10px; margin: 14px 0;
+  font-size: 11px; color: var(--ink-faint);
+}
+.troca-ou::before, .troca-ou::after { content: ""; flex: 1; height: 1px; background: var(--edge); }
+.troca-url { display: flex; gap: 8px; }
+.troca-url .text { flex: 1; min-width: 0; }
+.troca-erro {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: var(--r-sm);
+  background: rgba(239, 68, 68, .12); border: 1px solid rgba(239, 68, 68, .35);
+  font-size: 12.5px; color: var(--ink); line-height: 1.5;
+}
+.troca-rodape { margin: 14px 0 0; text-align: center; font-size: 11px; color: var(--ink-faint); line-height: 1.5; }
+
+/* O aviso de que dá pra clicar na foto, na barra da prévia. */
+.dica-clique {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--ink-faint); white-space: nowrap;
+  padding: 0 4px; cursor: default;
+}
+.dica-clique svg { opacity: .8; }
+@media (max-width: 1100px) { .dica-clique { display: none; } }
+
 .assinar-x {
   position: absolute; top: 12px; right: 14px; width: 28px; height: 28px;
   border: 0; background: none; color: var(--ink-faint); font-size: 22px;

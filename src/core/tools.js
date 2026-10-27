@@ -411,6 +411,21 @@ export async function runTool(ws, name, args, emit = () => {}) {
         emit({ type: "approval_needed", files: stagedSummary(ws), message: args.message });
         return "Aguardando a pessoa aprovar as alteracoes na interface. Encerre sua resposta explicando o que voce mudou e por que.";
       }
+      // A FOTO ANEXADA ENTRA SOZINHA, se alguem apontar para ela.
+      //
+      // O endereco de cada foto foi dado a IA antes de ela responder (ver
+      // prepararAnexos em agent.js). Aqui olhamos o que ela escreveu: se algum
+      // arquivo cita o endereco, gravamos o binario junto no mesmo commit.
+      // Assim a troca de foto nao depende de a IA lembrar de chamar uma
+      // ferramenta — e uma foto mandada so para perguntar algo nao vira lixo.
+      for (const anexo of ws.anexosDisponiveis || []) {
+        if (ws.staged.has(anexo.caminho)) continue;
+        const citado = [...ws.staged.values()].some(v =>
+          !v.delete && !v.base64 && typeof v.content === "string" && v.content.includes(anexo.url)
+        );
+        if (citado) ws.staged.set(anexo.caminho, { content: anexo.base64, base64: true });
+      }
+
       const files = [...ws.staged.entries()].map(([path, v]) =>
         v.delete ? { path, delete: true } : { path, content: v.content, base64: Boolean(v.base64) }
       );
