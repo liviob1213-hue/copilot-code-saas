@@ -4,7 +4,7 @@ import Tutoriais from "./Tutoriais.jsx";
 import BorderGlow from "./BorderGlow.jsx";
 import * as store from "./core/storage.js";
 import { PROVIDER_CATALOG, VERSAO } from "./core/config.js";
-import { criarProjeto, publicarProjeto, editarProjeto, editarRascunho, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, BLINDAR_PROMPT } from "./core/runtime.js";
+import { criarProjeto, publicarProjeto, editarProjeto, editarRascunho, reconectarSupabase, criarTabelas, configurarChaveMapa, desfazerUltimo, gerarPlano, abrirFotosDoProjeto, salvarFotosDoProjeto, BLINDAR_PROMPT } from "./core/runtime.js";
 import { montarHtmlPrevia } from "./core/previa.js";
 import { guardarRascunho, lerRascunho, apagarRascunho, idsComRascunho } from "./core/rascunhos.js";
 import { cancelarIA, comecarIA } from "./core/net.js";
@@ -171,6 +171,13 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
   const [previaSeq, setPreviaSeq] = useState(0);
   // Sobe 1 a cada gasto anotado, para o painel de saldo se atualizar sozinho.
   const [gastoSeq, setGastoSeq] = useState(0);
+  // MODO FOTO de um projeto já publicado: { files, trocadas:Set, salvando }.
+  // Enquanto ele existe, o quadro mostra a prévia LOCAL (que aceita clique) no
+  // lugar do site da Vercel (que é de outro endereço e não aceita).
+  const [modoFoto, setModoFoto] = useState(null);
+  const [abrindoFotos, setAbrindoFotos] = useState(false);
+  const modoFotoRef = useRef(null);
+  useEffect(() => { modoFotoRef.current = modoFoto; }, [modoFoto]);
   const [publicando, setPublicando] = useState(false);
   // Largura da conversa, em %. Fica no navegador pra não ter que reajustar
   // toda vez. Guardada direto no localStorage (não é dado de projeto).
@@ -761,7 +768,8 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     function aoReceber(ev) {
       const d = ev.data;
       if (!d || d.marca !== "painel" || d.tipo !== "trocar-imagem") return;
-      if (!rascunhoRef.current) return;
+      // Vale no rascunho e no modo foto de um projeto publicado.
+      if (!rascunhoRef.current && !modoFotoRef.current) return;
       setImgParaTrocar({ src: d.src || "", alt: d.alt || "", pedido: d.pedido || "" });
     }
     window.addEventListener("message", aoReceber);
@@ -772,7 +780,21 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
    * Faz a troca e devolve quantos lugares mudaram. Devolver o número é o que
    * permite a janela dizer "não achei" em vez de fechar fingindo que deu certo.
    */
-  function trocarImagemDoRascunho(de, para) {
+  function trocarFoto(de, para) {
+    // Projeto publicado, em modo foto: a troca fica na memória até a pessoa
+    // clicar em salvar. Guardamos QUAIS arquivos mudaram para commitar só eles.
+    const mf = modoFotoRef.current;
+    if (mf) {
+      const r = trocarImagem(mf.files, { de, para });
+      if (!r.trocas) return r;
+      const mudados = new Set(mf.mudados);
+      r.arquivos.forEach(a => mudados.add(a));
+      setModoFoto({ ...mf, files: r.files, mudados });
+      setPreviaSeq(n => n + 1);
+      showToast(t("Trocada. Clique em “Salvar e publicar” pra colocar no ar."));
+      return r;
+    }
+
     const atual = rascunhoRef.current;
     if (!atual) return { trocas: 0 };
     const r = trocarImagem(atual.files, { de, para });
@@ -786,6 +808,50 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       ? t("Imagem trocada.")
       : t("Imagem trocada em {n} lugares.", { n: r.trocas }));
     return r;
+  }
+
+  /**
+   * Abre o modo foto de um projeto publicado: baixa o código do GitHub e
+   * troca o quadro da Vercel pela prévia local, que aceita clique.
+   */
+  async function abrirModoFoto() {
+    if (!repo || abrindoFotos) return;
+    setAbrindoFotos(true);
+    try {
+      const files = await abrirFotosDoProjeto(repo);
+      setModoFoto({ files, mudados: new Set(), salvando: false });
+      setRotaPrevia("/");
+      setPreviaSeq(n => n + 1);
+      aplicarRotas(files["src/App.jsx"] || "");
+    } catch (e) {
+      showToast(e.message || t("Não consegui abrir as fotos deste projeto."), true);
+    } finally {
+      setAbrindoFotos(false);
+    }
+  }
+
+  async function salvarModoFoto() {
+    const mf = modoFotoRef.current;
+    if (!mf || mf.salvando || !mf.mudados.size) return;
+    setModoFoto({ ...mf, salvando: true });
+    flowRef.current = "sistema";
+    startRun();
+    try {
+      const soMudados = {};
+      for (const p of mf.mudados) soMudados[p] = mf.files[p];
+      const r = await salvarFotosDoProjeto(
+        { repo, files: soMudados, quantas: mf.mudados.size }, onEvent
+      );
+      endRun();
+      if (r.url) setPreviewUrl(r.url + (r.url.includes("?") ? "&" : "?") + "r=" + Date.now());
+      setModoFoto(null);
+      pushMsg("assistant", t("Troquei as fotos e republiquei o site."));
+      showToast(t("Fotos trocadas e site republicado."));
+    } catch (e) {
+      endRun();
+      setModoFoto(m => (m ? { ...m, salvando: false } : m));
+      showToast(e.message || t("Não consegui salvar a troca."), true);
+    }
   }
 
   async function publicar() {
@@ -1201,27 +1267,60 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
                       {publicando ? t("Publicando…") : t("Publicar")}
                     </button>
                   )}
-                  {/* A troca manual de foto só existe enquanto o projeto é
-                      rascunho, então o aviso fica junto do botão de publicar —
-                      é o único lugar onde ela está disponível. */}
+                  {/* Trocar foto na mão. No rascunho é direto: a prévia já roda
+                      aqui. Num projeto publicado precisa baixar o código antes,
+                      porque o quadro mostra o site da Vercel — outro endereço,
+                      que o navegador não deixa a gente escutar. */}
                   {rascunho && <span className="dica-clique" title={t("Clique em qualquer foto da prévia para trocá-la por uma sua, sem gastar IA")}><IconImage /> {t("clique na foto pra trocar")}</span>}
                   {rascunho && <button className="icon-btn" onClick={() => setPreviaSeq(n => n + 1)} title={t("Recarregar a prévia")}><IconRefresh /></button>}
-                  {repo && <button className="icon-btn" onClick={desfazer} disabled={busy} title={t("Desfazer a última alteração")}><IconUndo /></button>}
-                  {previewUrl && <button className="icon-btn" onClick={() => setPreviewUrl(previewUrl + (previewUrl.includes("?") ? "&" : "?") + "r=" + Date.now())} title={t("Recarregar")}><IconRefresh /></button>}
-                  {previewUrl && <button className="btn sm" onClick={() => window.open(previewUrl, "_blank")} title={t("Abrir em nova aba")}>{t("Abrir")} <IconExternal /></button>}
+
+                  {repo && !modoFoto && (
+                    <button className="btn sm" onClick={abrirModoFoto} disabled={abrindoFotos || busy}
+                      title={t("Trocar fotos clicando nelas, sem usar IA")}>
+                      <IconImage /> {abrindoFotos ? t("Abrindo…") : t("Trocar fotos")}
+                    </button>
+                  )}
+                  {modoFoto && (
+                    <>
+                      <button className="btn sm primary" onClick={salvarModoFoto}
+                        disabled={modoFoto.salvando || !modoFoto.mudados.size}
+                        title={t("Guardar no GitHub e republicar na Vercel")}>
+                        {modoFoto.salvando ? t("Salvando…") : t("Salvar e publicar")}
+                      </button>
+                      <button className="btn sm ghost" onClick={() => setModoFoto(null)} disabled={modoFoto.salvando}>
+                        {modoFoto.mudados.size ? t("Descartar") : t("Sair")}
+                      </button>
+                    </>
+                  )}
+
+                  {repo && !modoFoto && <button className="icon-btn" onClick={desfazer} disabled={busy} title={t("Desfazer a última alteração")}><IconUndo /></button>}
+                  {previewUrl && !modoFoto && <button className="icon-btn" onClick={() => setPreviewUrl(previewUrl + (previewUrl.includes("?") ? "&" : "?") + "r=" + Date.now())} title={t("Recarregar")}><IconRefresh /></button>}
+                  {previewUrl && !modoFoto && <button className="btn sm" onClick={() => window.open(previewUrl, "_blank")} title={t("Abrir em nova aba")}>{t("Abrir")} <IconExternal /></button>}
                 </div>
               </div>
+              {modoFoto && (
+                <div className="faixa-foto">
+                  <IconImage />
+                  <span>
+                    {modoFoto.mudados.size
+                      ? t("{n} arquivo(s) com foto trocada. Clique em “Salvar e publicar” pra colocar no ar.", { n: modoFoto.mudados.size })
+                      : t("Clique em qualquer foto da página para trocá-la por uma sua. Nada vai para o ar até você salvar.")}
+                  </span>
+                </div>
+              )}
               <div className={"preview-stage" + (viewport === "mobile" ? " mobile" : "")}>
-                {/* Prévia LOCAL: o projeto roda aqui antes de existir repositório.
+                {/* Prévia LOCAL: o projeto roda aqui antes de existir repositório,
+                    e também no modo foto de um projeto publicado (o site da Vercel
+                    é de outro endereço e não aceita clique).
                     A key força o iframe a remontar ao trocar de tela — a prévia usa
                     MemoryRouter, então a rota entra na montagem. */}
-                {rascunho ? (
+                {(rascunho || modoFoto) ? (
                   <iframe
                     key={rotaPrevia + ":" + previaSeq}
                     className="preview-frame"
                     title="previa"
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                    srcDoc={montarHtmlPrevia(rascunho.files, rotaPrevia, { marca: "painel", trocarImagens: true })}
+                    srcDoc={montarHtmlPrevia((modoFoto || rascunho).files, rotaPrevia, { marca: "painel", trocarImagens: true })}
                   />
                 ) : previewUrl ? <iframe className="preview-frame" src={previewUrl} title="preview" />
                   : <div className="preview-empty">
@@ -1236,11 +1335,12 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       </div>
 
       {projOpen && <ProjectsDrawer projects={vercelProjects} onReload={loadVercelProjects} onOpen={openProject} onClose={() => setProjOpen(false)} acesso={acesso} onConvidar={() => { setProjOpen(false); abrirConexoes(); }} />}
-      {imgParaTrocar && rascunho && (
+      {imgParaTrocar && (modoFoto || rascunho) && (
         <TrocarImagem
           alvo={imgParaTrocar}
-          files={rascunho.files}
-          onTrocar={trocarImagemDoRascunho}
+          files={(modoFoto || rascunho).files}
+          publicado={Boolean(modoFoto)}
+          onTrocar={trocarFoto}
           onFechar={() => setImgParaTrocar(null)}
         />
       )}

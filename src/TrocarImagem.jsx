@@ -21,7 +21,7 @@ function curto(endereco) {
   return s.slice(0, 30) + "…" + s.slice(-18);
 }
 
-export default function TrocarImagem({ alvo, files, onTrocar, onFechar }) {
+export default function TrocarImagem({ alvo, files, publicado = false, onTrocar, onFechar }) {
   const [url, setUrl] = useState("");
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -130,7 +130,9 @@ export default function TrocarImagem({ alvo, files, onTrocar, onFechar }) {
           {erro && <p className="troca-erro">{erro}</p>}
 
           <p className="troca-rodape">
-            {t("A troca vale na prévia na hora. Ela entra no site publicado quando você publicar.")}
+            {publicado
+              ? t("A troca aparece aqui na hora. O site no ar só muda quando você clicar em “Salvar e publicar”.")
+              : t("A troca vale na prévia na hora. Ela entra no site publicado quando você publicar.")}
           </p>
         </div>
       </div>

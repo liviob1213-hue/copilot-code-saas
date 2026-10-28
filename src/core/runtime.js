@@ -347,7 +347,7 @@ No ar: ${url}` : ""}`,
 
 // Le os arquivos que a IA controla (src/, index.html, package.json), pulando o
 // que e gerado/binario/grande. E o "projeto atual" que vai no modo edit.
-async function lerArquivosDoProjeto(owner, name, branch) {
+export async function lerArquivosDoProjeto(owner, name, branch) {
   const tree = await github.getTree(owner, name, branch);
   const alvo = tree.files.filter(f =>
     /^(src\/|index\.html$|package\.json$)/.test(f.path) &&
@@ -366,6 +366,59 @@ async function lerArquivosDoProjeto(owner, name, branch) {
   }
   await Promise.all([worker(), worker(), worker()]);
   return files;
+}
+
+/**
+ * Abrir um projeto JA PUBLICADO para trocar fotos na mao.
+ *
+ * Por que precisa baixar o codigo: enquanto o projeto e rascunho, a previa roda
+ * aqui no navegador e um clique numa foto chega ate nos. Depois de publicado o
+ * quadro passa a mostrar o site da Vercel, que e OUTRO endereco — o navegador
+ * proibe, e com razao, que a gente leia ou escute o que acontece la dentro.
+ * Entao a gente traz o codigo de volta, roda a previa local por cima e o clique
+ * volta a funcionar.
+ */
+export async function abrirFotosDoProjeto(repo) {
+  const branch = repo.branch || "main";
+  const files = await lerArquivosDoProjeto(repo.owner, repo.name, branch);
+  if (!Object.keys(files).length) {
+    throw new Error(t("Não consegui ler os arquivos deste projeto no GitHub."));
+  }
+  return files;
+}
+
+/**
+ * Grava a troca de fotos e republica.
+ *
+ * Commita SO os arquivos que mudaram. Mandar o projeto inteiro de volta criaria
+ * um commit enorme a cada foto trocada e, pior, sobrescreveria com a versao que
+ * esta na memoria daqui qualquer coisa que tenha mudado no repositorio nesse
+ * meio tempo.
+ */
+export async function salvarFotosDoProjeto({ repo, files, quantas = 1 }, onEvent = () => {}) {
+  const branch = repo.branch || "main";
+  const lista = Object.entries(files).map(([path, content]) => ({ path, content }));
+  if (!lista.length) return { url: repo.url || null };
+
+  onEvent({ type: "status", text: t("Guardando a troca no GitHub…") });
+  const commit = await github.commitFiles({
+    owner: repo.owner, repo: repo.name, branch,
+    message: quantas === 1 ? "troca de foto" : `troca de ${quantas} fotos`,
+    files: lista
+  });
+
+  let url = repo.url || null;
+  try {
+    onEvent({ type: "status", text: t("Republicando na Vercel pra atualizar o site no ar…") });
+    const dep = await vercel.deploy(repo.owner, repo.name, branch,
+      p => onEvent({ type: "deploy", ...p }), null, { commitSha: commit?.sha || null });
+    url = typeof dep === "string" ? dep : (dep?.prodUrl || dep?.url || url);
+  } catch (e) {
+    // A foto JA ESTA no GitHub. Falhar a republicacao nao desfaz isso, e dizer
+    // "nao consegui" faria a pessoa trocar tudo de novo a toa.
+    onEvent({ type: "notice", text: t("A troca foi guardada, mas a republicação falhou: {erro}. Tente publicar de novo em instantes.", { erro: e.message }) });
+  }
+  return { url, commit };
 }
 
 /**
