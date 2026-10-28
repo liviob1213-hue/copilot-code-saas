@@ -379,6 +379,12 @@ export async function lerArquivosDoProjeto(owner, name, branch) {
  * volta a funcionar.
  */
 export async function abrirFotosDoProjeto(repo) {
+  if (!repo?.owner || !repo?.name) {
+    throw new Error(t("Não sei de qual repositório este projeto veio. Abra o projeto pela lista de Projetos e tente de novo."));
+  }
+  if (!(await temGithub())) {
+    throw new Error(t("Conecte o GitHub para trocar as fotos: o código do projeto fica guardado lá."));
+  }
   const branch = repo.branch || "main";
   const files = await lerArquivosDoProjeto(repo.owner, repo.name, branch);
   if (!Object.keys(files).length) {

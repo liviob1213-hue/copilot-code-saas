@@ -824,7 +824,12 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       setPreviaSeq(n => n + 1);
       aplicarRotas(files["src/App.jsx"] || "");
     } catch (e) {
-      showToast(e.message || t("Não consegui abrir as fotos deste projeto."), true);
+      // Mensagem longa não cabe num toast, e justamente as mais úteis (o que
+      // fazer quando a rede barra o GitHub) são longas. O toast avisa; o texto
+      // inteiro vai para a conversa, onde dá pra ler com calma.
+      showToast(t("Não consegui abrir as fotos deste projeto."), true);
+      pushMsg("assistant", e.message || t("Não consegui abrir as fotos deste projeto."));
+      setView("workspace");
     } finally {
       setAbrindoFotos(false);
     }

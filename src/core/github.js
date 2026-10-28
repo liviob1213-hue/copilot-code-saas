@@ -72,7 +72,45 @@ async function token() {
   return t;
 }
 
+// ----------------------------------------------------------------------------
+// QUANDO A CHAMADA NEM SAI DO NAVEGADOR
+//
+// "Failed to fetch" nao e resposta do GitHub: e o navegador dizendo que o
+// pedido nao chegou a lugar nenhum. Acontece por uma piscada da conexao, por
+// uma extensao de bloqueio que corta api.github.com, por rede de empresa, ou
+// porque o Wi-Fi caiu por um segundo. Na pratica a maioria passa na segunda
+// tentativa — e, sem repetir, a pessoa so via um erro em ingles e desistia.
+//
+// SO REPETIMOS LEITURA (GET). Repetir uma escrita seria criar o mesmo
+// repositorio duas vezes ou gravar o mesmo commit de novo: um erro de rede
+// pode acontecer DEPOIS de o GitHub ter aceitado o pedido, e dai nao da pra
+// saber se a primeira valeu.
+// ----------------------------------------------------------------------------
+const ESPERA_ENTRE_TENTATIVAS = [700, 1800];
+
+function ehFalhaDeRede(e) {
+  // TypeError e o que o fetch lanca quando nem conseguiu abrir a conexao.
+  return e instanceof TypeError || /failed to fetch|network|load failed/i.test(e?.message || "");
+}
+
+const dormir = (ms) => new Promise(r => setTimeout(r, ms));
+
 async function api(path, options = {}) {
+  const ehLeitura = !options.method || options.method === "GET";
+  let ultimo;
+  for (let tentativa = 0; ; tentativa++) {
+    try {
+      return await apiUmaVez(path, options);
+    } catch (e) {
+      ultimo = e;
+      const vale = ehLeitura && e?.redeInstavel && tentativa < ESPERA_ENTRE_TENTATIVAS.length;
+      if (!vale) throw e;
+      await dormir(ESPERA_ENTRE_TENTATIVAS[tentativa]);
+    }
+  }
+}
+
+async function apiUmaVez(path, options = {}) {
   const t = await token();
   // Prazo por tipo de chamada: leitura (GET de repo, ref, arquivo) e rapida;
   // escrita (criar repo, subir blob, criar tree/commit) carrega conteudo e
@@ -106,6 +144,18 @@ async function api(path, options = {}) {
         `O GitHub nao respondeu em ${Math.round(prazo / 1000)}s (${init.method || "GET"} ${path}). ` +
         "Pode ser a sua conexao ou instabilidade do GitHub — tente de novo."
       );
+    }
+    if (ehFalhaDeRede(e)) {
+      // "Failed to fetch" nao diz nada para quem nao e programador, e a causa
+      // mais comum (extensao de bloqueio) nao passa pela cabeca de ninguem.
+      const erro = new Error(
+        "O pedido nem chegou ao GitHub. Isso costuma ser uma destas tres coisas: " +
+        "a sua internet oscilou; alguma extensao do navegador (bloqueador de anuncios, antivirus, VPN) " +
+        "esta barrando api.github.com; ou voce esta numa rede de empresa que bloqueia o GitHub. " +
+        "Tente de novo — se insistir, abra numa aba anonima ou desligue as extensoes por um minuto."
+      );
+      erro.redeInstavel = true;    // marca para a camada de cima repetir
+      throw erro;
     }
     throw new Error(`Nao consegui falar com o GitHub (${e.message || e}).`);
   }
