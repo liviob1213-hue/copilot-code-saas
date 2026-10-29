@@ -926,16 +926,38 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     if (base) setPreviewUrl(base + (nova === "/" ? "/" : nova) + "?r=" + Date.now());
   }
 
-  function novoProjeto() { setModo(""); setRotas(["/"]); setRota("/"); sessionRef.current = null; setRepo(null); setPreviewUrl(null); setRascunho(null); setRotaPrevia("/"); setMessages([]); setView("home"); }
+  function novoProjeto() { setModo(""); limparProjetoDaTela(); sessionRef.current = null; setRepo(null); setMessages([]); setView("home"); }
   // Só preenche o campo (comportamento igual ao de digitar): não envia nada.
   function sugerir(texto) {
     setInput(texto);
     setTimeout(() => { const el = inputRef.current; if (!el) return; el.focus(); el.setSelectionRange(texto.length, texto.length); el.scrollIntoView({ block: "center", behavior: "smooth" }); }, 0);
   }
 
+  /**
+   * TIRA O PROJETO ANTERIOR DA TELA.
+   *
+   * Precisa existir num lugar só porque esquecer UM destes campos já deu o
+   * defeito mais confuso que a ferramenta teve: clicar num projeto da lista
+   * trocava o repositório, a conversa e o título — mas o quadro continuava
+   * mostrando o projeto de antes, porque a prévia local (rascunho ou modo
+   * foto) tem prioridade sobre o site publicado. A pessoa clicava em três
+   * projetos diferentes e via sempre o mesmo, sem nenhum aviso de erro.
+   *
+   * Toda porta de entrada de projeto chama isto ANTES de montar o novo.
+   */
+  function limparProjetoDaTela() {
+    setRascunho(null);
+    setModoFoto(null);
+    setImgParaTrocar(null);
+    setPreviewUrl(null);
+    setRotas(["/"]); setRota("/"); setRotaPrevia("/");
+    setPlano(null);
+  }
+
   async function openSession(id) {
     const s = await history.getSession(id);
     if (!s) return;
+    limparProjetoDaTela();
     setHistOpen(false); sessionRef.current = id; stickRef.current = true;
     // Mesma recuperação do openProject: conversas antigas foram salvas antes de
     // existir o store de briefs, e sem o pedido original a IA recria genérico.
@@ -970,6 +992,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
     const existente = todas.find(s => s.repo && s.repo.owner === p.owner && s.repo.name === p.name);
     if (existente) { await openSession(existente.id); return; }
 
+    limparProjetoDaTela();
     sessionRef.current = null;
     // Recupera o pedido original salvo na criação. Sem ele, pedir "arruma isso"
     // num projeto reaberto fazia a IA recriar um site genérico, de outro tema.
