@@ -2,26 +2,53 @@
 // Login.jsx — entrada do Prumo Code
 // ----------------------------------------------------------------------------
 // Dois caminhos, o padrao das ferramentas de hoje: botao do Google, ou e-mail
-// com codigo de 6 digitos. NAO existe tela de cadastro separada de proposito —
+// com link de confirmacao. NAO existe tela de cadastro separada de proposito —
 // quem entra pela primeira vez tem a conta criada na hora, igual ao Notion, ao
 // Vercel e ao proprio Supabase. Uma tela a menos para a pessoa errar.
+//
+// POR QUE LINK, E NAO CODIGO DE 6 NUMEROS
+// Quem decide o que vai no e-mail e o MODELO do Supabase, nao o nosso codigo:
+// o modelo padrao manda um link de confirmacao. A tela antes pedia um codigo
+// de 6 numeros que nunca chegava — a pessoa ficava parada diante de um campo
+// impossivel de preencher, achando que o e-mail tinha falhado.
+// Agora a tela fala a mesma lingua do e-mail que realmente chega.
 // ============================================================================
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { t } from "./i18n.js";
-import { entrarComGoogle, enviarCodigo, confirmarCodigo } from "./core/auth.js";
+import { entrarComGoogle, enviarEmailDeEntrada } from "./core/auth.js";
 import { VERSAO } from "./core/config.js";
 
 const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/** O endereco do webmail, para o botao "Abrir meu e-mail" levar direto. */
+const WEBMAIL = {
+  "gmail.com": "https://mail.google.com",
+  "googlemail.com": "https://mail.google.com",
+  "outlook.com": "https://outlook.live.com",
+  "hotmail.com": "https://outlook.live.com",
+  "live.com": "https://outlook.live.com",
+  "msn.com": "https://outlook.live.com",
+  "yahoo.com": "https://mail.yahoo.com",
+  "yahoo.com.br": "https://mail.yahoo.com",
+  "icloud.com": "https://www.icloud.com/mail",
+  "me.com": "https://www.icloud.com/mail",
+  "uol.com.br": "https://email.uol.com.br",
+  "bol.com.br": "https://email.bol.uol.com.br",
+  "terra.com.br": "https://mail.terra.com.br"
+};
+
+function linkDoWebmail(email) {
+  const dominio = String(email).split("@")[1] || "";
+  return WEBMAIL[dominio.toLowerCase()] || "";
+}
+
 export default function Login() {
-  const [etapa, setEtapa] = useState("email");   // "email" | "codigo"
+  const [etapa, setEtapa] = useState("email");   // "email" | "enviado"
   const [email, setEmail] = useState("");
-  const [codigo, setCodigo] = useState("");
   const [erro, setErro] = useState("");
-  const [ocupado, setOcupado] = useState("");    // "google" | "enviar" | "conferir"
+  const [ocupado, setOcupado] = useState("");    // "google" | "enviar"
   const [reenviarEm, setReenviarEm] = useState(0);
-  const campoCodigo = useRef(null);
 
   // Contagem para reenviar: sem ela a pessoa fica clicando e toma bloqueio do
   // Supabase por excesso de tentativas.
@@ -31,36 +58,23 @@ export default function Login() {
     return () => clearTimeout(id);
   }, [reenviarEm]);
 
-  useEffect(() => { if (etapa === "codigo") campoCodigo.current?.focus(); }, [etapa]);
-
   async function comGoogle() {
     setErro(""); setOcupado("google");
     try { await entrarComGoogle(); }       // sai da página; só volta se falhar
     catch (e) { setErro(e.message); setOcupado(""); }
   }
 
-  async function pedirCodigo(ev) {
+  async function enviar(ev) {
     ev?.preventDefault();
     const limpo = email.trim();
     if (!EMAIL_OK.test(limpo)) { setErro(t("Digite um e-mail válido.")); return; }
     setErro(""); setOcupado("enviar");
     try {
-      await enviarCodigo(limpo);
-      setEtapa("codigo");
+      await enviarEmailDeEntrada(limpo);
+      setEtapa("enviado");
       setReenviarEm(45);
     } catch (e) { setErro(e.message); }
     finally { setOcupado(""); }
-  }
-
-  async function conferir(ev) {
-    ev?.preventDefault();
-    const n = codigo.replace(/\D/g, "");
-    if (n.length < 6) { setErro(t("O código tem 6 números.")); return; }
-    setErro(""); setOcupado("conferir");
-    try {
-      await confirmarCodigo(email, n);
-      // Entrou: quem avisa a tela é o onAuthStateChange lá no main.
-    } catch (e) { setErro(e.message); setOcupado(""); }
   }
 
   return (
@@ -83,7 +97,7 @@ export default function Login() {
 
             {/* noValidate: sem isso o proprio navegador barra o envio e mostra o aviso
                     dele, em ingles, antes da nossa mensagem em portugues aparecer. */}
-            <form onSubmit={pedirCodigo} className="login-form" noValidate>
+            <form onSubmit={enviar} className="login-form" noValidate>
               <label htmlFor="login-email">{t("Seu e-mail")}</label>
               <input
                 id="login-email" className="text" type="email" autoComplete="email"
@@ -91,41 +105,57 @@ export default function Login() {
                 onChange={e => { setEmail(e.target.value); setErro(""); }}
               />
               <button className="btn primary wide" type="submit" disabled={Boolean(ocupado)}>
-                {ocupado === "enviar" ? t("Enviando…") : t("Receber código por e-mail")}
+                {ocupado === "enviar" ? t("Enviando…") : t("Entrar com e-mail")}
               </button>
+              <p className="login-dica">{t("Você recebe um e-mail de confirmação e entra clicando no link.")}</p>
             </form>
           </>
         ) : (
-          <form onSubmit={conferir} className="login-form">
-            <p className="login-enviado">
-              {t("Enviei um código de 6 números para")} <b>{email}</b>.
-            </p>
-            <label htmlFor="login-codigo">{t("Código")}</label>
-            <input
-              id="login-codigo" ref={campoCodigo} className="text login-codigo"
-              inputMode="numeric" autoComplete="one-time-code" placeholder="000000" maxLength={6}
-              value={codigo}
-              onChange={e => { setCodigo(e.target.value.replace(/\D/g, "")); setErro(""); }}
-            />
-            <button className="btn primary wide" type="submit" disabled={Boolean(ocupado)}>
-              {ocupado === "conferir" ? t("Conferindo…") : t("Entrar")}
-            </button>
+          /* Nada para preencher aqui de propósito: a ação da pessoa é no
+             e-mail dela, não nesta tela. Um campo vazio no meio do caminho
+             faria ela procurar o que digitar em vez de ir ver a caixa. */
+          <div className="login-form">
+            <div className="login-enviado-ok">
+              <IconEnvelope />
+              <strong>{t("Confira seu e-mail")}</strong>
+              <p>
+                {t("Enviamos um e-mail de confirmação para")} <b>{email}</b>.{" "}
+                {t("Abra a mensagem e clique no link para entrar — não há código para digitar.")}
+              </p>
+            </div>
+
+            {linkDoWebmail(email) && (
+              <a className="btn primary wide" href={linkDoWebmail(email)} target="_blank" rel="noopener noreferrer">
+                {t("Abrir meu e-mail")}
+              </a>
+            )}
+
             <div className="login-rodape">
-              <button type="button" className="login-link" onClick={() => { setEtapa("email"); setCodigo(""); setErro(""); }}>
+              <button type="button" className="login-link" onClick={() => { setEtapa("email"); setErro(""); }}>
                 {t("Trocar de e-mail")}
               </button>
               <button type="button" className="login-link" disabled={reenviarEm > 0 || Boolean(ocupado)}
-                onClick={() => pedirCodigo()}>
-                {reenviarEm > 0 ? t("Reenviar em {s}s", { s: reenviarEm }) : t("Reenviar código")}
+                onClick={() => enviar()}>
+                {reenviarEm > 0 ? t("Reenviar em {s}s", { s: reenviarEm }) : t("Reenviar e-mail")}
               </button>
             </div>
-            <p className="login-dica">{t("Não chegou? Veja no spam — pode levar um minuto.")}</p>
-          </form>
+            <p className="login-dica">{t("Não chegou? Veja no spam ou na aba de promoções — pode levar um minuto.")}</p>
+          </div>
         )}
 
         {erro && <div className="login-erro">{erro}</div>}
       </div>
     </div>
+  );
+}
+
+function IconEnvelope() {
+  return (
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+      <path d="m3 7 8.1 5.8a1.6 1.6 0 0 0 1.8 0L21 7" />
+    </svg>
   );
 }
 

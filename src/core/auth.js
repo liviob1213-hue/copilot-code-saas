@@ -81,15 +81,23 @@ export async function entrarComGoogle() {
 }
 
 /**
- * Manda o codigo de 6 digitos para o e-mail. Serve para entrar E para criar
- * conta: shouldCreateUser cria quem ainda nao existe, que e como as ferramentas
+ * Manda o e-mail de entrada. Serve para entrar E para criar conta:
+ * shouldCreateUser cria quem ainda nao existe, que e como as ferramentas
  * modernas funcionam (nao ha "cadastro" separado).
  *
- * IMPORTANTE: para chegar um CODIGO e nao um link, o modelo de e-mail do
- * Supabase precisa conter {{ .Token }}. Sem isso o Supabase manda o link magico
- * e o campo de codigo fica inutil.
+ * O QUE CHEGA NO E-MAIL, E POR QUE A TELA FALA EM LINK
+ * O Supabase decide isso pelo MODELO DE E-MAIL, nao por esta chamada: se o
+ * modelo tem {{ .ConfirmationURL }}, vai um link; se tem {{ .Token }}, vai um
+ * codigo de 6 numeros. O modelo padrao e o do link.
+ *
+ * A tela pedia o codigo e o e-mail entregava o link — ou seja, a pessoa ficava
+ * olhando para um campo que nao tinha como preencher. Em vez de exigir que
+ * todo mundo edite o modelo no painel do Supabase, a tela passou a falar a
+ * mesma lingua do e-mail que realmente chega: clique no link.
+ *
+ * emailRedirectTo traz a pessoa de volta para ca ja logada.
  */
-export async function enviarCodigo(email) {
+export async function enviarEmailDeEntrada(email) {
   const c = sb();
   if (!c) throw new Error("Login ainda nao configurado.");
   const { error } = await c.auth.signInWithOtp({
@@ -99,7 +107,13 @@ export async function enviarCodigo(email) {
   if (error) throw new Error(traduzir(error.message));
 }
 
-/** Confere o codigo digitado e abre a sessao. */
+/**
+ * Confere um codigo de 6 numeros e abre a sessao.
+ *
+ * NAO E USADO PELA TELA DE LOGIN hoje — ela manda o link. Fica aqui porque e a
+ * outra metade do mesmo recurso do Supabase: basta trocar o modelo de e-mail
+ * para {{ .Token }} e esta funcao volta a servir, sem reescrever nada.
+ */
 export async function confirmarCodigo(email, codigo) {
   const c = sb();
   if (!c) throw new Error("Login ainda nao configurado.");
