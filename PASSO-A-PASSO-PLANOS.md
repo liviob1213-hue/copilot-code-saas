@@ -157,6 +157,20 @@ instante em que a conta nascia. Quem já tinha conta mas estava sem a linha de
 perfil ficava pagante no plano grátis pra sempre. Depois do SQL, o plano se
 conserta sozinho na próxima vez que a pessoa abre o app.
 
+**O jeito mais rápido de liberar um cliente:** Supabase → SQL Editor → New
+query → cole `supabase/liberar-acesso.sql`. Troque as **três primeiras linhas**
+(e-mail, plano, quantos meses) e clique em Run. Não precisa de login, nem de
+deploy, nem da página de admin. Exemplo para dar o Básico mensal:
+
+```sql
+select set_config('prumo.email', 'cliente@gmail.com', false);
+select set_config('prumo.plano', 'basico', false);
+select set_config('prumo.meses', '1', false);
+```
+
+> Use o e-mail **com que a pessoa entra no app**, não o da compra. Quando os
+> dois são diferentes, é justamente isso que a deixou sem o plano.
+
 **Para conferir um cliente:** abra `/acesso-anual`, digite o e-mail dele e
 clique em **Conferir o que está gravado**. A ficha responde qual plano está
 gravado, se ele vale, quais IAs pagas ele libera e se existe pagamento
