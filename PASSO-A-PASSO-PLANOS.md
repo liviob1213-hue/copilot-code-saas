@@ -139,5 +139,34 @@ todas dividem a mesma cota. O truque simplesmente não rende nada.
 | Webhook dá erro 401 na Kiwify | `KIWIFY_WEBHOOK_SECRET` está diferente do token que a Kiwify mostrou |
 | Webhook dá erro 500 | Faltou `SUPABASE_URL` ou `SUPABASE_SERVICE_ROLE_KEY`, ou não fez o Redeploy |
 | `/acesso-anual` diz "sem permissão" | Seu e-mail não está em `ADMIN_EMAILS` |
-| Pagou e não liberou | Veja o log em Vercel → Deployments → Functions → `/api/kiwify` |
+| Pagou e não liberou | Abra `/acesso-anual`, digite o e-mail e clique em **Conferir o que está gravado** — a ficha diz a causa |
 | Plano errado (mensal virou anual) | Preencha `KIWIFY_PRODUTO_MENSAL` e `KIWIFY_PRODUTO_ANUAL` |
+
+---
+
+## "O cliente pagou e o app pede assinatura"
+
+**Rode uma vez:** Supabase → SQL Editor → New query → cole o conteúdo de
+`supabase/pagamento-pendente.sql` → Run. Pode rodar de novo sempre que quiser;
+ele não rebaixa o plano de ninguém.
+
+Esse arquivo conserta o defeito que fazia isso acontecer: quando a Kiwify
+avisava um pagamento e não existia o perfil daquele e-mail, o pagamento ia pra
+uma lista de espera (`acessos_pendentes`) — e essa lista só era olhada no
+instante em que a conta nascia. Quem já tinha conta mas estava sem a linha de
+perfil ficava pagante no plano grátis pra sempre. Depois do SQL, o plano se
+conserta sozinho na próxima vez que a pessoa abre o app.
+
+**Para conferir um cliente:** abra `/acesso-anual`, digite o e-mail dele e
+clique em **Conferir o que está gravado**. A ficha responde qual plano está
+gravado, se ele vale, quais IAs pagas ele libera e se existe pagamento
+guardado — e aplica o pagamento guardado na hora. O que a ficha diz e o que
+fazer em cada caso:
+
+| A ficha diz | O que é | O que fazer |
+|---|---|---|
+| Consertado agora | O pagamento estava guardado e não tinha sido aplicado | Nada. Peça F5 para o cliente |
+| Está no plano X e o plano VALE | O banco está certo | Peça F5; o app já libera |
+| O plano VENCEU | A renovação não chegou | Libere o plano na mão, ao lado |
+| Plano GRÁTIS e nenhum pagamento guardado | O aviso da Kiwify não chegou, **ou** a compra foi com outro e-mail | Veja a lista de envios do webhook na Kiwify e `/api/diagnostico`. Para resolver na hora, libere o plano na mão |
+| Esse e-mail NÃO tem conta | Ele comprou com um e-mail e se cadastrou com outro | Libere o plano no e-mail com que ele entra no app |

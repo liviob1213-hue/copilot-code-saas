@@ -28,10 +28,18 @@ const PRECISA = [
   ["PASSE_IA_SEGREDO",          "segredo do passe da IA da casa (o mesmo do Cloudflare)"]
 ];
 
+// Os ids de produto sao "opcionais" so no sentido de que o codigo nao quebra
+// sem eles. COM TRES NIVEIS DE PLANO eles importam: e por eles que /api/kiwify
+// sabe se a compra foi do Basico (so DeepSeek), do Pro ou do Premium. Sem eles
+// sobra a pista do titulo do produto — e o que o titulo nao denunciar entra
+// como Premium, ou seja, voce entrega o plano de R$ 47 por R$ 24,97.
 const OPCIONAIS = [
-  ["KIWIFY_PRODUTO_MENSAL", "id do produto mensal"],
-  ["KIWIFY_PRODUTO_ANUAL",  "id do produto anual"],
-  ["CASA_WORKER_URL",       "endereco do Worker da IA da casa (so se mudar do padrao)"]
+  ["KIWIFY_PRODUTO_BASICO",  "id do produto Basico (R$ 24,97)"],
+  ["KIWIFY_PRODUTO_PRO",     "id do produto Pro (R$ 34,97)"],
+  ["KIWIFY_PRODUTO_PREMIUM", "id do produto Premium (R$ 47)"],
+  ["KIWIFY_PRODUTO_MENSAL",  "nome antigo do Premium mensal"],
+  ["KIWIFY_PRODUTO_ANUAL",   "id do produto anual"],
+  ["CASA_WORKER_URL",        "endereco do Worker da IA da casa (so se mudar do padrao)"]
 ];
 
 export default async function handler(req, res) {
@@ -104,6 +112,18 @@ export default async function handler(req, res) {
         ? `FALTANDO: rode supabase/slots.sql no SQL Editor do Supabase (${erroLim.message})`
         : "ok";
       if (!erroLim) banco.regras_do_plano = lim;
+
+      // O CONSERTO DO PAGAMENTO GUARDADO (supabase/pagamento-pendente.sql).
+      // Sem ele, um pagamento que cai na lista de espera de quem JA TEM CONTA
+      // nunca e aplicado: cliente pagante vendo "assine o plano". Testamos com
+      // um id que nao existe — a funcao responde "sem_perfil" e nao escreve
+      // nada, so prova que ela esta la.
+      const { error: erroPend } = await sb.rpc("aplicar_acesso_pendente", {
+        p_usuario: "00000000-0000-0000-0000-000000000000"
+      });
+      banco.conserto_de_pagamento_guardado = erroPend
+        ? `FALTANDO: rode supabase/pagamento-pendente.sql no SQL Editor do Supabase (${erroPend.message})`
+        : "ok";
     } catch (e) {
       banco.erro = e.message || String(e);
     }

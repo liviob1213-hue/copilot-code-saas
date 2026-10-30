@@ -226,6 +226,54 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       setConn(c => ({ ...c, ia: Boolean(c.iaPropria) || p.casaDisponivel === true }));
     } catch { /* saldo desatualizado não quebra nada */ }
   }
+  // VOLTOU DA KIWIFY? RELÊ O PLANO.
+  //
+  // O botão de assinar abre a Kiwify em OUTRA aba. A pessoa paga lá e volta pra
+  // esta, que continuou aberta — e com o plano antigo na memória. Sem isto, o
+  // app seguia pedindo assinatura de quem acabou de pagar: o seletor marcava a
+  // DeepSeek como "só no plano pago" e a geração abria o convite de novo. O
+  // cliente não tem como adivinhar que precisa recarregar a página.
+  //
+  // Só relê quem AINDA NÃO está pago (não há o que reconferir de quem já está)
+  // e no máximo a cada 15s, pra alternar de aba não virar uma consulta por
+  // clique.
+  useEffect(() => {
+    if (!sessao) return;
+    let ultima = 0;
+    const relerSeVoltou = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (acessoRef.current?.pago) return;
+      if (Date.now() - ultima < 15000) return;
+      ultima = Date.now();
+      recarregarAcesso();
+    };
+    window.addEventListener("focus", relerSeVoltou);
+    document.addEventListener("visibilitychange", relerSeVoltou);
+    return () => {
+      window.removeEventListener("focus", relerSeVoltou);
+      document.removeEventListener("visibilitychange", relerSeVoltou);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessao]);
+
+  /**
+   * "Já assinei" dentro do convite: relê o plano e responde na hora.
+   *
+   * O caminho normal é o de cima (voltar pra aba já relê). Este botão existe
+   * pro caso em que o pagamento demora alguns segundos pra chegar da Kiwify, e
+   * pra dar à pessoa algo pra clicar em vez de ela ficar sem saída.
+   */
+  async function conferirAssinatura() {
+    await recarregarAcesso();
+    const p = acessoRef.current;
+    if (p?.pago) {
+      setAssinar({ aberto: false, motivo: "", destaque: "premium" });
+      showToast(t("Plano {plano} ativo. Pode usar.", { plano: p.planoNome || "" }));
+    } else {
+      showToast(t("Ainda não vi o pagamento aqui. Se você já pagou, espere um minuto e tente de novo — ou fale com o suporte."), true);
+    }
+  }
+
   async function loadModelsCache() { setModelsCache((await store.get("modelsCache")) || {}); setModelHealth((await store.get("modelHealth")) || {}); }
 
   function showToast(text, err = false) { setToast({ text, err }); setTimeout(() => setToast(null), 4200); }
@@ -1374,6 +1422,7 @@ export default function App({ oauthResult, oauthError, sessao = null }) {
       )}
 
       <ModalAssinar aberto={assinar.aberto} motivo={assinar.motivo} destaque={assinar.destaque}
+        onJaAssinei={conferirAssinatura}
         onFechar={() => setAssinar({ aberto: false, motivo: "", destaque: "premium" })} />
       {histOpen && <HistoryDrawer sessions={sessions} onOpen={openSession}
         onDelete={async id => { await history.deleteSession(id); refreshHistory(); }}

@@ -119,11 +119,33 @@ from auth.users u
 where u.email is not null
 on conflict (email_normalizado) do nothing;
 
-insert into public.perfis (id, email, email_normalizado)
-select u.id, u.email, public.normalizar_email(u.email)
+-- O PERFIL QUE FALTAVA JA NASCE COM O PAGAMENTO QUE ESTAVA GUARDADO.
+--
+-- Antes esta linha criava o perfil sempre como 'free'. Quem tinha pago na
+-- Kiwify sem ter perfil (o pagamento vai pra public.acessos_pendentes) era
+-- consertado aqui como GRATIS, e o pagamento ficava preso na lista de espera
+-- pra sempre: cliente pagante vendo "assine o plano" no app. Era o defeito que
+-- supabase/pagamento-pendente.sql conserta de uma vez — e aqui ele nao
+-- acontece mais.
+insert into public.perfis (id, email, email_normalizado, plano, plano_expira_em, plano_origem)
+select
+  u.id,
+  u.email,
+  public.normalizar_email(u.email),
+  coalesce(a.plano, 'free'),
+  a.plano_expira_em,
+  a.origem
 from auth.users u
+left join public.acessos_pendentes a
+       on a.email_normalizado = public.normalizar_email(u.email)
 where u.email is not null
 on conflict (id) do nothing;
+
+-- O que foi aplicado sai da lista de espera.
+delete from public.acessos_pendentes a
+using public.perfis p
+where p.email_normalizado = a.email_normalizado
+  and p.plano = a.plano;
 
 -- ---------------------------------------------------------------------------
 -- 4. Confere

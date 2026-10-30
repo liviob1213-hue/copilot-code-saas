@@ -116,7 +116,9 @@ export function CardAssinarProvedor({ provedor, onAssinar = () => {} }) {
  * e sempre com uma saída visível — prender alguém numa tela de venda é o jeito
  * mais rápido de perder o cliente e ganhar um pedido de reembolso.
  */
-export function ModalAssinar({ aberto, motivo, destaque = "premium", onFechar }) {
+export function ModalAssinar({ aberto, motivo, destaque = "premium", onFechar, onJaAssinei = null }) {
+  const [conferindo, setConferindo] = useState(false);
+
   useEffect(() => {
     if (!aberto) return;
     const esc = (e) => { if (e.key === "Escape") onFechar(); };
@@ -125,6 +127,12 @@ export function ModalAssinar({ aberto, motivo, destaque = "premium", onFechar })
   }, [aberto, onFechar]);
 
   if (!aberto) return null;
+
+  async function jaAssinei() {
+    if (!onJaAssinei || conferindo) return;
+    setConferindo(true);
+    try { await onJaAssinei(); } finally { setConferindo(false); }
+  }
 
   return (
     <>
@@ -144,6 +152,16 @@ export function ModalAssinar({ aberto, motivo, destaque = "premium", onFechar })
         </div>
         <Vantagens />
         <Precos destaque={destaque} />
+        {/* JÁ ASSINEI — a saída de quem pagou e ainda vê esta tela.
+            A Kiwify abre em outra aba: quem paga e volta pra cá teria que
+            descobrir sozinho que precisa recarregar a página. E se o aviso do
+            pagamento demorar alguns segundos, este botão é o que a pessoa tem
+            pra clicar em vez de achar que o dinheiro dela sumiu. */}
+        {onJaAssinei && (
+          <button className="assinar-ja" type="button" onClick={jaAssinei} disabled={conferindo}>
+            {conferindo ? t("Conferindo seu plano…") : t("Já assinei — conferir meu plano")}
+          </button>
+        )}
         <p className="assinar-rodape">
           {t("Amanhã você ganha um site novo de graça. Se preferir esperar, é só fechar aqui.")}
         </p>

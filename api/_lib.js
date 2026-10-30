@@ -178,6 +178,14 @@ export async function definirPlanoPorEmail({ email, plano, expiraEm = null, orig
       .update({ plano, plano_expira_em: expiraEm, plano_origem: origem })
       .eq("email_normalizado", norm);
     if (e2) return { ok: false, motivo: e2.message };
+
+    // A conta ficou com o plano CERTO agora, entao qualquer pagamento antigo
+    // nesta lista de espera deixou de valer. Apagar e OBRIGATORIO: o banco
+    // passou a aplicar o que esta guardado aqui sempre que a pessoa abre o app
+    // (public.aplicar_acesso_pendente). Sem esta limpeza, um reembolso cortaria
+    // o acesso e um pendente velho devolveria o plano na abertura seguinte.
+    await sb.from("acessos_pendentes").delete().eq("email_normalizado", norm);
+
     return { ok: true, aplicado: "conta", quantas: perfis.length };
   }
 

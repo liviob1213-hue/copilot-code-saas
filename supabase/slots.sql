@@ -339,10 +339,72 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 6b. O PAGAMENTO QUE FICOU GUARDADO
+--     Quando a Kiwify avisa um pagamento e nao existe perfil com aquele
+--     e-mail, /api/kiwify guarda o pagamento em public.acessos_pendentes.
+--     Isso era aplicado SO no gatilho que roda quando o usuario nasce — e
+--     quem tinha conta mas estava sem a linha de perfil (o gatilho antigo
+--     falhava calado) ficava pagante no plano 'free' pra sempre.
+--
+--     Agora o resumo_slots chama isto antes de responder: na proxima vez que
+--     a pessoa abre o app, o plano dela se conserta sozinho.
+--
+--     NUNCA REBAIXA: se o plano pago ja esta valendo, a linha guardada e so
+--     descartada. Um pendente antigo nao pode derrubar um plano novo.
+-- ---------------------------------------------------------------------------
+create or replace function public.aplicar_acesso_pendente(p_usuario uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  perfil    public.perfis%rowtype;
+  pendente  public.acessos_pendentes%rowtype;
+begin
+  select * into perfil from public.perfis where id = p_usuario;
+  if perfil.id is null then
+    return jsonb_build_object('ok', false, 'motivo', 'sem_perfil');
+  end if;
+
+  select * into pendente
+  from public.acessos_pendentes
+  where email_normalizado = perfil.email_normalizado;
+
+  if pendente.email_normalizado is null then
+    return jsonb_build_object('ok', true, 'aplicou', false, 'motivo', 'nada_guardado');
+  end if;
+
+  if public.plano_pago_vale(perfil.plano, perfil.plano_expira_em) then
+    delete from public.acessos_pendentes where email_normalizado = perfil.email_normalizado;
+    return jsonb_build_object('ok', true, 'aplicou', false, 'motivo', 'ja_estava_pago',
+                              'plano', perfil.plano);
+  end if;
+
+  update public.perfis
+     set plano           = pendente.plano,
+         plano_expira_em = pendente.plano_expira_em,
+         plano_origem    = coalesce(pendente.origem, 'kiwify')
+   where id = p_usuario;
+
+  delete from public.acessos_pendentes where email_normalizado = perfil.email_normalizado;
+
+  return jsonb_build_object(
+    'ok', true,
+    'aplicou', true,
+    'plano', pendente.plano,
+    'vence_em', pendente.plano_expira_em,
+    'origem', coalesce(pendente.origem, 'kiwify')
+  );
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 7. O SALDO, PRONTO PRA TELA
---    Isto o app PODE chamar do navegador (e so leitura, e so do proprio dono).
---    Existe pra nao haver regra repetida em dois lugares: o saldo que a pessoa
---    ve vem da MESMA fonte que o servidor usa pra autorizar.
+--    Isto o app PODE chamar do navegador (e so do proprio dono). Fora do
+--    conserto do pagamento guardado (6b, que acontece uma vez na vida), e so
+--    leitura. Existe pra nao haver regra repetida em dois lugares: o saldo que
+--    a pessoa ve vem da MESMA fonte que o servidor usa pra autorizar.
 -- ---------------------------------------------------------------------------
 create or replace function public.resumo_slots(p_usuario uuid default auth.uid())
 returns jsonb
@@ -369,6 +431,10 @@ begin
   if auth.uid() is not null and p_usuario is distinct from auth.uid() then
     raise exception 'so da pra ver o proprio saldo';
   end if;
+
+  -- Pagamento que ficou preso na lista de espera entra AGORA, antes de a gente
+  -- ler o plano. Sem isto, quem pagou abria o app e via 'free' (ver 6b).
+  perform public.aplicar_acesso_pendente(p_usuario);
 
   select * into perfil from public.perfis where id = p_usuario;
   if perfil.id is null then
@@ -403,6 +469,7 @@ begin
     'ok', true,
     'plano', perfil.plano,
     'pago', pago,
+    'vence_em', perfil.plano_expira_em,
     'codigo_convite', perfil.codigo_convite,
     -- slots da casa (a nossa IA), que renovam todo dia
     'casa_total_dia',       teto_sites,
@@ -431,10 +498,12 @@ $$;
 revoke all on function public.usar_chave_da_casa(uuid, boolean)            from public, anon, authenticated;
 revoke all on function public.registrar_projeto(uuid, text, text, boolean) from public, anon, authenticated;
 revoke all on function public.resumo_slots(uuid)                           from public, anon;
+revoke all on function public.aplicar_acesso_pendente(uuid)                from public, anon, authenticated;
 
 grant execute on function public.usar_chave_da_casa(uuid, boolean)            to service_role;
 grant execute on function public.registrar_projeto(uuid, text, text, boolean) to service_role;
 grant execute on function public.resumo_slots(uuid)                           to authenticated, service_role;
+grant execute on function public.aplicar_acesso_pendente(uuid)                to service_role;
 grant execute on function public.limites_dos_slots()                          to anon, authenticated, service_role;
 grant execute on function public.hoje_br()                                    to anon, authenticated, service_role;
 
