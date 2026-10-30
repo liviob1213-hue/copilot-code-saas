@@ -1,8 +1,14 @@
 -- ===========================================================================
 --  LIBERAR UM PLANO PARA ALGUEM, PELO E-MAIL
 --  ---------------------------------------------------------------------
---  COMO USAR: troque as TRES primeiras linhas e clique em Run. So isso.
---  Supabase das CONTAS -> SQL Editor -> New query -> cole tudo -> Run.
+--  COMO USAR: Supabase das CONTAS -> SQL Editor -> New query -> cole ESTE
+--  ARQUIVO INTEIRO (do começo ao fim) -> troque as tres linhas marcadas la
+--  embaixo -> Run.
+--
+--  ATENCAO: COLAR SO AS TRES LINHAS NAO LIBERA NADA. Elas apenas anotam o
+--  e-mail e o plano; quem grava o acesso e o bloco "do $$" que vem depois.
+--  Se o resultado vier so com uma coluna "set_config" e o numero 1, foi isso
+--  que aconteceu: faltou colar o resto.
 --
 --  Serve para:
 --    - consertar um pagamento que a Kiwify nao avisou direito

@@ -158,15 +158,18 @@ perfil ficava pagante no plano grátis pra sempre. Depois do SQL, o plano se
 conserta sozinho na próxima vez que a pessoa abre o app.
 
 **O jeito mais rápido de liberar um cliente:** Supabase → SQL Editor → New
-query → cole `supabase/liberar-acesso.sql`. Troque as **três primeiras linhas**
-(e-mail, plano, quantos meses) e clique em Run. Não precisa de login, nem de
-deploy, nem da página de admin. Exemplo para dar o Básico mensal:
+query → cole **o arquivo `supabase/liberar-acesso.sql` INTEIRO**, do começo ao
+fim. Depois troque, lá em cima, só estas três linhas — e clique em Run:
 
 ```sql
 select set_config('prumo.email', 'cliente@gmail.com', false);
 select set_config('prumo.plano', 'basico', false);
 select set_config('prumo.meses', '1', false);
 ```
+
+> ⚠️ **Colar só essas três linhas não libera nada.** Elas apenas anotam o
+> e-mail e o plano; quem grava o acesso é o resto do arquivo. O sinal de que
+> isso aconteceu é o resultado vir só com uma coluna `set_config` e o número 1.
 
 > Use o e-mail **com que a pessoa entra no app**, não o da compra. Quando os
 > dois são diferentes, é justamente isso que a deixou sem o plano.
